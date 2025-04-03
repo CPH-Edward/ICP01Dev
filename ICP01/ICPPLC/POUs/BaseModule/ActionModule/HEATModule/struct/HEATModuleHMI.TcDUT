@@ -1,0 +1,57 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="HEATModuleHMI" Id="{8bc1d9d4-38de-4524-bf30-c9656931329c}">
+    <Declaration><![CDATA[{attribute 'pack_mode' := 1}
+TYPE HEATModuleHMI :
+STRUCT
+	// Aiko
+	bHeat			:BOOL:=FALSE;// 加热停止一个按钮，根据状态决定是否加热等操作
+	oheatStart		:BOOL;// 加热输出
+	iheatStart		:BOOL;// 加热反馈
+//control signal or data
+	heat			: BOOL:=FALSE;// 加热中
+	ATLearning		: BOOL:=FALSE;// 参数自学习
+	manuleHeat		: BOOL:=FALSE;// 手动加热
+	reset			: BOOL:=FALSE;// 复位信号
+	stop			: BOOL:=FALSE;// 停止信号
+	power			: BOOL:=TRUE;//  no power, two relay will lost power
+
+//monitor	
+	status_PV			:REAL;// 温控反馈测量值
+	status_MV			:INT;// 温控反馈Manul设定值
+	status_P			:INT;// 温控反馈P参数
+	status_I			:INT;// 温控反馈I参数
+	status_D			:REAL;// 温控反馈D参数
+	
+	heatDoneCheckMaxTime:DINT:=300;// 加热完成检测超时时间,单位秒S
+//state
+	ctrl_heatStart		: BOOL;//bit0 开始加热
+	ctrl_heatATStart	: BOOL;//bit2 100%AT实行中
+	ctrl_heatATStop		: BOOL;//bit4 AT取消
+	ctrl_heatAuto		: BOOL;//bit5 0: Auto,1: Manul
+	
+	para_Manual_MV		:INT;// 手动MV
+	para_SV				:REAL;// 温度设定值
+	para_P				:INT;// 温控P参数
+	para_I				:INT;// 温控I参数
+	para_D				:REAL;// 温控D参数
+	para_HLimit			:REAL;// 温控报警上限参数
+	para_LLimit			:REAL;// 温控报警下限参数
+	
+	para_setTOffset		:REAL:=1.0;// 温控偏差
+	
+	HMIEnable		: BOOL:=TRUE;
+	busy			: BOOL;// 加热中 
+	done			: BOOL;
+	error			: BOOL;
+	errID			: DINT;
+	nameTXT			: STRING;
+	errTXT			: STRING;
+END_STRUCT
+END_TYPE
+(*
+按照字节对齐规则，将变量按字节大小按顺序定义，用于ADS读取
+*)
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

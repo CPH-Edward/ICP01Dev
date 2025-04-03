@@ -1,0 +1,1452 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="TMPModule" Id="{6baba69e-77ae-460d-81d0-6e9a37088e0d}" SpecialFunc="None">
+    <Declaration><![CDATA[(*
+--报错编号0: 无报错
+--报错编号1: openend Error
+--报错编号2: closeract Error
+*)
+FUNCTION_BLOCK TMPModule
+VAR_IN_OUT
+	WarmHMI					:WARMStruct;
+	NoteHMI					:NoteStruct;
+	operatorLog				:printLogModule_EX;
+END_VAR
+VAR_INPUT
+	HMIItf						:TMPHMIStruts;//每个分子泵对象都关联了一个HMI
+	TMPType						:TMPType:=TMPType_Default;//设置分子泵的类型
+	real_TimeMonitor			:BOOL:=TRUE;//实时状态检测
+	real_TimeMonitorClose		:BOOL:=FALSE;//实时状态检测关机
+	runTime						: LINT;// 运行时间
+	
+	open						:BOOL:=FALSE;//启动触发信号
+	openCondition				:BOOL:=TRUE;//启动条件
+	close						:BOOL:=FALSE;//停止触发信号
+	closeCondition				:BOOL:=TRUE;//停止条件
+	reset						:BOOL:=FALSE;//复位信号
+	stop						:BOOL:=FALSE;//停止信号
+	power						:BOOL:=TRUE;//分子泵动作后是否关闭继电器得电状态, TRUE--保持得电,FALSE--断开得电
+	enable						:BOOL:=TRUE;//分子泵禁用条件
+	//ctrlMode					:ControlMode:=ControlMode.eManualCtrMode;//eManualCtrMode or eAutoCtrMode
+	hmiEN						:BOOL:=TRUE;//HMI 启用条件
+	serialExcute				:BOOL;// RS485开始一次参数读取
+	
+	errorDelayTime				:TIME:=T#5000MS;//分子泵感应器感应超时
+	
+	ACCMaxtime					:TIME:=T#3600S;// 分子泵加速最大时间
+	DCCMaxtime					:TIME:=T#3600S;// 分子泵减速最大时间
+	
+	doneDelayTimeShortopenend	:TIME:=T#100MS;//分子泵启动感应到位延时_伸出
+	doneDelayTimeShortcloseract	:TIME:=T#50MS;//分子泵感应到位延时_收回
+	doneDelayTimeLongopenend	:TIME:=T#500MS;//无分子泵感应到位延时_伸出
+	doneDelayTimeLongcloseract	:TIME:=T#50MS;//无分子泵感应到位延时_收回
+	errorID						:UDINT:=0;//分子泵错误报警分配的起始ID
+	nameTXT						:STRING(255):='';//分子泵名字
+	
+	AccAprSw					:BOOL:=FALSE;// 分子泵加速启动信号,需要链接到实际的IO点
+	NormalAprSw					:BOOL:=FALSE;// 分子泵匀速感应器信号,需要链接到实际的IO点
+	DccAprSw					:BOOL:=FALSE;// 分子泵减速感应器信号,需要链接到实际的IO点
+	AlmAprSw					:BOOL:=FALSE;// 分子泵报警感应器信号,需要链接到实际的IO点
+	ErrorAprSw					:BOOL:=FALSE;// 分子泵报错感应器信号,需要链接到实际的IO点
+	enableOpenAprSw				:BOOL:=TRUE;// 启用启动感应器,针对只有一个传感器的分子泵
+	enableCloseAprSw			:BOOL:=TRUE;// 启用停止感应器,针对只有一个传感器的分子泵
+	
+	mainPower					:BOOL;// 分子泵主电源
+	temperature					:REAL;//分子泵温度
+	current						:REAL;//分子泵电流
+	speed						:REAL;//分子泵转速
+	serialSlaveID				:UINT;// 分子泵ID
+	serialError					:BOOL;// 分子泵通讯错误
+	noteWTXT_open				:WSTRING(255):="";//分子泵打开动作NoteTXT 中文
+	noteWTXT_close				:WSTRING(255):="";//分子泵关闭动作NoteTXT 中文
+END_VAR
+VAR_OUTPUT
+	note_open				:BOOL;// 开条件不满足提示
+	note_close				:BOOL;// 关条件不满足提示
+	openRelay				:BOOL:=FALSE;// 分子泵启动执行继电器,需要链接到实际的IO点
+	closeRelay				:BOOL:=FALSE;// 分子泵停止执行继电器,需要链接到实际的IO点
+	resetRelay				:BOOL:=FALSE;// 分子泵复位执行继电器,需要链接到实际的IO点
+	
+	busy					:BOOL;//分子泵动作Busy状态
+	openbusy				:BOOL;// 分子泵开动作Busy状态
+	closebusy				:BOOL;// 分子泵关动作Busy状态
+	resetbusy				:BOOL;// 分子泵关动作Busy状态
+	done					:BOOL;//分子泵动作Done状态
+	opendone					:BOOL;//分子泵动作伸出完成
+	closedone					:BOOL;//分子泵动作收回完成
+	resetdone					:BOOL;//分子泵动作收回完成
+	error					:BOOL;//分子泵动作error状态
+	errID					:UDINT;//分子泵动作errID
+	errTXT					:STRING(255):='';//分子泵动作errTXT
+	errWTXT					:WSTRING(255):="";//分子泵动作errTXT 中文
+END_VAR
+	
+VAR	
+	resetflag:BOOL;
+	runTON			: TON;
+	openErrorDelayTon		:Ton;
+	openDoneDelayTon			:Ton;
+	closeErrorDelayTon		:Ton;
+	closeDoneDelayTon			:Ton;
+	
+	extendTrigRAlc			:R_Trig;//上升沿触发
+	runTimeClearR			:R_Trig;//上升沿触发
+	
+	singleControlR			:R_Trig;//上升沿触发
+	singleControlF			:F_Trig;//上升沿触发
+	
+	
+	openendTrigRAlc			:R_Trig;//上升沿触发
+	
+	openendTrigR1			:R_Trig;//上升沿触发
+	openendTrigR1_Aiko		:R_Trig;//上升沿触发
+	closeractTrigR1			:R_Trig;//上升沿触发
+	resetTrigR1				:R_Trig;//上升沿触发
+	stopTrigR1				:R_Trig;//上升沿触发
+	powerTrigR1				:R_Trig;//上升沿触发
+	
+	openStep				:UINT:=0;
+	closeStep				:UINT:=0;
+	errorStep				:UINT:=0;
+	
+	resetRelayTON			:TON;
+	resetRecoverTON			:TON;
+	resetRelayTONTime		:TIME:=T#0.5S;
+	resetRecoverTime		:TIME:=T#1S;
+	
+	notBusyMonitorDelayTon:TON;//动作不切换时，延迟检测
+	notBusyMonitorDelayTime:TIME:=T#2S;//动作不切换延迟检测时间
+	firstPower			    :BOOL:=TRUE;//首次上电标志位
+	
+	AccFTrig:F_TRIG;//检测加速信号下降延
+	NormalRTrig:R_TRIG;//匀速上升沿
+	DccFTrig:F_TRIG;// 检测减速信号下降延
+	noteTON_P:tON;            // 操作提示标志位延时继电器
+	noteTON_N:tON;            // 操作提示标志位延时继电器
+	noteRTrig_P:R_TRIG;          // 操作提示
+	noteRTrig_N:R_TRIG;          // 操作提示
+	powerTon:TON;
+	extRealayRtrig:R_TRIG;
+	retRealayRtrig:R_TRIG;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[Init_ACT();
+Error_ACT();
+Open_ACT();
+Close_ACT();
+Reset_ACT();
+Error_ACT();
+]]></ST>
+    </Implementation>
+    <Folder Name="Error" Id="{f64ef47a-b080-4c05-b133-2494b64fc989}" />
+    <Folder Name="Private" Id="{673ac547-7f35-43c4-b2b2-aceeb916e959}" />
+    <Method Name="Act_Close" Id="{a66ae27f-11d5-4259-b17a-82cc727375af}">
+      <Declaration><![CDATA[(*
+触发缩回动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Close : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND closeCondition THEN// AND NOT busy
+	Act_Close:=close:=TRUE;
+ELSE
+	Act_Close:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Open" Id="{7f9b7eae-8b33-4d5e-8bec-2853337757c1}">
+      <Declaration><![CDATA[(*
+触发伸出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Open : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND openCondition THEN// AND NOT busy
+	Act_Open:=open:=TRUE;
+ELSE
+	Act_Open:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Reset" Id="{b932da9c-a297-4f0b-83f7-19e7775481a9}">
+      <Declaration><![CDATA[(*
+触发复位报警动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Reset : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Reset:=reset:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_SerialSend" Id="{3f761ae8-f782-460c-860f-bc805c20ea8b}">
+      <Declaration><![CDATA[(*
+触发发送动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_SerialSend : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF TRUE THEN
+	Act_SerialSend:=serialExcute:=TRUE;
+ELSE
+	Act_SerialSend:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Stop" Id="{7de110f1-3fe7-4c7b-96e6-46cb0abff4df}">
+      <Declaration><![CDATA[(*
+触发停止输出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Stop : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Stop:=stop:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Close_ACT" Id="{5e55fd57-ff47-4387-bcc7-d617d0ef8f32}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//分子泵--close 触发
+IF close AND NOT closeCondition THEN
+	note_open:=FALSE;
+	note_close:=TRUE;
+	NoteHMI.showFlag:=TRUE;
+	NoteHMI.showText:='';
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,nameTXT);
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,' Close Condition Not Satisfied!');
+	operatorLog.append(CONCAT(nameTXT,' Close Not Done '));
+END_IF
+IF close AND enable AND closeCondition AND closeStep<20 THEN// AND NOT busy
+	note_open:=FALSE;
+	note_close:=FALSE;
+	busy:=TRUE;
+	closebusy:=TRUE;
+	openbusy:=FALSE;
+	resetbusy:=FALSE;
+	open:=FALSE;
+	reset:=FALSE;
+	resetdone:=FALSE;
+	opendone:=FALSE;
+	closedone:=FALSE;
+	openStep:=0;
+	closeStep:=10;
+	closeStep:=10;
+	gTBPStopLoopRead:=TRUE;
+	FuncModule_RS232_TBP.Interface_Stop();
+	FuncModule_RS232_TBP.startStep:=0;
+	FuncModule_RS232_TBP.stopStep:=0;
+	FuncModule_RS232_TBP.resetStep:=0;
+	operatorLog.append(CONCAT(nameTXT,' Close Done '));
+	//errorStep:=0;
+END_IF
+close:=FALSE;
+
+CASE closeStep OF
+0:
+	//ready
+	
+10:
+	IF FuncModule_RS232_TBP.loopReadStep<10 AND FuncModule_RS232_TBP.startStep<10 
+	   AND FuncModule_RS232_TBP.resetStep<10 THEN
+		closeErrorDelayTon(IN:=FALSE);
+		closeDoneDelayTon(IN:=FALSE);
+		closeRelay:=TRUE;
+		openRelay:=FALSE;
+		closeStep:=15;
+	END_IF;
+15:
+	IF FuncModule_RS232_TBP.stopDone THEN
+		closeStep:=20;
+		gTBPStopLoopRead:=FALSE;
+		RETURN;
+	END_IF
+	IF FuncModule_RS232_TBP.stopError THEN
+		errorStep:=2;
+		open:=FALSE;
+		close:=FALSE;
+		reset:=FALSE;
+		openbusy:=FALSE;
+		closebusy:=FALSE;
+		resetbusy:=FALSE;
+		closeStep:=60;
+		gTBPStopLoopRead:=FALSE;
+		RETURN;
+	END_IF
+20:
+	IF NOT DccAprSw AND NOT openRelay AND NOT NormalAprSw AND NOT AccAprSw AND speed<5 THEN
+		closeStep:=40;
+	ELSE
+		closeErrorDelayTon(IN:=(NOT DccAprSw AND enablecloseAprSw),PT:=errorDelayTime);
+		IF closeErrorDelayTon.Q THEN
+			//done:=FALSE;
+			opendone:=FALSE;
+			closedone:=FALSE;
+			resetdone:=FALSE;
+			errorStep:=2;
+			closebusy:=FALSE;
+			openbusy:=FALSE;
+			resetbusy:=FALSE;
+			closeStep:=60;
+			RETURN;
+		END_IF
+		IF enablecloseAprSw THEN
+			closeDoneDelayTon(IN:=DccAprSw,PT:=doneDelayTimeShortcloseract);
+		END_IF
+		IF closeDoneDelayTon.Q OR (DccAprSw AND NOT openRelay AND NOT NormalAprSw AND NOT AccAprSw)  THEN
+			closeErrorDelayTon(IN:=FALSE);
+			closeDoneDelayTon(IN:=FALSE);
+			closeStep:=30;
+		END_IF
+	END_IF
+30:
+	closeErrorDelayTon(IN:=DccAprSw,PT:=DCCMaxtime);
+	IF closeErrorDelayTon.Q THEN
+		//done:=FALSE;
+		opendone:=FALSE;
+		closedone:=FALSE;
+		resetdone:=FALSE;
+		closeStep:=60;
+		openRelay:=FALSE;
+		errorStep:=2;
+		closebusy:=FALSE;
+		openbusy:=FALSE;
+		resetbusy:=FALSE;
+		closeErrorDelayTon(IN:=FALSE);
+	END_IF
+	DccFTrig(CLK:=DccAprSw );
+	IF DccFTrig.Q OR (NOT DccAprSw AND NOT openRelay AND NOT NormalAprSw AND NOT AccAprSw) THEN
+		closeStep:=40;
+		closeErrorDelayTon(IN:=FALSE);
+	END_IF
+40:
+	IF NOT DccAprSw AND NOT NormalAprSw THEN
+		IF NOT AccAprSw AND speed<5 THEN
+			busy:=FALSE;
+			closebusy:=FALSE;
+			openbusy:=FALSE;
+			resetbusy:=FALSE;
+			//done:=TRUE;
+			opendone:=FALSE;
+			closedone:=TRUE;
+			resetdone:=FALSE;
+			errorStep:=0;
+			closeStep:=50;
+			IF NOT power (*AND NOT (CylinderType_Vacuum=cylinderType)*) THEN
+				openRelay:=FALSE;
+				closeRelay:=FALSE;
+			END_IF
+			closeRelay:=FALSE;
+		ELSE
+			busy:=FALSE;
+			closebusy:=FALSE;
+			openbusy:=FALSE;
+			resetbusy:=FALSE;
+			//done:=TRUE;
+			opendone:=FALSE;
+			closedone:=FALSE;
+			resetdone:=FALSE;
+			errorStep:=3;
+			closebusy:=FALSE;
+			openbusy:=FALSE;
+			resetbusy:=FALSE;
+			closeStep:=60;
+		END_IF
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Error_ACT" Id="{fa953182-2a8a-4347-b8b1-e79311381482}" FolderPath="Error\">
+      <Implementation>
+        <ST><![CDATA[CASE errorStep OF
+	0:
+		error:=FALSE;
+		errID:=0;
+		errTXT:='';
+ (*
+	1:
+		error:=TRUE;
+		errID:=errorID+errorStep;
+		errTXT:=CONCAT(STR1:=nameTXT,STR2:=' Extend Error!');
+		errWTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 伸出(打开)错误");
+	2:
+		error:=TRUE;
+		errID:=errorID+errorStep;
+		errTXT:=CONCAT(STR1:=nameTXT,STR2:=' Retract Error!');
+		errWTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 缩回(关闭)错误");
+		*)
+	1..6:
+		error:=TRUE;
+		errID:=getErrID(errorStep);
+		errTXT:=getErrTXT(errorStep);
+		errWTXT:=getErrWTXT(errorStep);
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="Get_Done_Close" Id="{c842379c-c0dd-4aca-a09f-75565b2022bd}">
+      <Declaration><![CDATA[METHOD Get_Done_Close : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_Close:=closedone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_Done_Open" Id="{db2beed5-5dff-4d18-97b8-e697d057e012}">
+      <Declaration><![CDATA[METHOD Get_Done_Open : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_Open:=opendone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrID" Id="{e2790c0f-03ec-4dfc-8262-c95b387c7ddb}">
+      <Declaration><![CDATA[METHOD getErrID : UDINT
+VAR_INPUT
+	errID					:UDINT;//取值范围1~2
+END_VAR
+VAR
+	nErrID					:UDINT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[nErrID:=errorID+errID;
+
+getErrID:=nErrID;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrTXT" Id="{eb2626e7-734a-48c9-905f-cb69def4d0ea}">
+      <Declaration><![CDATA[METHOD getErrTXT : STRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~2
+END_VAR
+VAR
+	sErrTXT					:STRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Open Error!');
+	2:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Close Error!');
+	3:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' NormalRun Error!');
+	4:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' CheckCondition Error!');
+	5:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' IO Fault!');
+	6:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Communication Error!');
+ELSE
+	sErrTXT:=CONCAT(STR1:=nameTXT,STR2:='');
+END_CASE
+getErrTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrWTXT" Id="{93b748bf-f6d6-4a97-8e63-ca6bd2b57c71}">
+      <Declaration><![CDATA[METHOD getErrWTXT : WSTRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~16
+END_VAR
+VAR
+	sErrTXT					:WSTRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 分子泵启动错误");
+	2:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 分子泵停止错误");
+	3:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 分子泵正常运行出现异常情况");
+	4:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 检测到条件异常，关机处理");
+	5:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 分子泵IO报错");
+	6:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 分子泵通讯异常");
+ELSE
+	sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:="");
+END_CASE
+getErrWTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Init_ACT" Id="{9b5f530e-c679-4a80-bae2-b11ce0f3919e}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[done:=(opendone OR closedone);
+powerTon(IN:=mainPower,PT:=T#10S);
+IF AlmAprSw AND powerTon.Q THEN
+	errorStep:=5;
+END_IF
+IF FuncModule_RS232_TBP.serialTimeoutError THEN
+	errorStep:=6;
+END_IF
+error:=error OR serialError OR NOT mainPower OR AlmAprSw;
+InitHMI_ACT();
+manualCtrl_ACT();
+IF (error OR AlmAprSw OR ErrorAprSw) AND openRelay THEN
+	stop:=TRUE;
+	busy:=FALSE;
+	openRelay:=FALSE;
+END_IF
+
+noteTON_P(IN:=note_open,PT:=T#0.1S);
+noteRTrig_P(CLK:=noteTON_P.Q);
+IF noteRTrig_P.Q THEN
+//	gLog_Note.append_EX(noteWTXT_Open);
+END_IF
+noteTON_N(IN:=note_close,PT:=T#0.1S);
+noteRTrig_N(CLK:=noteTON_N.Q);
+IF noteRTrig_N.Q THEN
+//	gLog_Note.append_EX(noteWTXT_close);
+END_IF
+extRealayRtrig(CLK:=openRelay);
+IF extRealayRtrig.Q THEN
+	HMIItf.singleControl:=TRUE;
+END_IF
+retRealayRtrig(CLK:=NOT openRelay);
+IF retRealayRtrig.Q THEN
+	HMIItf.singleControl:=FALSE;
+END_IF
+IF NOT gICP.TruboPumNoRotation AND FuncModule_RS232_TBP.serialConnected AND firstPower AND NOT HMIItf.singleControl THEN
+	HMIItf.singleControl:=TRUE;
+	openRelay:=TRUE;
+	firstPower:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="InitHMI_ACT" Id="{a946ebe6-050a-4e53-89ff-ae2cc975628e}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[HMIItf.AccAprSw:=AccAprSw;
+HMIItf.NormalAprSw:=NormalAprSw;
+HMIItf.AlmAprSw:=AlmAprSw;
+HMIItf.DccAprSw:=DccAprSw;
+HMIItf.ErrorAprSw:=ErrorAprSw;
+
+HMIItf.temperature:=temperature;
+HMIItf.current:=current;
+HMIItf.speed:=speed;
+
+HMIItf.enableOpen:=enableOpenAprSw;
+HMIItf.enableClose:=enableCloseAprSw;
+HMIItf.HMIEnable:=hmiEN;
+HMIItf.enable:=enable;
+HMIItf.done:=done;
+HMIItf.busy:=busy;
+HMIItf.error:=error;
+HMIItf.errID:=UDINT_TO_DINT(errID);
+HMIItf.errTXT:=errTXT;
+HMIItf.openRelay:=openRelay;
+HMIItf.resetRelay:=resetRelay;
+
+HMIItf.power:=power;
+HMIItf.nameTXT:=nameTXT;
+
+HMIItf.runTime:=runTime;
+HMIItf.opencondition:=openCondition;
+HMIItf.closecondition:=closeCondition;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ManualCtrl_ACT" Id="{38ac8e6a-d434-4825-969c-181cc0ba4a08}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//HMI手动控制
+//IF ctrlMode=eManualCtrMode THEN
+IF hmiEN THEN
+	singleControlR(CLK:=HMIItf.singleControltemp);
+	openendTrigR1_Aiko(CLK:=HMIItf.bopen);
+	IF (openendTrigR1_Aiko.Q OR (HMIItf.singleControltemp AND NOT HMIItf.singleControl)) THEN
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want to Open the ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,' ?');
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Open')>0 THEN
+		open:=TRUE;
+		close:=FALSE;
+		IF NOT HMIItf.singleControl AND openCondition THEN
+			HMIItf.singleControl:=NOT HMIItf.singleControl;
+		END_IF
+		operatorLog.append(CONCAT(nameTXT,' Open'));
+		WarmHMI.showText:='';
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Open')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	
+	IF (openendTrigR1_Aiko.Q OR (HMIItf.singleControltemp AND HMIItf.singleControl)) THEN
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want to Close the ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,' ?');
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Close')>0 THEN
+		close:=TRUE;
+		operatorLog.append(CONCAT(nameTXT,' Close'));
+		open:=FALSE;
+		IF HMIItf.singleControl AND closeCondition THEN
+			HMIItf.singleControl:=NOT HMIItf.singleControl;
+		END_IF
+		WarmHMI.showText:='';
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Close')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	
+	openendTrigR1(CLK:=HMIItf.open);
+	IF openendTrigR1.Q THEN// AND NOT busy
+		open:=TRUE;
+	END_IF
+	
+	closeractTrigR1(CLK:=HMIItf.close);
+	IF closeractTrigR1.Q THEN// AND NOT busy
+		close:=TRUE;
+	END_IF
+	
+	resetTrigR1(CLK:=HMIItf.reset);
+	IF resetTrigR1.Q THEN// AND NOT busy
+		reset:=TRUE;
+	END_IF
+	
+	stopTrigR1(CLK:=HMIItf.stop);
+	IF stopTrigR1.Q THEN// AND NOT busy
+		stop:=TRUE;
+	END_IF
+	
+	powerTrigR1(CLK:=HMIItf.power);
+	IF powerTrigR1.Q THEN// AND NOT busy
+		IF power THEN
+			power:=FALSE;
+		ELSE
+			power:=TRUE;
+		END_IF
+	END_IF
+	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Open_ACT" Id="{e8899267-da00-4b5c-890e-c68d293a23e1}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//分子泵伸出--open 触发
+IF open AND NOT openCondition THEN
+	note_open:=TRUE;
+	note_close:=FALSE;
+	NoteHMI.showFlag:=TRUE;
+	NoteHMI.showText:='';
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,nameTXT);
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,' Open Condition Not Satisfied!');
+	operatorLog.append(CONCAT(nameTXT,' Open Not Done '));
+END_IF
+IF open AND enable AND openCondition AND NOT AlmAprSw AND NOT ErrorAprSw AND NOT openbusy AND mainPower AND NOT resetRelay THEN// AND NOT busy
+	note_open:=FALSE;
+	note_close:=FALSE;
+	busy:=TRUE;
+	closebusy:=FALSE;
+	resetbusy:=FALSE;
+	openbusy:=TRUE;
+	close:=FALSE;
+	open:=FALSE;
+	reset:=FALSE;
+	done:=FALSE;
+	opendone:=FALSE;
+	closedone:=FALSE;
+	resetdone:=FALSE;
+	openStep:=10;
+	closeStep:=0;
+	gTBPStopLoopRead:=TRUE;
+	FuncModule_RS232_TBP.startStep:=0;
+	FuncModule_RS232_TBP.stopStep:=0;
+	FuncModule_RS232_TBP.resetStep:=0;
+	operatorLog.append(CONCAT(nameTXT,' Open Done '));
+END_IF
+open:=FALSE;
+runTimeClearR(CLK:=HMIItf.runTimeClear);
+runTON(IN:=NOT error AND openRelay AND(AccAprSw OR DccAprSw OR NormalAprSw) AND NOT runTON.Q, PT:=T#3600S);// 1小时计数一次,启动，无报错，且全速
+IF runTON.Q AND runTime<999999999999999 AND NOT runTimeClearR.Q THEN
+	runTime:=runTime+1;
+END_IF
+IF runTimeClearR.Q THEN
+	runTime:=0;
+END_IF
+//IF NOT openRelay AND NOT AccAprSw AND NOT DccAprSw AND NOT NormalAprSw THEN// 计数清零
+//	runTime:=0;
+//END_IF
+
+CASE openStep OF
+0:
+	//ready
+	runTON(IN:=FALSE);
+10:
+	IF FuncModule_RS232_TBP.loopReadStep<10
+	   AND FuncModule_RS232_TBP.stopStep<10 AND FuncModule_RS232_TBP.resetStep<10 THEN
+		openErrorDelayTon(IN:=FALSE);
+		openDoneDelayTon(IN:=FALSE);
+		openStep:=15;
+		openRelay:=TRUE;
+		FuncModule_RS232_TBP.Interface_Start();
+		openbusy:=FALSE;
+		closebusy:=FALSE;
+		resetbusy:=FALSE;
+		closeRelay:=FALSE;
+	END_IF
+15:
+	IF FuncModule_RS232_TBP.startDone THEN
+		openStep:=20;
+		gTBPStopLoopRead:=FALSE;
+		RETURN;
+	END_IF
+	IF FuncModule_RS232_TBP.startError THEN
+		errorStep:=1;
+		open:=FALSE;
+		close:=FALSE;
+		reset:=FALSE;
+		openbusy:=FALSE;
+		closebusy:=FALSE;
+		resetbusy:=FALSE;
+		openStep:=60;
+		gTBPStopLoopRead:=FALSE;
+		RETURN;
+	END_IF
+20:
+	openErrorDelayTon(IN:=((NOT AccAprSw AND NOT NormalAprSw) AND enableopenAprSw),PT:=errorDelayTime);
+	IF openErrorDelayTon.Q THEN
+		//done:=FALSE;
+		open:=FALSE;
+		close:=FALSE;
+		openbusy:=FALSE;
+		resetbusy:=FALSE;
+		closebusy:=FALSE;
+		resetbusy:=FALSE;
+		errorStep:=1;
+		openStep:=60;
+		RETURN;
+	END_IF
+	IF enableopenAprSw THEN
+		openDoneDelayTon(IN:=(AccAprSw OR NormalAprSw),PT:=doneDelayTimeShortopenend);
+	END_IF
+	IF openDoneDelayTon.Q THEN
+		openErrorDelayTon(IN:=FALSE);
+		openDoneDelayTon(IN:=FALSE);
+		openStep:=30;
+	END_IF
+	
+	//状态实时检测
+	IF NOT openCondition AND (NOT closedone OR openRelay) THEN//蝶阀单控，检测到开条件消失，强制关闭
+		close:=TRUE;
+		openRelay:=FALSE;
+		HMIItf.singleControltemp:=FALSE;
+		errorStep:=4;
+		openbusy:=FALSE;
+		closebusy:=FALSE;
+		resetbusy:=FALSE;
+		resetbusy:=FALSE;
+		openStep:=60;
+	END_IF
+	IF (ErrorAprSw OR AlmAprSw) AND openRelay THEN//只要报错；启动线圈启动，强锁启动信号
+		openRelay:=FALSE;
+		HMIItf.singleControltemp:=FALSE;
+		close:=TRUE;
+		stop:=TRUE;
+		openStep:=60;/////
+		errorStep:=3;
+		openbusy:=FALSE;
+		closebusy:=FALSE;
+		resetbusy:=FALSE;
+	END_IF
+30:
+	openErrorDelayTon(IN:=AccAprSw OR NormalAprSw,PT:=ACCMaxtime);
+	IF openErrorDelayTon.Q THEN
+		//done:=FALSE;
+		opendone:=FALSE;
+		closedone:=FALSE;
+		resetdone:=FALSE;
+		openStep:=60;
+		//openRelay:=FALSE;
+		errorStep:=1;
+		closebusy:=FALSE;
+		openbusy:=FALSE;
+		resetbusy:=FALSE;
+		openErrorDelayTon(IN:=FALSE);
+	END_IF
+	AccFTrig(CLK:=AccAprSw);
+	IF AccFTrig.Q OR NormalAprSw THEN
+		openStep:=40;
+		openErrorDelayTon(IN:=FALSE);
+	END_IF
+	//状态实时检测
+	IF NOT openCondition AND (NOT closedone OR openRelay) THEN//蝶阀单控，检测到开条件消失，强制关闭
+		close:=TRUE;
+		openRelay:=FALSE;
+		HMIItf.singleControltemp:=FALSE;
+		errorStep:=4;
+		openStep:=60;
+		closebusy:=FALSE;
+		openbusy:=FALSE;
+		resetbusy:=FALSE;
+	END_IF
+	IF (ErrorAprSw OR AlmAprSw) AND openRelay THEN//只要报错；启动线圈启动，强锁启动信号
+		openRelay:=FALSE;
+		HMIItf.singleControltemp:=FALSE;
+		close:=TRUE;
+		stop:=TRUE;
+		openStep:=60;/////
+		errorStep:=3;
+		closebusy:=FALSE;
+		openbusy:=FALSE;
+		resetbusy:=FALSE;
+	END_IF
+40:
+	IF NormalAprSw THEN
+		IF NOT DccAprSw AND NOT AccAprSw THEN
+			busy:=FALSE;
+			closebusy:=FALSE;
+			openbusy:=FALSE;
+			resetbusy:=FALSE;
+			//done:=TRUE;
+			opendone:=TRUE;
+			closedone:=FALSE;
+			resetdone:=FALSE;
+			errorStep:=0;
+			openStep:=50;
+			IF NOT power (*AND NOT (CylinderType_Vacuum=cylinderType)*) THEN
+				openRelay:=FALSE;
+				HMIItf.singleControltemp:=FALSE;
+				closeRelay:=FALSE;
+			END_IF
+		ELSE
+			busy:=FALSE;
+			closebusy:=FALSE;
+			openbusy:=FALSE;
+			resetbusy:=FALSE;
+			//done:=TRUE;
+			opendone:=FALSE;
+			resetdone:=FALSE;
+			closedone:=FALSE;
+			errorStep:=3;
+			openStep:=60;
+		END_IF
+	END_IF
+50:
+	IF real_TimeMonitor THEN
+		//启动实时检测
+		IF (enableOpenAprSw AND(NOT NormalAprSw)) AND openRelay THEN
+			errorStep:=1;
+			openRelay:=FALSE;
+			HMIItf.singleControltemp:=FALSE;
+			openStep:=60;
+			closebusy:=FALSE;
+			openbusy:=FALSE;
+			resetbusy:=FALSE;
+		END_IF
+//		IF NOT openCondition AND (NOT closedone OR openRelay) THEN//蝶阀单控，检测到开条件消失，强制关闭
+//			openRelay:=FALSE;
+//			HMIItf.singleControltemp:=FALSE;
+//			errorStep:=4;
+//			openStep:=60;
+//			closebusy:=FALSE;
+//			openbusy:=FALSE;
+//			resetbusy:=FALSE;
+//		END_IF
+		IF (ErrorAprSw OR AlmAprSw) AND openRelay THEN//只要报错；启动线圈启动，强锁启动信号
+			openRelay:=FALSE;
+			HMIItf.singleControltemp:=FALSE;
+			stop:=TRUE;
+			openStep:=60;/////
+			errorStep:=3;
+			closebusy:=FALSE;
+			openbusy:=FALSE;
+			resetbusy:=FALSE;
+		END_IF
+		IF real_TimeMonitorClose THEN
+			openRelay:=FALSE;
+			HMIItf.singleControltemp:=FALSE;
+			stop:=TRUE;
+			openStep:=60;/////
+			errorStep:=4;
+			closebusy:=FALSE;
+			openbusy:=FALSE;
+			resetbusy:=FALSE;
+		END_IF
+	END_IF
+60:
+	;//报错
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Reset_ACT" Id="{5b68e1a4-c8e6-407f-ad50-c3066b50a517}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[IF reset THEN
+	IF NOT power THEN
+		openRelay:=FALSE;
+		closeRelay:=FALSE;
+	END_IF
+	note_open:=FALSE;
+	note_close:=FALSE;
+	IF errorStep<>0 OR  AlmAprSw OR ErrorAprSw THEN
+		openStep:=0;
+		closeStep:=0;
+		errorStep:=0;
+		busy:=FALSE;
+		resetRelay:=TRUE;
+		gTBPStopLoopRead:=TRUE;
+	END_IF
+	reset:=FALSE;
+	note_open:=FALSE;
+	note_close:=FALSE;
+END_IF
+resetRelayTON(IN:=resetRelay AND FuncModule_RS232_TBP.loopReadStep=0, PT:=resetRelayTONTime);// 500MS 触发读写锁；
+IF resetRelayTON.Q THEN
+	openStep:=0;
+	closeStep:=0;
+	errorStep:=0;
+	busy:=FALSE;
+	resetRelay:=FALSE;
+	FuncModule_RS232_TBP.Interface_Reset();
+	resetflag:=TRUE;
+END_IF
+resetRecoverTON(IN:=resetflag , PT:=resetRecoverTime);// 1S后触发复位
+IF resetRecoverTON.Q THEN
+	resetflag:=FALSE;;
+	gTBPStopLoopRead:=FALSE;
+	resetRelay:=FALSE;
+END_IF
+IF stop THEN
+	note_open:=FALSE;
+	note_close:=FALSE;
+	stop:=FALSE;
+	openRelay:=FALSE;
+	closeRelay:=FALSE;
+	//无自锁检测说法，直接停
+	openStep:=0;
+	closeStep:=0;
+	gTBPStopLoopRead:=TRUE;
+	FuncModule_RS232_TBP.Interface_Stop();
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="VersionLog" Id="{0d739161-9740-4dfd-9e0e-4cee28fe7000}">
+      <Implementation>
+        <ST><![CDATA[(*
+版本: V1.0.0.0
+说明:
+	1. 首个版本
+	2. 含普通分子泵\泵组类型的控制
+	3. 可配置是否有到位信号, 以及到位稳定时间
+(--------------------------------------------------)
+新版本: V1.0.1.0
+更新时间: 2019/11/20 19:00
+更新说明:
+	1. 优化编写方式
+	2. 修改错误编码起始位，现改为从1开始
+(--------------------------------------------------)
+新版本: V1.0.1.1
+更新时间: 2020/03/23 23:00
+更新说明:
+	1. 优化报错方式
+	2. 增加伸出、缩回、复位和停止触发函数
+(--------------------------------------------------)
+新版本: V1.0.1.2
+更新时间: 2020/04/22 09:50
+更新说明:
+	1. 增加中文报警输出
+(--------------------------------------------------)
+新版本: V1.0.1.3
+更新时间: 2020/09/16
+更新说明:
+	1. 开放错误ID、错误文本信息获取接口
+(--------------------------------------------------)
+新版本: V1.0.1.4
+更新时间: 2020/10/06
+更新说明:
+	1. 移除控制模式变量，增加HMI启用条件
+	2. 增加外部获取伸出缩回完成信号接口函数
+(--------------------------------------------------)
+新版本: V1.0.1.5
+更新时间: 2020/10/14
+更新说明:
+	1. 优化代码
+(--------------------------------------------------)
+新版本: V2.0.1.0
+更新时间: 2023/11/17
+更新说明:
+	1. 分子泵控制独立
+(--------------------------------------------------)
+
+
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="TMPModule">
+      <LineId Id="589" Count="2" />
+      <LineId Id="735" Count="0" />
+      <LineId Id="593" Count="1" />
+      <LineId Id="576" Count="0" />
+    </LineIds>
+    <LineIds Name="TMPModule.Act_Close">
+      <LineId Id="22" Count="3" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="TMPModule.Act_Open">
+      <LineId Id="22" Count="3" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="TMPModule.Act_Reset">
+      <LineId Id="5" Count="1" />
+    </LineIds>
+    <LineIds Name="TMPModule.Act_SerialSend">
+      <LineId Id="22" Count="3" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="TMPModule.Act_Stop">
+      <LineId Id="6" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="TMPModule.Close_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="148" Count="2" />
+      <LineId Id="234" Count="2" />
+      <LineId Id="233" Count="0" />
+      <LineId Id="243" Count="0" />
+      <LineId Id="147" Count="0" />
+      <LineId Id="3" Count="0" />
+      <LineId Id="151" Count="1" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="135" Count="1" />
+      <LineId Id="186" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="191" Count="0" />
+      <LineId Id="179" Count="0" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="178" Count="0" />
+      <LineId Id="8" Count="1" />
+      <LineId Id="242" Count="0" />
+      <LineId Id="193" Count="0" />
+      <LineId Id="241" Count="0" />
+      <LineId Id="194" Count="1" />
+      <LineId Id="192" Count="0" />
+      <LineId Id="244" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="10" Count="7" />
+      <LineId Id="196" Count="1" />
+      <LineId Id="200" Count="2" />
+      <LineId Id="208" Count="0" />
+      <LineId Id="198" Count="1" />
+      <LineId Id="211" Count="2" />
+      <LineId Id="232" Count="0" />
+      <LineId Id="214" Count="5" />
+      <LineId Id="225" Count="0" />
+      <LineId Id="220" Count="3" />
+      <LineId Id="229" Count="0" />
+      <LineId Id="224" Count="0" />
+      <LineId Id="237" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="154" Count="0" />
+      <LineId Id="157" Count="1" />
+      <LineId Id="160" Count="4" />
+      <LineId Id="187" Count="0" />
+      <LineId Id="165" Count="2" />
+      <LineId Id="185" Count="0" />
+      <LineId Id="230" Count="0" />
+      <LineId Id="168" Count="8" />
+      <LineId Id="159" Count="0" />
+      <LineId Id="156" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="105" Count="4" />
+      <LineId Id="188" Count="0" />
+      <LineId Id="112" Count="0" />
+      <LineId Id="114" Count="0" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="143" Count="1" />
+      <LineId Id="184" Count="0" />
+      <LineId Id="116" Count="0" />
+      <LineId Id="104" Count="0" />
+      <LineId Id="99" Count="2" />
+      <LineId Id="115" Count="0" />
+      <LineId Id="98" Count="0" />
+      <LineId Id="97" Count="0" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="137" Count="1" />
+      <LineId Id="181" Count="0" />
+      <LineId Id="62" Count="2" />
+      <LineId Id="189" Count="0" />
+      <LineId Id="65" Count="0" />
+      <LineId Id="102" Count="0" />
+      <LineId Id="66" Count="2" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="72" Count="0" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="139" Count="1" />
+      <LineId Id="182" Count="0" />
+      <LineId Id="75" Count="2" />
+      <LineId Id="190" Count="0" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="145" Count="1" />
+      <LineId Id="183" Count="0" />
+      <LineId Id="103" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="56" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="TMPModule.Error_ACT">
+      <LineId Id="1" Count="0" />
+      <LineId Id="15" Count="2" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="12" Count="2" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="18" Count="2" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="27" Count="4" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="3" Count="0" />
+    </LineIds>
+    <LineIds Name="TMPModule.Get_Done_Close">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="TMPModule.Get_Done_Open">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="TMPModule.getErrID">
+      <LineId Id="22" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="TMPModule.getErrTXT">
+      <LineId Id="22" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="66" Count="1" />
+      <LineId Id="74" Count="1" />
+      <LineId Id="82" Count="1" />
+      <LineId Id="90" Count="1" />
+      <LineId Id="40" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="TMPModule.getErrWTXT">
+      <LineId Id="21" Count="2" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="81" Count="1" />
+      <LineId Id="89" Count="1" />
+      <LineId Id="97" Count="1" />
+      <LineId Id="105" Count="1" />
+      <LineId Id="55" Count="3" />
+      <LineId Id="14" Count="0" />
+    </LineIds>
+    <LineIds Name="TMPModule.Init_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="23" Count="2" />
+      <LineId Id="35" Count="2" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="3" Count="0" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="4" Count="1" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="11" Count="1" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="13" Count="3" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="17" Count="1" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="28" Count="6" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="38" Count="1" />
+      <LineId Id="42" Count="1" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="TMPModule.InitHMI_ACT">
+      <LineId Id="16" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="18" Count="2" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="24" Count="1" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="4" Count="1" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="6" Count="6" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="13" Count="1" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="29" Count="0" />
+    </LineIds>
+    <LineIds Name="TMPModule.ManualCtrl_ACT">
+      <LineId Id="2" Count="1" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="82" Count="0" />
+      <LineId Id="71" Count="1" />
+      <LineId Id="85" Count="3" />
+      <LineId Id="84" Count="0" />
+      <LineId Id="75" Count="0" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="116" Count="1" />
+      <LineId Id="133" Count="2" />
+      <LineId Id="139" Count="0" />
+      <LineId Id="108" Count="5" />
+      <LineId Id="115" Count="0" />
+      <LineId Id="105" Count="1" />
+      <LineId Id="77" Count="0" />
+      <LineId Id="95" Count="3" />
+      <LineId Id="94" Count="0" />
+      <LineId Id="76" Count="0" />
+      <LineId Id="119" Count="1" />
+      <LineId Id="138" Count="0" />
+      <LineId Id="130" Count="0" />
+      <LineId Id="136" Count="1" />
+      <LineId Id="132" Count="0" />
+      <LineId Id="122" Count="5" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="118" Count="0" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="4" Count="27" />
+      <LineId Id="70" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="TMPModule.Open_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="249" Count="0" />
+      <LineId Id="253" Count="0" />
+      <LineId Id="256" Count="0" />
+      <LineId Id="339" Count="2" />
+      <LineId Id="338" Count="0" />
+      <LineId Id="342" Count="0" />
+      <LineId Id="251" Count="0" />
+      <LineId Id="3" Count="0" />
+      <LineId Id="246" Count="0" />
+      <LineId Id="248" Count="0" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="206" Count="0" />
+      <LineId Id="307" Count="0" />
+      <LineId Id="207" Count="0" />
+      <LineId Id="5" Count="1" />
+      <LineId Id="314" Count="0" />
+      <LineId Id="109" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="305" Count="0" />
+      <LineId Id="8" Count="1" />
+      <LineId Id="257" Count="0" />
+      <LineId Id="271" Count="2" />
+      <LineId Id="343" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="242" Count="0" />
+      <LineId Id="212" Count="3" />
+      <LineId Id="243" Count="2" />
+      <LineId Id="216" Count="2" />
+      <LineId Id="239" Count="0" />
+      <LineId Id="13" Count="4" />
+      <LineId Id="261" Count="0" />
+      <LineId Id="270" Count="0" />
+      <LineId Id="262" Count="3" />
+      <LineId Id="268" Count="0" />
+      <LineId Id="266" Count="1" />
+      <LineId Id="308" Count="0" />
+      <LineId Id="258" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="274" Count="2" />
+      <LineId Id="329" Count="0" />
+      <LineId Id="280" Count="0" />
+      <LineId Id="277" Count="0" />
+      <LineId Id="283" Count="1" />
+      <LineId Id="288" Count="1" />
+      <LineId Id="315" Count="0" />
+      <LineId Id="290" Count="0" />
+      <LineId Id="287" Count="0" />
+      <LineId Id="291" Count="0" />
+      <LineId Id="286" Count="0" />
+      <LineId Id="316" Count="0" />
+      <LineId Id="285" Count="0" />
+      <LineId Id="282" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="25" Count="4" />
+      <LineId Id="233" Count="0" />
+      <LineId Id="292" Count="0" />
+      <LineId Id="234" Count="0" />
+      <LineId Id="311" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="317" Count="0" />
+      <LineId Id="33" Count="2" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="112" Count="0" />
+      <LineId Id="115" Count="1" />
+      <LineId Id="113" Count="1" />
+      <LineId Id="198" Count="1" />
+      <LineId Id="167" Count="2" />
+      <LineId Id="333" Count="0" />
+      <LineId Id="170" Count="0" />
+      <LineId Id="235" Count="1" />
+      <LineId Id="293" Count="0" />
+      <LineId Id="312" Count="0" />
+      <LineId Id="171" Count="3" />
+      <LineId Id="334" Count="0" />
+      <LineId Id="175" Count="1" />
+      <LineId Id="202" Count="0" />
+      <LineId Id="177" Count="0" />
+      <LineId Id="237" Count="1" />
+      <LineId Id="294" Count="0" />
+      <LineId Id="166" Count="0" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="125" Count="4" />
+      <LineId Id="304" Count="0" />
+      <LineId Id="130" Count="2" />
+      <LineId Id="219" Count="1" />
+      <LineId Id="295" Count="0" />
+      <LineId Id="133" Count="1" />
+      <LineId Id="119" Count="0" />
+      <LineId Id="118" Count="0" />
+      <LineId Id="120" Count="0" />
+      <LineId Id="139" Count="0" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="200" Count="0" />
+      <LineId Id="179" Count="2" />
+      <LineId Id="335" Count="0" />
+      <LineId Id="182" Count="1" />
+      <LineId Id="221" Count="1" />
+      <LineId Id="296" Count="0" />
+      <LineId Id="184" Count="2" />
+      <LineId Id="336" Count="0" />
+      <LineId Id="187" Count="1" />
+      <LineId Id="203" Count="0" />
+      <LineId Id="189" Count="0" />
+      <LineId Id="223" Count="1" />
+      <LineId Id="297" Count="0" />
+      <LineId Id="178" Count="0" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="91" Count="0" />
+      <LineId Id="94" Count="0" />
+      <LineId Id="208" Count="1" />
+      <LineId Id="298" Count="0" />
+      <LineId Id="95" Count="2" />
+      <LineId Id="303" Count="0" />
+      <LineId Id="98" Count="0" />
+      <LineId Id="122" Count="0" />
+      <LineId Id="99" Count="1" />
+      <LineId Id="337" Count="0" />
+      <LineId Id="101" Count="0" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="102" Count="0" />
+      <LineId Id="104" Count="0" />
+      <LineId Id="210" Count="1" />
+      <LineId Id="310" Count="0" />
+      <LineId Id="105" Count="1" />
+      <LineId Id="302" Count="0" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="103" Count="0" />
+      <LineId Id="123" Count="0" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="140" Count="0" />
+      <LineId Id="142" Count="0" />
+      <LineId Id="144" Count="2" />
+      <LineId Id="201" Count="0" />
+      <LineId Id="330" Count="0" />
+      <LineId Id="165" Count="0" />
+      <LineId Id="225" Count="1" />
+      <LineId Id="299" Count="0" />
+      <LineId Id="147" Count="0" />
+      <LineId Id="149" Count="0" />
+      <LineId Id="151" Count="0" />
+      <LineId Id="331" Count="0" />
+      <LineId Id="162" Count="1" />
+      <LineId Id="227" Count="1" />
+      <LineId Id="300" Count="0" />
+      <LineId Id="152" Count="0" />
+      <LineId Id="154" Count="1" />
+      <LineId Id="332" Count="0" />
+      <LineId Id="157" Count="0" />
+      <LineId Id="204" Count="0" />
+      <LineId Id="158" Count="0" />
+      <LineId Id="229" Count="1" />
+      <LineId Id="301" Count="0" />
+      <LineId Id="159" Count="0" />
+      <LineId Id="344" Count="0" />
+      <LineId Id="347" Count="6" />
+      <LineId Id="345" Count="1" />
+      <LineId Id="141" Count="0" />
+      <LineId Id="160" Count="1" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="TMPModule.Reset_ACT">
+      <LineId Id="2" Count="4" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="76" Count="4" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="44" Count="1" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="23" Count="1" />
+      <LineId Id="53" Count="2" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="60" Count="1" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="64" Count="0" />
+      <LineId Id="66" Count="1" />
+      <LineId Id="65" Count="0" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="30" Count="1" />
+      <LineId Id="19" Count="2" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="27" Count="1" />
+      <LineId Id="82" Count="0" />
+      <LineId Id="56" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="TMPModule.VersionLog">
+      <LineId Id="49" Count="16" />
+      <LineId Id="67" Count="7" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="76" Count="1" />
+      <LineId Id="79" Count="10" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="101" Count="3" />
+      <LineId Id="99" Count="1" />
+      <LineId Id="98" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

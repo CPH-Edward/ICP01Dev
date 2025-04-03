@@ -1,0 +1,152 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <GVL Name="GVL_AllGLOBAL" Id="{ec542549-e98c-411c-9cc6-e92d5d4c23a5}">
+    <Declaration><![CDATA[//{attribute 'qualified_only'}
+VAR_GLOBAL
+//结构体实例化
+	gICP							:ST_ICP;// 结构体实例化
+	
+	
+	gMachineUtility					:ST_MachineUtility;// 整机 面板IO
+	MainFramDUT						:MainFram;//主框架参数绑定
+	gCtrlMode						:ControlMode:=ControlMode.eManualCtrMode;//控制模式
+	
+//	gLoadModel						:ST_POUCommunication;
+	
+//	gLoadActPos						:ST_LoadActPos;//上料工作位，动作位置
+//	gLoadDutState					:ST_HaveDUTState;//上料DUT状态
+		
+	SW1_PLC							:struct_Tester;//Sw1发往PLC信息结构体
+//函数实例化
+	gLog							:printLogModule_EX;// 用于打印运行 error log信息
+	gDownTimeLog					:printLogModule_EX;// 用于打印运行 error log信息
+	gDataChangeLog					:printLogModule_EX;// 用于打印 数据更改 运行log信息
+	gBreakTimeLog					:printLogModule_EX;// 用于打印运行 BreakTime log信息
+	gOperatorLog					:printLogModule_EX;// 操作日志
+	gRunningLog						:printLogModule_EX;// 运行日志
+	gShowPOURunLog					:BOOL;
+	gShowLogTextTitle				:STRING;
+	fb_systemTimeModule				:systemTimeModule;//获取系统时间
+//Bool
+	gsave							:BOOL;//配置保存按钮
+	gSaveTemp						:BOOL;//配置保存中间变量
+	gRead							:BOOL;//配置读取按钮
+	gWindowsPageBt					: ARRAY [1..10] OF BOOL:=[TRUE];
+	//机台系统变量
+	gAutoRunningFlag				:BOOL:=FALSE;//自动运行中标志
+	gErrorAbort						:BOOL;// ErrorAbort 退出半自动动作
+
+	 // Recipe
+	gRecipeNameSelect				:ARRAY [1..100] OF RecipeShowStr; 	// RecipeName
+	gRecipeNameSelectShow			:ARRAY [1..10] OF RecipeShowStr; 	// RecipeName
+	gRecipeFullPath					:STRING;	
+	gRecipeShowNameOld				:STRING:='Recipe';
+	gRecipeShowNameNow				:STRING;
+	gRecipeEditorData				:ARRAY [1..gRecipeMAX_String_NUM] OF RecipePar; 
+	gRecipeViewData					:ARRAY [1..gRecipeMAX_String_NUM] OF RecipePar;     
+	gShowNum						:INT:=25;// Editor & View 显示的行数
+	gselectRow						:INT:=0;// Recipe Editor 选取行号	
+	gselectclo						:INT:=0;// Recipe Editor 选取列号	
+	gRecipeSelctMaxIndex			:INT:=10;
+	gRFSetTime						:UDINT;// 设置控制时间
+	gRFRemainTime					:UDINT;// 剩余控制时间
+	gRecipeSelectStruct				:ARRAY [1..gRecipeNameMAX_CSV_ROWS] OF RecipeNamePar;
+	
+	gRecipeSelectIndex1				:INT:=1;// Recipe选取的Index；方便探寻gRecipeSelect内部元素
+	gRecipeNameMax					:UDINT:=1;// Recipe选取的Index；方便探寻gRecipeSelect内部元素
+	gRFComControl					:BOOL;// RF双电源控制
+	gWarmShowHMI					:WARMStruct;// showTrig
+	gNoteShowHMI					:NoteStruct;// showTrig
+	
+	gRoughRemain					:BOOL;// 粗抽标记
+	gRoughRemainTMPCanOpen			:BOOL;// 粗抽标记-运行开分子泵
+	gSPOUBusy						:BOOL;// 任意一个程序在执行
+	//TCPIP 网络变量
+	gEnableSWConnect				:BOOL:=FALSE;//软件连接控制
+	gEnablePDVSWConnect				:BOOL:=TRUE;//软件连接控制
+	gEnableChillerSWConnect			:BOOL:=TRUE;//软件连接控制
+	gEnableSRFSWConnect				:BOOL:=TRUE;//软件连接控制
+	gEnablePRFSWConnect				:BOOL:=TRUE;//软件连接控制
+	gEnableHeGSWConnect				:BOOL:=TRUE;//软件连接控制
+	EnableAMXAISWConnect			:BOOL:=TRUE;//软件连接控制
+	gEnableWaferCheck				:INT:=0;// 是否检测晶圆    0:不检测(提示框NO)；1：检测(提示框YES)；2：提示框弹出；
+	
+	gSWConnected					:BOOL;//主控
+	gSWStringConnected				:BOOL;//主控
+	gChillerConnected				:BOOL;//Chiller 
+	gPDVConnected					:BOOL;//PDV 
+	gSourceRFConnected				:BOOL;//SourceRF 
+	gPowerRFConnected				:BOOL;//PowerRF 
+	gHeliumGaugeConnected			:BOOL;//HeliumGauge 
+	gAMXAIConnected					:BOOL;//艾莫迅AI模块 
+	//所有软件连接
+	gEnableSWConnectAll				:BOOL:=FALSE;//是否启用所有软件连接
+	//机台所需临时调试变量
+	gDisableSensor					:BOOL;
+	gDisablePressureCheck			:BOOL;// 禁用压力检查
+	gDisableWaterFloweCheck			:BOOL;// 禁用水流检查
+	gDisableWaterTemCheck			:BOOL;// 禁用水压检查
+	gEnablePDVOpenClose				:BOOL;// 强制启用PDV
+	gEnableGDOpenClose				:BOOL;// 强制启用GateDoor
+	gEnableHeInOpenClose			:BOOL;// 强制启用HeIn
+	gPDVOpencondition				:BOOL;// PDV由关到开的检测条件
+	gGDOpencondition				:BOOL;// GateDoor由关到开的检测条件
+	gChamberVacRem					:REAL:=9000.0;// 腔体气压检测
+	gTBVacRem						:REAL:=11000.0;// TB气压检测
+	gCO_ControlRFTimeRemain			:UDINT:=0;
+	
+	gMFCStopLoopRead				:BOOL;// MFC读写锁：读优先级大于写优先级
+	gTBPStopLoopRead				:BOOL;// TBP读写锁：读优先级大于写优先级
+	
+	gCNErrShow						:BOOL:=FALSE;//中英文切换显示
+//Int
+	//以太网
+	gRemoteHostPort					:UINT:=5001;//远程连接端口
+	gLocalHostPort					:UINT:=7920;//本地连接端口
+	//时间转换配置变量
+	gLoopTrgTime					:UDINT:=500;//循环触发相机时间设置
+	gGetCCDResultTimeOut			:UDINT:=5000;//获取相机拍照结果超时时间
+	//轴变量
+	g_AxisOverride1					:LREAL:=100;
+	gPosConfirm						:LREAL:=0.01;
+	
+	gCO_ControlRFRMTime				:UDINT:=0;		
+//Real
+
+//String
+	g_sAmsNetId						:STRING;//获取arrAmsNetId
+	g_SystemTime					:STRING;// Main 界面显示系统时间
+	gVersion						:STRING:='V2.1.1.0';//进场版本
+	gErrWTxtShow					:WSTRING(255):="";// Main 设备错误内容显示文本 中文---HMI
+	gErrTxtShow						:STRING(255):='';// Main 设备错误内容显示文本---HMI
+	gRemoteHostIp					:STRING:='192.168.1.200';//原创连接IP
+	gLocalHostIp					:STRING:='192.168.1.100';//本地连接IP
+	g_Test							:STRING:='10.0';// 测试使用
+	g_Test1							:REAL;
+
+//通讯变量
+	gTxBuffer_SRF:					ComBuffer;// 顶部RF		
+	gRxBuffer_SRF:					ComBuffer;// 底部RF
+	
+	gTxBuffer_MFC:					ComBuffer;// MFC		
+	gRxBuffer_MFC:					ComBuffer;// MFC
+	
+	gTxBuffer_ARM:					ComBuffer;// MFC		
+	gRxBuffer_ARM:					ComBuffer;// MFC
+	
+	gTxBuffer_TBP:					ComBuffer;// TBP		
+	gRxBuffer_TBP:					ComBuffer;// TBP
+// ADS命令交互
+	gSTA2BData						:ST_A2BData;
+	gSTB2AData						:ST_B2AData;
+	gADSConnected					:BOOL;
+	gTestBool						:BOOL;
+	gTestInt						:INT;
+	gTestReal						:REAL;
+	gCurrentUser					:WSTRING;
+	
+	gPSGMaxPre_V					:REAL:=10.6635;// 模块压力校准
+END_VAR
+]]></Declaration>
+  </GVL>
+</TcPlcObject>

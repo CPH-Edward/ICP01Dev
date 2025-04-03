@@ -1,0 +1,130 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="Communication_Error" Id="{5b4ff5c8-fd64-4285-82c0-e10695bbd5a9}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM Communication_Error
+VAR
+	f_SWconnect:F_TRIG;
+
+	f_CCDSW1connect:F_TRIG;
+	f_CCDSW2connect:F_TRIG;
+	f_CCDSW3connect:F_TRIG;
+	f_CCDSW4connect:F_TRIG;
+	f_CCDSW5connect:F_TRIG;
+	f_CCDSW6connect:F_TRIG;
+	f_CCDSW7connect:F_TRIG;
+	f_CCDSW8connect:F_TRIG;
+	f_CCDSW9connect:F_TRIG;
+	f_CCDSW10connect:F_TRIG;
+	f_CCDSW11connect:F_TRIG;
+	f_LocalWconnect:F_TRIG;
+	
+	
+	
+	choosedelayTime1:TON;
+	choosedelayTime2:TON;
+	choosedelayTime3:TON;
+	choosedelayTime4:TON;
+	choosedelayTime5:TON;
+	choosedelayTime6:TON;
+	choosedelayTime7:TON;
+	choosedelayTime8:TON;
+	choosedelayTime9:TON;
+	choosedelayTime10:TON;
+	choosedelayTime11:TON;
+	choosedelayTime12:TON;
+	choosedelayTime13:TON;
+	
+	choosedelayTime14:TON;
+	choosedelayTime15:TON;
+	choosedelayTime16:TON;
+	
+	delayTime:TIME:=T#5S;
+	
+	gEnaConnectRTrig:R_Trig;
+	gEnaConnectFTrig:F_Trig;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+choosedelayTime1(IN:=gEnableSWConnect , PT:= delayTime, Q=> , ET=> );
+choosedelayTime2(IN:=gEnableSWConnect , PT:= delayTime, Q=> , ET=> );
+
+
+
+IF (NOT gSWConnected AND choosedelayTime1.Q) THEN
+	error_Trigger(91);//主站 上位机通讯断开
+END_IF
+IF (NOT gSWConnected AND choosedelayTime2.Q) THEN
+	error_Trigger(96);//LCCD1 上位机通讯断开
+END_IF
+
+
+
+
+/////////////////
+
+
+f_SWconnect(CLK:=gSWConnected);
+f_CCDSW1connect(CLK:=gSWStringConnected);
+
+IF f_SWconnect.Q THEN
+	error_Trigger(91);// 主站 软件断开连接
+END_IF
+IF f_CCDSW1connect.Q THEN
+	error_Trigger(96);// 
+END_IF
+//IF (gCtrlMode=1 OR gAutoRunningFlag) THEN//自动过程中，软件掉线，是否需要重启？
+//	IF f_SWconnect.Q OR f_CCDSW1connect.Q THEN
+//		gSWDisconnected:=TRUE;
+//	END_IF
+//END_IF
+
+
+gEnaConnectRTrig(CLK:=gEnableSWConnectAll , Q=> );
+gEnaConnectFTrig(CLK:=gEnableSWConnectAll, Q=> );
+
+//所有软件连接
+IF gEnaConnectRTrig.Q THEN
+	gEnableSWConnect:=TRUE;
+END_IF
+//所有软件断开连接
+IF gEnaConnectFTrig.Q THEN
+	gEnableSWConnect:=FALSE;
+END_IF
+	]]></ST>
+    </Implementation>
+    <LineIds Name="Communication_Error">
+      <LineId Id="160" Count="0" />
+      <LineId Id="158" Count="0" />
+      <LineId Id="706" Count="0" />
+      <LineId Id="705" Count="0" />
+      <LineId Id="701" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="9" Count="1" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="594" Count="1" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="817" Count="0" />
+      <LineId Id="691" Count="0" />
+      <LineId Id="230" Count="0" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="48" Count="3" />
+      <LineId Id="491" Count="5" />
+      <LineId Id="539" Count="1" />
+      <LineId Id="543" Count="2" />
+      <LineId Id="102" Count="0" />
+      <LineId Id="345" Count="1" />
+      <LineId Id="331" Count="0" />
+      <LineId Id="348" Count="0" />
+      <LineId Id="347" Count="0" />
+      <LineId Id="330" Count="0" />
+      <LineId Id="332" Count="0" />
+      <LineId Id="336" Count="0" />
+      <LineId Id="334" Count="0" />
+      <LineId Id="350" Count="2" />
+      <LineId Id="349" Count="0" />
+      <LineId Id="47" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

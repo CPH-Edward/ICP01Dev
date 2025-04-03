@@ -1,0 +1,814 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="PLC_Chiller" Id="{cdacd098-aefb-449a-9508-d5da5ebf5292}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM PLC_Chiller
+VAR_INPUT
+	nSocketType:UINT:=1;// socket 类型; 0 表示 server; 1 表示 client;
+	sTerminalName:STRING;// 通讯对方名称 自定义
+	sHost:STRING(20):='127.0.0.1';// 通讯IP地址; server时表示本地host; client时表示远程host
+	nPort:UDINT:=8900;// 通讯端口号;
+	bEnable:BOOL:=TRUE;// 通讯启用\禁用连接
+	sSendSuffix:STRING:='';//此处可统一添加发送后缀字符 $R$N
+	nQueueInterval:UDINT:=50;// 发送队列时间间隔 单位ms
+	logHandleArray:ARRAY [1..5] OF POINTER TO printLogModule_EX;// log 操作 handle 数组
+	logHandleArrayLength:UINT:=0;// log 操作 handle 数组长度, 不超过5
+	enHeartBeat:BOOL;// 启用心跳包命令
+	cmdHeartBeat:DINT;// 心跳包命令
+	readStateFlag:BOOL;
+	readRTD1Flag:BOOL;
+	readRTD2Flag:BOOL;
+	readStartFlag:BOOL;
+	readStopFlag:BOOL;
+	readSetAckFlag:BOOL;
+END_VAR
+VAR_OUTPUT
+	bSendCondition	:BOOL;//可发送条件
+	bSocketConnected:BOOL;//连接状态
+	
+END_VAR
+VAR CONSTANT
+	cNumBegin		:DINT:=1;
+	cNumEnd			:DINT:=100;
+END_VAR
+VAR
+	sendDataArray	:ARRAY [cNumBegin..cNumEnd] OF struct_byte;
+	length			:DINT:=0;
+	endPoint		:DINT:=cNumBegin;
+	sendPoint		:DINT:=cNumBegin;
+	passMax			:BOOL;
+	popupSendData	:struct_byte;
+	//popup
+	popupStep		:UINT:=0;
+	popupTON1		:TON;
+	popupTON2		:TON;
+	iPopup			:DINT:=0;
+	_PopupLength	:DINT:=0;
+	sendDataTemp	:struct_byte;
+	sendLenght		:UDINT;
+END_VAR
+VAR
+	tcpipClient					:tcpipClientModule_EX;
+	tcpipServer					:tcpipServerModule_EX;////定义服务器对象
+	
+	tcpipSendDataBuff_Server	:struct_byte;//发送数据 Buff server
+	tcpipSendDataBuff_Client	:struct_byte;//发送数据 Buff client
+	
+	tcpipSendDataClear			:struct_byte;//发送数据 清空
+	tcpipSendData				:struct_byte;//发送数据
+	
+	tcpipRecDataBuff_Server		:struct_byte;//已接收数据 Buff server
+	tcpipRecDataBuff_Client		:struct_byte;//已接收数据 Buff client
+	
+	tcpipRecDataClear			:struct_byte;//已接收数据 清空
+	tcpipRecData				:struct_byte;//已接收数据
+	
+	tcpConnectR_Trig			:R_Trig;//初始连接上升沿
+	tcpConnectF_Trig			:F_Trig;//初始连接下降沿
+	registerStep				:UDINT;//ALC注册控制步
+	registerTON					:TON;//ALC注册延时
+	
+	logHandleArray_index		:UINT:=1;
+END_VAR
+VAR
+	(*
+	bTrig_Version:BOOL;
+	rTrig_Version:R_TRIG;
+	*)
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+CASE nSocketType OF
+0://TCPIP server
+	tcpipServer(
+		sSrvNetId:= , 
+		sLocalHost:=sHost , 
+		nLocalPort:=nPort , 
+		bStartConnect:=bEnable , 
+		tcpipSDataLen:=sendLenght , 
+		tcpipSData:=ADR(tcpipSendDataBuff_Server) , 
+		bSend:= , 
+		tcpipRecDataLen:=SIZEOF(tcpipRecDataBuff_Server), 
+		tcpipRecData:=ADR(tcpipRecDataBuff_Server) , 
+		bAccepted=> , 
+		bSendBusy=> , 
+		bRecData=> );
+	bSendCondition:=tcpipServer.bAccepted AND NOT tcpipServer.bSendBusy;
+	//TCPIP连接
+	bSocketConnected:=tcpipServer.bAccepted;
+	IF NOT tcpipServer.bAccepted THEN
+		length:=0;
+		endPoint:=cNumBegin;
+		sendPoint:=cNumBegin;
+		passMax:=FALSE;
+	END_IF
+	tcpConnectR_Trig(CLK:=tcpipServer.bAccepted);
+	tcpConnectF_Trig(CLK:=tcpipServer.bAccepted);
+
+1://TCPIP client
+	tcpipClient(
+		sSrvNetId:= , 
+		sRemoteHost:=sHost , 
+		nRemotePort:=nPort , 
+		bStartConnect:=bEnable , 
+		tcpipSDataLen:=sendLenght, 
+		tcpipSData:=ADR(tcpipSendDataBuff_Client) , 
+		bSend:= , 
+		tcpipRecDataLen:=SIZEOF(tcpipRecDataBuff_Client) , 
+		tcpipRecData:=ADR(tcpipRecDataBuff_Client) , 
+		bConnected=> , 
+		bSendBusy=> , 
+		bRecData=> );
+	bSendCondition:=tcpipClient.bConnected AND NOT tcpipClient.bSendBusy;
+	//TCPIP连接
+	bSocketConnected:=tcpipClient.bConnected;
+	IF NOT tcpipClient.bConnected THEN
+		length:=0;
+		endPoint:=cNumBegin;
+		sendPoint:=cNumBegin;
+		passMax:=FALSE;
+	END_IF
+	tcpConnectR_Trig(CLK:=tcpipClient.bConnected);
+	tcpConnectF_Trig(CLK:=tcpipClient.bConnected);
+END_CASE
+
+IF tcpConnectR_Trig.Q THEN
+	FOR logHandleArray_index:=1 TO logHandleArrayLength DO
+		logHandleArray[logHandleArray_index]^.append(CONCAT(sTerminalName, ' has been connected'));
+	END_FOR
+	registerStep:=10;
+END_IF
+IF tcpConnectF_Trig.Q THEN
+	FOR logHandleArray_index:=1 TO logHandleArrayLength DO
+		logHandleArray[logHandleArray_index]^.append(CONCAT(sTerminalName, ' has been disconnected'));
+	END_FOR
+	registerStep:=0;
+END_IF
+//数据接收处理
+CASE nSocketType OF
+0://TCPIP server
+	IF tcpipServer.bRecData THEN
+		tcpipRecData:=tcpipRecDataBuff_Server;//buff转存
+		tcpipRecDataBuff_Server:=tcpipRecDataClear;//转存之后清空buff
+		dataProcessing();
+	END_IF
+1://TCPIP client
+	IF tcpipClient.bRecData THEN
+		tcpipRecData:=tcpipRecDataBuff_Client;//buff转存
+		tcpipRecDataBuff_Client:=tcpipRecDataClear;//转存之后清空buff
+		dataProcessing();
+	END_IF
+END_CASE
+
+
+popup();
+
+CASE registerStep OF
+0:
+	//Ready
+10:
+	registerStep:=0;
+// 心跳包
+20:
+	IF NOT enHeartBeat THEN
+		registerStep:=0;
+	ELSE
+		registerStep:=registerStep+10;
+	END_IF
+30:
+	registerTON(IN:=FALSE);
+	appendSend(1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,20);
+	registerStep:=registerStep+10;
+40:
+	registerTON(IN:=NOT registerTON.Q,PT:=T#3S);
+	IF registerTON.Q THEN
+		registerTON(IN:=FALSE);
+		registerStep:=30;
+	END_IF
+END_CASE
+
+Manual();]]></ST>
+    </Implementation>
+    <Folder Name="CMD" Id="{a44feda6-6a0f-49c0-9e05-3456df11cf14}" />
+    <Folder Name="Recevie" Id="{e7c8ed12-b298-425e-9abe-37f9cf94f836}" />
+    <Folder Name="Send" Id="{090671d5-047f-41d4-8f82-33d584a80454}">
+      <Folder Name="Private" Id="{745d3db1-6045-4da9-aa6b-0f5c34b9bd1e}" />
+    </Folder>
+    <Method Name="appendSend" Id="{98db95b2-25da-48d1-b5ca-8df11f6a5760}" FolderPath="Send\">
+      <Declaration><![CDATA[METHOD appendSend : BOOL
+VAR_INPUT
+	b1		:BYTE:=0;
+	b2		:BYTE:=0;
+	b3		:Byte:=0;
+	b4		:Byte:=0;
+	b5		:Byte:=0;
+	b6		:Byte:=0;
+	b7		:Byte:=0;
+	b8		:Byte:=0;
+	b9		:BYTE:=0;
+	b10		:BYTE:=0;
+	b11		:BYTE:=0;
+	b12		:BYTE:=0;
+	b13		:BYTE:=0;
+	b14		:BYTE:=0;
+	b15		:BYTE:=0;
+	b16		:BYTE:=0;
+	b17		:BYTE:=0;
+	b18		:BYTE:=0;
+	b19		:BYTE:=0;
+	b20		:BYTE:=0;
+	lenght	:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=lenght;
+sendDataArray[endPoint].b1:=b1;
+sendDataArray[endPoint].b2:=b2;
+sendDataArray[endPoint].b3:=b3;
+sendDataArray[endPoint].b4:=b4;
+sendDataArray[endPoint].b5:=b5;
+sendDataArray[endPoint].b6:=b6;
+sendDataArray[endPoint].b7:=b7;
+sendDataArray[endPoint].b8:=b8;
+sendDataArray[endPoint].b9:=b9;
+sendDataArray[endPoint].b10:=b10;
+sendDataArray[endPoint].b11:=b11;
+sendDataArray[endPoint].b12:=b12;
+sendDataArray[endPoint].b13:=b13;
+sendDataArray[endPoint].b14:=b14;
+sendDataArray[endPoint].b15:=b15;
+sendDataArray[endPoint].b16:=b16;
+sendDataArray[endPoint].b17:=b17;
+sendDataArray[endPoint].b18:=b18;
+sendDataArray[endPoint].b19:=b19;
+sendDataArray[endPoint].b20:=b20;
+
+endPoint:=endPoint+1;
+IF endPoint>(cNumEnd-1) THEN
+	endPoint:=1;
+	passMax:=TRUE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="dataProcessing" Id="{c43ea001-07ce-4cd6-8f76-0fb5fb77eeae}" FolderPath="Recevie\">
+      <Declaration><![CDATA[METHOD dataProcessing : BOOL
+VAR_INPUT
+END_VAR
+VAR
+	i_CGResult:INT;
+	i_HResult:INT;
+	str1:STRING;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[FOR logHandleArray_index:=1 TO logHandleArrayLength DO
+	CASE nSocketType OF
+	0://TCPIP server
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b1,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b2,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b3,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b4,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b5,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b6,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b7,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b8,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b9,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b10,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b11,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b12,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b13,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b14,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b15,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b16,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b17,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b18,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b19,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b20,2,FALSE));
+		logHandleArray[logHandleArray_index]^.append(CONCAT(CONCAT(CONCAT('Recevie From ', sTerminalName), ' -- '),str1));
+	1://TCPIP client
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b1,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b2,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b3,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b4,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b5,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b6,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b7,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b8,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b9,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b10,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b11,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b12,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b13,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b14,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b15,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b16,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b17,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b18,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b19,2,FALSE));
+		str1:=CONCAT(str1,' ');
+		str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipRecData.b20,2,FALSE));
+		logHandleArray[logHandleArray_index]^.append(CONCAT(CONCAT(CONCAT('Recevie From ', sTerminalName), ' -- '),str1));
+	END_CASE
+END_FOR
+
+// 数据处理
+IF tcpipRecData.b4=16#09 THEN
+	readStateFlag:=TRUE;
+	gICP.Chiller.pumon:=tcpipRecData.b9.2;// Pum on
+	gICP.Chiller.uinton:=tcpipRecData.b9.3;// Unit on
+	gICP.Chiller.unitstoping:=tcpipRecData.b9.4;// Unit stopping
+	gICP.Chiller.fault:=tcpipRecData.b9.4;// Fault
+END_IF
+IF tcpipRecData.b4=16#81 THEN
+	IF tcpipRecData.b6=16#01 THEN
+		readStartFlag:=TRUE;
+	END_IF
+	IF tcpipRecData.b6=16#00 THEN
+		readStopFlag:=TRUE;
+	END_IF
+END_IF
+IF tcpipRecData.b4=16#F0 THEN
+	readSetAckFlag:=TRUE;
+END_IF
+IF tcpipRecData.b4=16#20 THEN
+	readRTD1Flag:=TRUE;
+	CASE tcpipRecData.b6 OF
+	16#00:
+		gICP.Chiller.RTD1:=(BYTE_TO_INT(tcpipRecData.b7)*256+BYTE_TO_INT(tcpipRecData.b8))*1.0;
+	16#01:
+		gICP.Chiller.RTD1:=(BYTE_TO_INT(tcpipRecData.b7)*256+BYTE_TO_INT(tcpipRecData.b8))*0.1;
+	16#20:	
+		gICP.Chiller.RTD1:=(BYTE_TO_INT(tcpipRecData.b7)*256+BYTE_TO_INT(tcpipRecData.b8))*0.01;
+	16#11:
+		gICP.Chiller.RTD1:=(BYTE_TO_INT(tcpipRecData.b7)*256+BYTE_TO_INT(tcpipRecData.b8))*1.0;
+	16#21:
+		gICP.Chiller.RTD1:=(BYTE_TO_INT(tcpipRecData.b7)*256+BYTE_TO_INT(tcpipRecData.b8))*0.1;
+	16#22:	
+		gICP.Chiller.RTD1:=(BYTE_TO_INT(tcpipRecData.b7)*256+BYTE_TO_INT(tcpipRecData.b8))*0.01;
+	16#1D:
+		gICP.Chiller.RTD1:=(BYTE_TO_INT(tcpipRecData.b7)*256+BYTE_TO_INT(tcpipRecData.b8))*0.1;
+	16#2D:	
+		gICP.Chiller.RTD1:=(BYTE_TO_INT(tcpipRecData.b7)*256+BYTE_TO_INT(tcpipRecData.b8))*0.01;
+	END_CASE
+END_IF
+IF tcpipRecData.b4=16#21 THEN
+	readRTD2Flag:=TRUE;
+	CASE tcpipRecData.b6 OF
+	16#00:
+		gICP.Chiller.RTD2:=(BYTE_TO_INT(tcpipRecData.b7)*256+BYTE_TO_INT(tcpipRecData.b8))*1.0;
+	16#01:
+		gICP.Chiller.RTD2:=(BYTE_TO_INT(tcpipRecData.b7)*256+BYTE_TO_INT(tcpipRecData.b8))*0.1;
+	16#20:	
+		gICP.Chiller.RTD2:=(BYTE_TO_INT(tcpipRecData.b7)*256+BYTE_TO_INT(tcpipRecData.b8))*0.01;
+	16#11:
+		gICP.Chiller.RTD2:=(BYTE_TO_INT(tcpipRecData.b7)*256+BYTE_TO_INT(tcpipRecData.b8))*1.0;
+	16#21:
+		gICP.Chiller.RTD2:=(BYTE_TO_INT(tcpipRecData.b7)*256+BYTE_TO_INT(tcpipRecData.b8))*0.1;
+	16#22:	
+		gICP.Chiller.RTD2:=(BYTE_TO_INT(tcpipRecData.b7)*256+BYTE_TO_INT(tcpipRecData.b8))*0.01;
+	16#1D:
+		gICP.Chiller.RTD2:=(BYTE_TO_INT(tcpipRecData.b7)*256+BYTE_TO_INT(tcpipRecData.b8))*0.1;
+	16#2D:	
+		gICP.Chiller.RTD2:=(BYTE_TO_INT(tcpipRecData.b7)*256+BYTE_TO_INT(tcpipRecData.b8))*0.01;
+	END_CASE
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Manual" Id="{5a1380a9-e9cd-485b-b77f-e5bb6b6dee69}">
+      <Implementation>
+        <ST><![CDATA[(*
+rTrig_Version(CLK:=bTrig_Version);
+IF rTrig_Version.Q THEN
+	appendSend(0,0,E_CmdID_SW.SW_GetVer,0.0,0.0,0.0,0.0,0.0,0,'');
+END_IF
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="popup" Id="{ba604820-6fd2-4928-8750-86a8064fd30e}" FolderPath="Send\Private\">
+      <Declaration><![CDATA[METHOD PRIVATE popup : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[CASE popupStep OF
+0:
+	IF (sendPoint<endPoint OR passMax) AND bSendCondition THEN
+		popupSendData:=sendDataArray[sendPoint];
+		sendData(popupSendData);//此处是调用信息发送
+		popupStep:=10;
+		sendPoint:=sendPoint+1;
+		IF sendPoint>(cNumEnd-1) THEN
+			sendPoint:=1;
+			passMax:=FALSE;
+		END_IF
+	END_IF
+10:
+	popupTON2(IN:=NOT popupTON2.Q, PT:=T#2S);
+	IF NOT bSendCondition OR popupTON2.Q THEN
+		popupTON2(IN:=FALSE);
+		popupStep:=11;
+	END_IF
+11:
+	IF bSendCondition THEN
+		popupStep:=12;
+	END_IF
+	popupTON1(IN:=FALSE);
+12:
+	//popupTON1(IN:=NOT popupTON1.Q,PT:=T#10MS);
+	popupTON1(IN:=NOT popupTON1.Q,PT:=TO_TIME(nQueueInterval));
+	IF popupTON1.Q THEN
+		popupStep:=0;
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ReadRTD1" Id="{1ad36871-cf1d-49f4-92fd-bd07fba10de4}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD ReadRTD1 : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[PLC_Chiller.appendSend(16#CA,16#00,16#01,16#20,16#00,16#DE,0,0,0,0,0,0,0,0,0,0,0,0,0,0,10);// 读进水温度]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ReadRTD2" Id="{4935f7c5-f6bf-439f-a08d-7b4d5f786240}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD ReadRTD2 : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[PLC_Chiller.appendSend(16#CA,16#00,16#01,16#21,16#00,16#DD,0,0,0,0,0,0,0,0,0,0,0,0,0,0,10);// 读RTD2 出水温度]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ReadState" Id="{469f7cf3-281b-4ae8-9a85-e84c638041ee}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD ReadState : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[PLC_Chiller.appendSend(16#CA,16#00,16#01,16#09,16#00,16#F5,0,0,0,0,0,0,0,0,0,0,0,0,0,0,10);// 读状态]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="sendData" Id="{802bd349-d2a9-4ae2-afbf-94d3a645cf4b}" FolderPath="Send\Private\">
+      <Declaration><![CDATA[METHOD PRIVATE sendData : BOOL
+VAR_INPUT
+	dataStruct	:struct_byte;
+END_VAR
+VAR
+	str1:STRING;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF bSendCondition AND bEnable THEN
+	tcpipSendData.b1	:=dataStruct.b1;
+	tcpipSendData.b2	:=dataStruct.b2;
+	tcpipSendData.b3	:=dataStruct.b3;
+	tcpipSendData.b4	:=dataStruct.b4;
+	tcpipSendData.b5	:=dataStruct.b5;
+	tcpipSendData.b6	:=dataStruct.b6;
+	tcpipSendData.b7	:=dataStruct.b7;
+	tcpipSendData.b8	:=dataStruct.b8;
+	tcpipSendData.b9	:=dataStruct.b9;
+	tcpipSendData.b10	:=dataStruct.b10;
+	tcpipSendData.b11	:=dataStruct.b11;
+	tcpipSendData.b12	:=dataStruct.b12;
+	tcpipSendData.b13	:=dataStruct.b13;
+	tcpipSendData.b14	:=dataStruct.b14;
+	tcpipSendData.b15	:=dataStruct.b15;
+	tcpipSendData.b16	:=dataStruct.b16;
+	tcpipSendData.b17	:=dataStruct.b17;
+	tcpipSendData.b18	:=dataStruct.b18;
+	tcpipSendData.b19	:=dataStruct.b19;
+	tcpipSendData.b20	:=dataStruct.b20;
+	
+	CASE nSocketType OF
+	0://TCPIP server
+		tcpipSendDataBuff_Server:=tcpipSendData;
+		tcpipSendData:=tcpipSendDataClear;	
+		tcpipServer.bSend:=TRUE;
+	1://TCPIP client
+		tcpipSendDataBuff_Client:=tcpipSendData;
+		tcpipSendData:=tcpipSendDataClear;	
+		tcpipClient.bSend:=TRUE;
+	END_CASE
+	
+	FOR logHandleArray_index:=1 TO logHandleArrayLength DO
+		CASE nSocketType OF
+		0://TCPIP server
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b1,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b2,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b3,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b4,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b5,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b6,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b7,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b8,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b9,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b10,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b11,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b12,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b13,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b14,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b15,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b16,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b17,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b18,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b19,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Server.b20,2,FALSE));
+			logHandleArray[logHandleArray_index]^.append(CONCAT(CONCAT(CONCAT('Send To ', sTerminalName), ' -- '),str1));
+		1://TCPIP client
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b1,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b2,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b3,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b4,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b5,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b6,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b7,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b8,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b9,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b10,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b11,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b12,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b13,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b14,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b15,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b16,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b17,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b18,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b19,2,FALSE));
+			str1:=CONCAT(str1,' ');
+			str1:=CONCAT(str1,BYTE_TO_HEXSTR(tcpipSendDataBuff_Client.b20,2,FALSE));
+			logHandleArray[logHandleArray_index]^.append(CONCAT(CONCAT(CONCAT('Send To ', sTerminalName), ' -- '),str1));
+		END_CASE
+	END_FOR
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="WriteStart" Id="{bc242b52-c437-41d3-b251-4dd2bed2b3a0}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD WriteStart : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[PLC_Chiller.appendSend(16#CA,16#00,16#01,16#81,16#08,16#01,16#02,16#02,16#02,16#02,16#02,16#02,16#02,16#66,0,0,0,0,0,0,14);// 开机]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="WriteStop" Id="{c180831e-e3e8-4cc0-a51e-57c8a0a59af5}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD WriteStop : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[PLC_Chiller.appendSend(16#CA,16#00,16#01,16#81,16#08,16#00,16#02,16#02,16#02,16#02,16#02,16#02,16#02,16#67,0,0,0,0,0,0,14);// 开机]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="WriteTemperature" Id="{315c06f7-7306-4ff7-8813-4072fc782b3e}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD WriteTemperature : BOOL
+VAR_INPUT
+	setpointVal:REAL;
+END_VAR
+VAR
+	valTemp:INT;
+	valTempH:INT;
+	valTempL:INT;
+	checkSum:INT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[valTemp:=REAL_TO_INT(setpointVal*10);
+valTempH:=valTemp/256;
+valTempL:=valTemp MOD 256;
+checkSum:=255-(1+240+2+valTempH+valTempL);
+PLC_Chiller.readSetAckFlag:=FALSE;
+PLC_Chiller.appendSend(16#CA,16#00,16#01,16#F0,16#02,INT_TO_BYTE(valTempH),INT_TO_BYTE(valTempL),INT_TO_BYTE(checkSum),0,0,0,0,0,0,0,0,0,0,0,0,8);// 设定参数]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="PLC_Chiller">
+      <LineId Id="54" Count="0" />
+      <LineId Id="92" Count="1" />
+      <LineId Id="97" Count="11" />
+      <LineId Id="96" Count="0" />
+      <LineId Id="154" Count="0" />
+      <LineId Id="168" Count="0" />
+      <LineId Id="155" Count="0" />
+      <LineId Id="159" Count="0" />
+      <LineId Id="446" Count="2" />
+      <LineId Id="160" Count="0" />
+      <LineId Id="158" Count="0" />
+      <LineId Id="169" Count="0" />
+      <LineId Id="171" Count="0" />
+      <LineId Id="194" Count="0" />
+      <LineId Id="95" Count="0" />
+      <LineId Id="112" Count="11" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="156" Count="0" />
+      <LineId Id="167" Count="0" />
+      <LineId Id="157" Count="0" />
+      <LineId Id="163" Count="0" />
+      <LineId Id="443" Count="2" />
+      <LineId Id="164" Count="0" />
+      <LineId Id="162" Count="0" />
+      <LineId Id="170" Count="0" />
+      <LineId Id="173" Count="0" />
+      <LineId Id="94" Count="0" />
+      <LineId Id="64" Count="1" />
+      <LineId Id="199" Count="0" />
+      <LineId Id="202" Count="0" />
+      <LineId Id="67" Count="2" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="205" Count="1" />
+      <LineId Id="73" Count="1" />
+      <LineId Id="79" Count="1" />
+      <LineId Id="181" Count="0" />
+      <LineId Id="180" Count="0" />
+      <LineId Id="185" Count="3" />
+      <LineId Id="184" Count="0" />
+      <LineId Id="182" Count="0" />
+      <LineId Id="190" Count="3" />
+      <LineId Id="189" Count="0" />
+      <LineId Id="183" Count="0" />
+      <LineId Id="85" Count="1" />
+      <LineId Id="175" Count="3" />
+      <LineId Id="346" Count="0" />
+      <LineId Id="521" Count="0" />
+      <LineId Id="350" Count="1" />
+      <LineId Id="365" Count="7" />
+      <LineId Id="356" Count="4" />
+      <LineId Id="362" Count="0" />
+      <LineId Id="361" Count="0" />
+      <LineId Id="179" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="285" Count="0" />
+      <LineId Id="284" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_Chiller.appendSend">
+      <LineId Id="20" Count="1" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="83" Count="17" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="47" Count="3" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_Chiller.dataProcessing">
+      <LineId Id="559" Count="2" />
+      <LineId Id="586" Count="37" />
+      <LineId Id="585" Count="0" />
+      <LineId Id="562" Count="1" />
+      <LineId Id="625" Count="37" />
+      <LineId Id="624" Count="0" />
+      <LineId Id="564" Count="1" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="567" Count="0" />
+      <LineId Id="566" Count="0" />
+      <LineId Id="575" Count="1" />
+      <LineId Id="580" Count="3" />
+      <LineId Id="577" Count="0" />
+      <LineId Id="710" Count="0" />
+      <LineId Id="716" Count="2" />
+      <LineId Id="720" Count="1" />
+      <LineId Id="719" Count="0" />
+      <LineId Id="709" Count="0" />
+      <LineId Id="723" Count="0" />
+      <LineId Id="729" Count="0" />
+      <LineId Id="722" Count="0" />
+      <LineId Id="664" Count="1" />
+      <LineId Id="670" Count="1" />
+      <LineId Id="675" Count="0" />
+      <LineId Id="673" Count="0" />
+      <LineId Id="676" Count="0" />
+      <LineId Id="674" Count="0" />
+      <LineId Id="677" Count="0" />
+      <LineId Id="679" Count="2" />
+      <LineId Id="678" Count="0" />
+      <LineId Id="682" Count="5" />
+      <LineId Id="672" Count="0" />
+      <LineId Id="663" Count="0" />
+      <LineId Id="689" Count="19" />
+      <LineId Id="688" Count="0" />
+      <LineId Id="574" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_Chiller.Manual">
+      <LineId Id="31" Count="0" />
+      <LineId Id="1" Count="2" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="30" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_Chiller.popup">
+      <LineId Id="6" Count="1" />
+      <LineId Id="39" Count="8" />
+      <LineId Id="18" Count="13" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="32" Count="2" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_Chiller.ReadRTD1">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_Chiller.ReadRTD2">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_Chiller.ReadState">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_Chiller.sendData">
+      <LineId Id="6" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="79" Count="18" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="29" Count="1" />
+      <LineId Id="42" Count="1" />
+      <LineId Id="35" Count="1" />
+      <LineId Id="44" Count="1" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="102" Count="85" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_Chiller.WriteStart">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_Chiller.WriteStop">
+      <LineId Id="12" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_Chiller.WriteTemperature">
+      <LineId Id="9" Count="4" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

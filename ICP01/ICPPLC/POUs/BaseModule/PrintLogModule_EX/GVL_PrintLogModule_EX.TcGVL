@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <GVL Name="GVL_PrintLogModule_EX" Id="{42ac8308-5725-4a4b-9a79-9df7b94de8f2}">
+    <Declaration><![CDATA[//{attribute 'qualified_only'}
+VAR_GLOBAL CONSTANT
+	cNumLength				:DINT:=256;			//log堆栈保存的最大数量
+	cNumBegin				:DINT:=1;			//默认为 1
+	cNumLength_showInof		:DINT:=100;			//默认显示 100 记录
+	cNumBegin_showInof		:DINT:=1;			//默认为 1
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

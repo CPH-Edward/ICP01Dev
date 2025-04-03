@@ -1,0 +1,406 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="S_WaferCheckPOU" Id="{93d491af-7e9f-4437-ae6c-10127aa51321}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM S_WaferCheckPOU
+VAR_INPUT
+	bInit				:BOOL:=FALSE;// 初始化状态 busy/done/errDone
+	bTrig				:BOOL:=FALSE;// 执行触发 信号
+	bReset				:BOOL:=FALSE;// 报错 复位
+	bPause				:BOOL:=FALSE;// 暂停 运行
+	bStop				:BOOL:=FALSE;// 停止 运行
+	bAbort				:BOOL:=FALSE;// 中止 运行
+	
+END_VAR
+VAR_OUTPUT
+	busy				:BOOL;
+	done				:BOOL;
+	errDone				:BOOL;
+END_VAR
+VAR
+	actStep				:ActStepBase;
+END_VAR
+VAR
+	i: INT;
+	t1:ton;
+	t2:ton;
+	t3:ton;
+	notchoose:BOOL;
+	timeOutTime:TIME:= T#60S;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[busy:=actStep.isBusy();
+done:=actStep.isDone();
+errDone:=actStep.isError();
+actStep.Act_Pause(pause:=bPause);
+
+IF bTrig THEN
+	bTrig:=FALSE;
+	IF NOT busy THEN
+		gShowLogTextTitle:='Wafer Check';
+		actStep.Act_ex();
+	END_IF
+END_IF
+
+//状态复位
+IF bInit THEN
+	bInit:=FALSE;
+	Act_init_status();
+END_IF
+
+IF bAbort OR bStop THEN
+	bAbort:=FALSE;
+	bStop:=FALSE;
+	Act_init_status();
+	actStep.toZeroStep();
+	gShowLogTextTitle:='NON';
+END_IF
+ActionRun(tempActStep:=actStep);]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{b7eb7b00-b8a3-49f0-9335-ea328f543a1c}" />
+    <Method Name="Act_Ex" Id="{d547058b-8f9b-4b77-8967-de1acf0ac6c4}">
+      <Declaration><![CDATA[(*
+---Trigger action
+*)
+METHOD Act_Ex : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT busy THEN
+	actStep.Act_ex();
+	Act_Ex:=TRUE;
+ELSE
+	Act_Ex:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Init_Status" Id="{0e497cd7-5bfa-423e-9dc7-3ecd96ba88b6}">
+      <Declaration><![CDATA[(*
+---功能: 状态复位 busy/done/errDone;
+*)
+METHOD Act_Init_Status
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[actStep.Act_Init();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ActionRun" Id="{22ee20cf-a396-424f-a774-29f58cdac048}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE ActionRun
+VAR_INPUT
+	tempActStep:ITFActStep;
+END_VAR
+VAR
+END_VAR
+VAR_STAT//此处定义静态变量, 保证每次进入该函数时能够在线监控当前值
+	tempStep:DINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[tempStep:=tempActStep.getStep();
+CASE tempStep OF
+0:
+	IF tempActStep.isEx() THEN
+		tempActStep.setBusyFlag();
+		tempActStep.toBeginStep();
+	END_IF
+	t1(IN:= FALSE );
+	t2(IN:= FALSE );
+	t3(IN:= FALSE );
+10:
+	IF gRunningState<>RunningStatus.eErrorState THEN
+		tempActStep.addStep(10,FALSE);
+	ELSE
+		tempActStep.toErrDoneStep();
+	END_IF
+20:
+	gEnableWaferCheck:=2;
+	tempActStep.addStep(10,FALSE);
+30:
+	IF gEnableWaferCheck=0 THEN// 不检测直接完成
+		tempActStep.toStep(100,FALSE);
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		RETURN;
+	END_IF
+	IF gEnableWaferCheck=1 THEN// 检测逻辑
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.toStep(100,FALSE);
+		RETURN;
+	END_IF
+	t3(IN:=TRUE,PT:=timeOutTime);
+	IF t3.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.toErrDoneStep();
+		RETURN;
+	END_IF
+100:
+	IF NOT gICP.I_WaferCheck THEN
+		tempActStep.addStep(10,FALSE);
+	ELSE
+		// 机械臂上有晶圆，又需要进行晶圆检测，直接报错
+		tempActStep.toErrDoneStep();
+	END_IF
+110:
+	tempActStep.addStep(10,TRUE);
+120:
+	S_RoughPumping.Act_Init_Status();
+	S_RoughPumping.Act_Ex();
+	tempActStep.addStep(10,FALSE);
+130:
+	IF S_RoughPumping.done THEN
+		tempActStep.addStep(5,FALSE);
+	END_IF
+	IF S_RoughPumping.errDone THEN
+		tempActStep.toErrDoneStep();
+	END_IF	
+135:
+	IF gEnableWaferCheck=0 THEN// 不检测直接完成
+		tempActStep.toDoneStep();
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		RETURN;
+	END_IF
+	IF gEnableWaferCheck=1 THEN// 检测逻辑
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(5,FALSE);
+		RETURN;
+	END_IF
+140:
+	IF gICP.PDV.Act_Retract() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+150:
+	IF gICP.PDV.Get_Done_Ret() OR gICP.PDVCloseSensor THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+160:
+	tempActStep.addStep(10,TRUE);
+170:
+	IF gICP.GateDoorValve.Act_Extend() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+180:
+	IF gICP.GateDoorValve.Get_Done_Ext() AND gICP.GateDoorExtSensor THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+190:
+	tempActStep.addStep(10,TRUE);
+200:
+	IF NOT gICP.ElectrodeCylRetSensor THEN
+		tempActStep.addStep(10,FALSE);
+	ELSE
+		tempActStep.addStep(30,FALSE);
+	END_IF
+210:
+	tempActStep.addStep(10,TRUE);
+220:
+	IF gICP.ElectrodeCyl.Act_Retract() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+230:
+	IF gICP.ElectrodeCyl.Get_Done_Ret() AND gICP.ElectrodeCylRetSensor THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+240:
+	tempActStep.addStep(10,TRUE);
+250:
+	IF gICP.LiftPinCyl.Act_Extend() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+260:
+	IF gICP.LiftPinCyl.Get_Done_Ext() AND gICP.LiftPinExtSensor THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+270:
+	tempActStep.addStep(10,TRUE);
+280:
+	IF gICP.ARM.Act_HOME_Auto() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+290:
+	IF NOT gICP.I_ARMHome THEN// 手臂当前不应该在原点位置
+		tempActStep.addStep(10,FALSE);
+	END_IF
+300:
+	t2(IN:=TRUE,PT:=T#10S);
+	IF t2.Q AND gICP.ARM.Get_Done_IN() THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.toErrDoneStep();
+		RETURN;
+	END_IF
+310:
+	tempActStep.addStep(10,TRUE);
+320:
+	IF gICP.LiftPinCyl.Act_Retract() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+330:
+	IF gICP.LiftPinCyl.Get_Done_Ret() AND gICP.LiftPinRetSensor THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+340:
+	tempActStep.addStep(10,TRUE);
+350:
+	IF gICP.ARM.Act_HOME_Auto() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+360:
+	IF gICP.ARM.Get_Done_HOME() AND gICP.I_ARMHome THEN// 手臂当前不应该在原点位置
+		tempActStep.addStep(10,FALSE);
+	END_IF
+370:
+	t2(IN:=TRUE,PT:=T#1S);
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.toErrDoneStep();
+		RETURN;
+	END_IF
+380:
+	tempActStep.addStep(10,TRUE);
+390:
+	IF gICP.GateDoorValve.Act_Retract() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+400:
+	IF gICP.GateDoorValve.Get_Done_Ret() AND gICP.GateDoorRetSensor THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+410:
+	IF gICP.I_WaferCheck THEN
+		;// wafer记忆状态更新
+	ELSE
+		;// wafer记忆状态更新
+	END_IF
+	tempActStep.addStep(10,FALSE);
+420:
+	tempActStep.toDoneStep();
+1000:
+	tempActStep.toDoneStep();
+
+60000://Done
+	tempActStep.setDoneFlag();
+	tempActStep.toZeroStep();
+	
+65000://Error
+	tempActStep.setErrDoneFlag();
+	tempActStep.toZeroStep();
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="S_WaferCheckPOU">
+      <LineId Id="49" Count="0" />
+      <LineId Id="385" Count="2" />
+      <LineId Id="406" Count="3" />
+      <LineId Id="558" Count="0" />
+      <LineId Id="410" Count="8" />
+      <LineId Id="422" Count="0" />
+      <LineId Id="530" Count="1" />
+      <LineId Id="489" Count="0" />
+      <LineId Id="510" Count="0" />
+      <LineId Id="509" Count="0" />
+      <LineId Id="559" Count="0" />
+      <LineId Id="395" Count="0" />
+      <LineId Id="446" Count="0" />
+    </LineIds>
+    <LineIds Name="S_WaferCheckPOU.Act_Ex">
+      <LineId Id="14" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="17" Count="0" />
+    </LineIds>
+    <LineIds Name="S_WaferCheckPOU.Act_Init_Status">
+      <LineId Id="15" Count="0" />
+    </LineIds>
+    <LineIds Name="S_WaferCheckPOU.ActionRun">
+      <LineId Id="1302" Count="10" />
+      <LineId Id="1687" Count="3" />
+      <LineId Id="1667" Count="0" />
+      <LineId Id="1691" Count="2" />
+      <LineId Id="1860" Count="0" />
+      <LineId Id="1695" Count="1" />
+      <LineId Id="1704" Count="1" />
+      <LineId Id="1703" Count="0" />
+      <LineId Id="1875" Count="0" />
+      <LineId Id="1697" Count="0" />
+      <LineId Id="1699" Count="0" />
+      <LineId Id="1707" Count="1" />
+      <LineId Id="1706" Count="0" />
+      <LineId Id="1700" Count="0" />
+      <LineId Id="1709" Count="0" />
+      <LineId Id="1698" Count="0" />
+      <LineId Id="1710" Count="0" />
+      <LineId Id="1712" Count="0" />
+      <LineId Id="1715" Count="3" />
+      <LineId Id="1713" Count="1" />
+      <LineId Id="1701" Count="1" />
+      <LineId Id="1722" Count="0" />
+      <LineId Id="1719" Count="0" />
+      <LineId Id="1723" Count="0" />
+      <LineId Id="1721" Count="0" />
+      <LineId Id="1720" Count="0" />
+      <LineId Id="1876" Count="0" />
+      <LineId Id="1911" Count="0" />
+      <LineId Id="1865" Count="9" />
+      <LineId Id="1736" Count="0" />
+      <LineId Id="1912" Count="0" />
+      <LineId Id="1914" Count="12" />
+      <LineId Id="1913" Count="0" />
+      <LineId Id="1737" Count="10" />
+      <LineId Id="1749" Count="1" />
+      <LineId Id="1748" Count="0" />
+      <LineId Id="1751" Count="3" />
+      <LineId Id="1756" Count="0" />
+      <LineId Id="1755" Count="0" />
+      <LineId Id="1757" Count="0" />
+      <LineId Id="1766" Count="1" />
+      <LineId Id="1779" Count="1" />
+      <LineId Id="1768" Count="0" />
+      <LineId Id="1783" Count="1" />
+      <LineId Id="1769" Count="0" />
+      <LineId Id="1771" Count="5" />
+      <LineId Id="1770" Count="0" />
+      <LineId Id="1777" Count="1" />
+      <LineId Id="1781" Count="0" />
+      <LineId Id="1785" Count="5" />
+      <LineId Id="1782" Count="0" />
+      <LineId Id="1791" Count="10" />
+      <LineId Id="1803" Count="6" />
+      <LineId Id="1802" Count="0" />
+      <LineId Id="1822" Count="1" />
+      <LineId Id="1810" Count="0" />
+      <LineId Id="1812" Count="7" />
+      <LineId Id="1811" Count="0" />
+      <LineId Id="1820" Count="0" />
+      <LineId Id="1824" Count="0" />
+      <LineId Id="1827" Count="13" />
+      <LineId Id="1821" Count="0" />
+      <LineId Id="1841" Count="2" />
+      <LineId Id="1845" Count="5" />
+      <LineId Id="1844" Count="0" />
+      <LineId Id="1851" Count="1" />
+      <LineId Id="1856" Count="0" />
+      <LineId Id="1853" Count="0" />
+      <LineId Id="1855" Count="0" />
+      <LineId Id="1854" Count="0" />
+      <LineId Id="1857" Count="2" />
+      <LineId Id="1668" Count="9" />
+      <LineId Id="1092" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

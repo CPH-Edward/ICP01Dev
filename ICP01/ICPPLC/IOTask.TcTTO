@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <Task Name="IOTask" Id="{263b02ee-1f39-4a8f-8455-95abaa9e55d0}">
+    <!--CycleTime in micro seconds.-->
+    <CycleTime>2000</CycleTime>
+    <Priority>12</Priority>
+    <PouCall>
+      <Name>TesterIO</Name>
+    </PouCall>
+    <TaskFBGuid>{2a5917af-53b4-4093-ab28-31ee29985bf9}</TaskFBGuid>
+    <Fb_init>{9272c619-e25f-4431-bcea-e91b6088b287}</Fb_init>
+    <Fb_exit>{99925d0c-ce9c-45b8-8427-fcfa6012af8c}</Fb_exit>
+    <CycleUpdate>{3902b52e-b724-4a66-8312-cf3a23f72b85}</CycleUpdate>
+    <PostCycleUpdate>{5c15b82a-6e00-47c6-84a4-1c4aaafa0796}</PostCycleUpdate>
+  </Task>
+</TcPlcObject>

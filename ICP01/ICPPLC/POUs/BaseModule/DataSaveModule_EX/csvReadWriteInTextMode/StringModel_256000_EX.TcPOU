@@ -1,0 +1,116 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="StringModel_256000_EX" Id="{e9efaca8-6831-4f97-92dc-e0d8e6a2f8b7}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK StringModel_256000_EX
+VAR CONSTANT
+	cNumLength:UDINT:=gMaxNumLength;//maximum -+21 4748 3647
+	cNumBegin:UDINT:=gNumBegin;
+END_VAR
+VAR_INPUT
+END_VAR
+VAR_OUTPUT
+	length:UDINT;
+	error:BOOL;
+	b:ARRAY[cNumBegin..(cNumLength+cNumBegin-1)]OF BYTE;
+END_VAR
+VAR
+	//b:ARRAY[cNumBegin..(cNumLength+cNumBegin-1)]OF BYTE;	
+	endPoint:UDINT:=cNumBegin;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(*
+	version 1.0 hjm in Zhuhai IA 20171122
+
+	to save string to byte array
+*)
+
+]]></ST>
+    </Implementation>
+    <Method Name="append" Id="{9655a231-fca8-4d5a-8f88-10a286709c18}">
+      <Declaration><![CDATA[METHOD append 
+VAR_INPUT
+	str:STRING(255);
+END_VAR
+VAR
+	i:INT;
+	strTemp:STRING(1);
+	_leng:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+_leng:=LEN(str);
+FOR i:=1 TO _leng DO
+	strTemp:=LEFT(str,1);
+	str:= DELETE (str,1,1);
+	IF endPoint<=cNumLength THEN
+		b[endPoint]:=F_ToASC(strTemp);
+		endPoint:=endPoint+1;	
+	ELSE
+		error:=TRUE;
+		RETURN;	
+	END_IF
+END_FOR
+length:=endPoint-cNumBegin;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getAddr" Id="{707749ba-95de-4bdd-88c9-5385201d3abf}">
+      <Declaration><![CDATA[METHOD getAddr:POINTER TO BYTE;
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[getAddr:=ADR(b);
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="init" Id="{621f7663-3581-400d-afd1-75ef681e0833}">
+      <Declaration><![CDATA[METHOD init 
+VAR_INPUT
+END_VAR
+VAR
+	i:UDINT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[FOR i:=cNumBegin TO (cNumLength+cNumBegin-1) DO
+	b[i]:=0;
+END_FOR
+endPoint:=cNumBegin;
+error:=FALSE;
+
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="reset" Id="{d08ee33a-46f9-495f-8874-1518f9273d52}">
+      <Declaration><![CDATA[METHOD reset 
+VAR_INPUT
+END_VAR
+
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[endPoint:=cNumBegin;
+error:=FALSE;]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="StringModel_256000_EX">
+      <LineId Id="3" Count="5" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="StringModel_256000_EX.append">
+      <LineId Id="3" Count="13" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="StringModel_256000_EX.getAddr">
+      <LineId Id="3" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="StringModel_256000_EX.init">
+      <LineId Id="3" Count="5" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="StringModel_256000_EX.reset">
+      <LineId Id="3" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

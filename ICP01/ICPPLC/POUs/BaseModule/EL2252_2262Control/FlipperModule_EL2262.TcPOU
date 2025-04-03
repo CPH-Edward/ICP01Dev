@@ -1,0 +1,491 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="FlipperModule_EL2262" Id="{4bcbde27-1fd0-44d6-a8b9-e89a20a4d638}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FlipperModule_EL2262
+VAR CONSTANT
+	gMaxPosNum								:INT:=100;
+END_VAR
+VAR_IN_OUT
+	RefAxis_Ch1								:AXIS_REF;//ch1 运动主轴
+	RemAxis_Ch1								:AXIS_REF;//ch1 锁存主轴
+	RefAxis_Ch2								:AXIS_REF;//ch2 运动主轴
+	RemAxis_Ch2								:AXIS_REF;//ch2 锁存主轴
+END_VAR
+VAR_INPUT
+	OversamplingFactor						:UINT:=1000;// 超采样因子, Operation Mode需要设置成2 Channels(Bytes)
+	FlipperOut1Times						:INT;//ch1 位置检测次数
+	EnableOut1								:BOOL;//ch1 启用检测
+	Out1_CamSwitchData						:ARRAY [1..gMaxPosNum] OF ST_CamSwitch_EL2262;
+	ForceOut1								:BOOL:=FALSE;//ch1 强制触发
+
+	FlipperOut2Times						:INT;//ch2 位置检测次数
+	EnableOut2								:BOOL;//ch2 启用检测
+	Out2_CamSwitchData						:ARRAY [1..gMaxPosNum] OF ST_CamSwitch_EL2262;
+	ForceOut2								:BOOL:=FALSE;//ch2 强制触发
+END_VAR
+VAR_OUTPUT
+	Out1RecPosArray1						:ARRAY [1..gMaxPosNum] OF LREAL:=[gMaxPosNum(0)];//记录锁存触发位置数组
+	Out2RecPosArray2						:ARRAY [1..gMaxPosNum] OF LREAL:=[gMaxPosNum(0)];//记录锁存触发位置数组
+	Ch1_LogOut								:STRING(255);
+	Ch2_LogOut								:STRING(255);
+	Io_EL2262								:EL2262_IoInterface;//硬件IO，需要关联至EL2262
+	Io_EL2262_Ch2							:EL2262_IoInterface;//硬件IO，需要关联至EL2262
+	Ch1_Io_EL1252							:EL1252_IoInterface;//硬件IO，需要关联至EL1252
+	Ch2_Io_EL1252							:EL1252_IoInterface;//硬件IO，需要关联至EL1252
+END_VAR
+VAR
+//********************  XFC Calculate  *************************************************//
+	Ch1_MC_DigitalCamSwitch					:MC_DigitalCamSwitch;
+	Ch1_CAMSWITCH_REF						:CAMSWITCH_REF;
+	Ch1_ArrMC_CamSwitch						:ARRAY [1..gMaxPosNum] OF MC_CamSwitch;
+	Ch1_OUTPUT_REF							:OUTPUT_REF;
+	Ch1_ST_CamSwitchOptions					:ST_CamSwitchOptions;
+	Ch1_TRACK_REF							:TRACK_REF;
+
+	Ch1_v									:INT:=0;//for CamswitchArray instance FirstPos and LastPos
+
+	Ch2_MC_DigitalCamSwitch					:MC_DigitalCamSwitch;
+	Ch2_CAMSWITCH_REF						:CAMSWITCH_REF;
+	Ch2_ArrMC_CamSwitch						:ARRAY [1..gMaxPosNum] OF MC_CamSwitch;
+	Ch2_OUTPUT_REF							:OUTPUT_REF;
+	Ch2_ST_CamSwitchOptions					:ST_CamSwitchOptions;
+	Ch2_TRACK_REF							:TRACK_REF;
+	
+	Ch2_v									:INT:=0;//for CamswitchArray instance FirstPos and LastPos
+//********************  EL2252  *************************************************//
+	Flipper_CH1_XFC_EL2262					:XFC_EL2262;
+	Flipper_CH2_XFC_EL2262					:XFC_EL2262;
+	
+//****************************** XFC_touchprobe & EL1252  **********************//
+	Ch1_XFC_TouchProbe						:XFC_TouchProbe;
+	Ch1_ST_XfcTouchProbeOptions				:ST_XfcTouchProbeOptions;
+	Ch1_XFC_TRIGGER_REF						:XFC_TRIGGER_REF;
+
+	Ch1_fRecPos								:LREAL;
+	Ch1_RecTrig								:R_TRIG;
+	Ch1_nRecTimes							:INT:=1;//用于记录锁存触发次数
+	Ch1_i									:INT:=1;
+
+	Ch2_XFC_TouchProbe						:XFC_TouchProbe;
+	Ch2_ST_XfcTouchProbeOptions				:ST_XfcTouchProbeOptions;
+	Ch2_XFC_TRIGGER_REF						:XFC_TRIGGER_REF;
+
+	Ch2_fRecPos								:LREAL;
+	Ch2_RecTrig								:R_TRIG;
+	Ch2_nRecTimes							:INT:=1;//用于记录锁存触发次数
+	Ch2_i									:INT:=0;
+	
+	Ch1_LogFtrig							:F_TRIG;
+	Ch1_LogRtrig							:R_TRIG;
+	Ch1ClearI								:INT;
+	Ch2_LogFtrig							:F_TRIG;
+	Ch2_LogRtrig							:R_TRIG;
+	Ch2ClearI								:INT;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+//******************** Flipper Pos ****************************//
+FOR Ch1_v:=1 TO FlipperOut1Times BY 1 DO
+	Ch1_ArrMC_CamSwitch[Ch1_v].FirstOnPosition:=Out1_CamSwitchData[Ch1_v].fFirstOnPosition;
+	Ch1_ArrMC_CamSwitch[Ch1_v].LastOnPosition:=Out1_CamSwitchData[Ch1_v].fLastOnPosition;//Out1PosS[Ch1_v]+1.5, Out1PosE[Ch1_v]
+	
+	IF Out1_CamSwitchData[Ch1_v].bTimeMode THEN
+		Out1_CamSwitchData[Ch1_v].iAxisDirection:=0;
+		Ch1_ArrMC_CamSwitch[Ch1_v].CamSwitchMode:=E_CamSwitchMode.CAMSWITCHMODE_TIME;//用时间模式可以通过 Duration 参数控制ON持续时间
+		Ch1_ArrMC_CamSwitch[Ch1_v].Duration:=Out1_CamSwitchData[Ch1_v].fDuration;//持续时间, 单位s
+	ELSE
+		Ch1_ArrMC_CamSwitch[Ch1_v].CamSwitchMode:=E_CamSwitchMode.CAMSWITCHMODE_POSITION;//用位置模式可以通过 FirstOnPosition和LastOnPosition 参数控制ON持续时间
+	END_IF
+	IF 0>Out1_CamSwitchData[Ch1_v].iAxisDirection THEN
+		Ch1_ArrMC_CamSwitch[Ch1_v].AxisDirection:=E_CamSwitchDirection.CAMSWITCHDIRECTION_NEGATIVE;
+	ELSIF 0=Out1_CamSwitchData[Ch1_v].iAxisDirection THEN
+		Ch1_ArrMC_CamSwitch[Ch1_v].AxisDirection:=E_CamSwitchDirection.CAMSWITCHDIRECTION_BOTH;
+	ELSE
+		Ch1_ArrMC_CamSwitch[Ch1_v].AxisDirection:=E_CamSwitchDirection.CAMSWITCHDIRECTION_POSITIVE;
+	END_IF
+	
+	(*Ch1_ArrMC_CamSwitch[Ch1_v].CamSwitchMode:=E_CamSwitchMode.CAMSWITCHMODE_POSITION;//用位置模式可以通过 FirstOnPosition和LastOnPosition 参数控制ON持续时间
+	IF 0>Out1_CamSwitchData[Ch1_v].iAxisDirection THEN
+		Ch1_ArrMC_CamSwitch[Ch1_v].AxisDirection:=E_CamSwitchDirection.CAMSWITCHDIRECTION_NEGATIVE;
+	ELSIF 0=Out1_CamSwitchData[Ch1_v].iAxisDirection THEN
+		Ch1_ArrMC_CamSwitch[Ch1_v].AxisDirection:=E_CamSwitchDirection.CAMSWITCHDIRECTION_BOTH;
+	ELSE
+		Ch1_ArrMC_CamSwitch[Ch1_v].AxisDirection:=E_CamSwitchDirection.CAMSWITCHDIRECTION_POSITIVE;
+	END_IF*)
+END_FOR
+Ch1_CAMSWITCH_REF.NumberOfSwitches:=TO_UDINT(FlipperOut1Times);
+Ch1_CAMSWITCH_REF.pSwitches:=ADR(Ch1_ArrMC_CamSwitch);
+Ch1_CAMSWITCH_REF.SizeOfSwitches:=SIZEOF(Ch1_ArrMC_CamSwitch);
+
+FOR Ch2_v:=1 TO FlipperOut2Times BY 1 DO
+	Ch2_ArrMC_CamSwitch[Ch2_v].FirstOnPosition:=Out2_CamSwitchData[Ch2_v].fFirstOnPosition;
+	Ch2_ArrMC_CamSwitch[Ch2_v].LastOnPosition:=Out2_CamSwitchData[Ch2_v].fLastOnPosition;//Out2PosS[Ch2_v]+1.5, Out2PosE[Ch2_v]
+	
+	IF Out2_CamSwitchData[Ch2_v].bTimeMode THEN
+		Out2_CamSwitchData[Ch2_v].iAxisDirection:=0;
+		Ch2_ArrMC_CamSwitch[Ch2_v].CamSwitchMode:=E_CamSwitchMode.CAMSWITCHMODE_TIME;//用时间模式可以通过 Duration 参数控制ON持续时间
+		Ch2_ArrMC_CamSwitch[Ch2_v].Duration:=Out2_CamSwitchData[Ch2_v].fDuration;//持续时间, 单位s
+	ELSE
+		Ch2_ArrMC_CamSwitch[Ch2_v].CamSwitchMode:=E_CamSwitchMode.CAMSWITCHMODE_POSITION;//用位置模式可以通过 FirstOnPosition和LastOnPosition 参数控制ON持续时间
+	END_IF
+	IF 0>Out2_CamSwitchData[Ch2_v].iAxisDirection THEN
+		Ch2_ArrMC_CamSwitch[Ch2_v].AxisDirection:=E_CamSwitchDirection.CAMSWITCHDIRECTION_NEGATIVE;
+	ELSIF 0=Out2_CamSwitchData[Ch2_v].iAxisDirection THEN
+		Ch2_ArrMC_CamSwitch[Ch2_v].AxisDirection:=E_CamSwitchDirection.CAMSWITCHDIRECTION_BOTH;
+	ELSE
+		Ch2_ArrMC_CamSwitch[Ch2_v].AxisDirection:=E_CamSwitchDirection.CAMSWITCHDIRECTION_POSITIVE;
+	END_IF
+	
+	(*Ch2_ArrMC_CamSwitch[Ch2_v].CamSwitchMode:=E_CamSwitchMode.CAMSWITCHMODE_POSITION;//用位置模式可以通过 FirstOnPosition和LastOnPosition 参数控制ON持续时间
+	IF 0>Out2_CamSwitchData[Ch2_v].iAxisDirection THEN
+		Ch2_ArrMC_CamSwitch[Ch2_v].AxisDirection:=E_CamSwitchDirection.CAMSWITCHDIRECTION_NEGATIVE;
+	ELSIF 0=Out2_CamSwitchData[Ch2_v].iAxisDirection THEN
+		Ch2_ArrMC_CamSwitch[Ch2_v].AxisDirection:=E_CamSwitchDirection.CAMSWITCHDIRECTION_BOTH;
+	ELSE
+		Ch2_ArrMC_CamSwitch[Ch2_v].AxisDirection:=E_CamSwitchDirection.CAMSWITCHDIRECTION_POSITIVE;
+	END_IF*)
+END_FOR
+Ch2_CAMSWITCH_REF.NumberOfSwitches:=TO_UDINT(FlipperOut2Times);
+Ch2_CAMSWITCH_REF.pSwitches:=ADR(Ch2_ArrMC_CamSwitch);
+Ch2_CAMSWITCH_REF.SizeOfSwitches:=SIZEOF(Ch2_ArrMC_CamSwitch);
+//******************** Cyclic IO ****************************//
+EL2262();
+EL1252();
+]]></ST>
+    </Implementation>
+    <Method Name="EL1252" Id="{2b827b25-b329-4d8c-b075-a594c1fc90b1}">
+      <Declaration><![CDATA[METHOD PRIVATE EL1252
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//****************************** out1 EL1252 ***************************************//
+Ch1_ST_XfcTouchProbeOptions.UseAcceleration:=TRUE;
+(*
+Ch1_XFC_TRIGGER_REF.Signal:=Ch1_Io_EL1252.Input;
+Ch1_XFC_TRIGGER_REF.TimestampRisingEdge:=Ch1_Io_EL1252.TimeStampNeg.dwLowPart;
+Ch1_XFC_TRIGGER_REF.TimestampFallingEdge:=Ch1_Io_EL1252.TimeStampPos.dwLowPart;
+Ch1_XFC_TRIGGER_REF.Edge:=E_SignalEdge.FallingEdge;
+Ch1_XFC_TRIGGER_REF.FreeRun:=TRUE;
+Ch1_XFC_TRIGGER_REF.ModuloPositions:=FALSE;
+Ch1_XFC_TRIGGER_REF.EncoderIndex:=0;//DWORD_TO_UINT(RemAxis.NcToPlc.AxisId);
+*)
+Ch1_XFC_TRIGGER_REF.Signal:=Ch1_Io_EL1252.Input;
+Ch1_XFC_TRIGGER_REF.TimestampRisingEdge:=Ch1_Io_EL1252.TimeStampPos.dwLowPart;
+Ch1_XFC_TRIGGER_REF.TimestampFallingEdge:=Ch1_Io_EL1252.TimeStampNeg.dwLowPart;
+Ch1_XFC_TRIGGER_REF.Edge:=E_SignalEdge.RisingEdge;
+Ch1_XFC_TRIGGER_REF.FreeRun:=TRUE;
+Ch1_XFC_TRIGGER_REF.ModuloPositions:=FALSE;
+Ch1_XFC_TRIGGER_REF.EncoderIndex:=0;//DWORD_TO_UINT(RemAxis_Ch1.NcToPlc.AxisId);
+
+RemAxis_Ch1.ReadStatus();
+Ch1_XFC_TouchProbe(
+	Axis:=RemAxis_Ch1 , 
+	TriggerInput:=Ch1_XFC_TRIGGER_REF , 
+	Execute:=TRUE , 
+	WindowOnly:=FALSE , 
+	FirstPosition:=0 , 
+	LastPosition:=0 , 
+	Options:=Ch1_ST_XfcTouchProbeOptions , 
+	Done=> , 
+	Busy=> , 
+	Error=> , 
+	ErrorID=> , 
+	RecordedPosition=>Ch1_fRecPos );
+
+Ch1_RecTrig(clk:=Ch1_XFC_TouchProbe.Done);
+IF EnableOut1 THEN
+	IF Ch1_RecTrig.Q THEN
+		out1RecPosArray1[Ch1_nRecTimes]:=Ch1_fRecPos;
+		Ch1_nRecTimes:=Ch1_nRecTimes+1;
+	END_IF
+END_IF
+
+Ch1_LogRtrig(clk:=EnableOut1);
+IF Ch1_LogRtrig.Q THEN
+	FOR Ch1ClearI:=1 TO gMaxPosNum DO
+		out1RecPosArray1[Ch1ClearI]:=0;
+	END_FOR
+END_IF
+
+Ch1_LogFtrig(clk:=EnableOut1);
+IF Ch1_LogFtrig.Q THEN
+	Ch1_LogOut:='out1 Pos:,';
+	//FOR Ch1_i:=1 TO FlipperOut1Times BY 1 DO
+	FOR Ch1_i:=1 TO (Ch1_nRecTimes-1) BY 1 DO
+		//Ch1_LogOut:=concat(Ch1_LogOut,LREAL_TO_STRING(out1RecPosArray1[Ch1_i]));
+		Ch1_LogOut:=concat(Ch1_LogOut,LREAL_TO_FMTSTR(out1RecPosArray1[Ch1_i],5,FALSE));
+		Ch1_LogOut:=concat(Ch1_LogOut,',');
+	END_FOR
+	Ch1_nRecTimes:=1;
+END_IF
+//****************************** out2 EL1252 ***************************************//
+Ch2_ST_XfcTouchProbeOptions.UseAcceleration:=TRUE;
+(*
+Ch2_XFC_TRIGGER_REF.Signal:=Ch2_Io_EL1252.Input;
+Ch2_XFC_TRIGGER_REF.TimestampRisingEdge:=Ch2_Io_EL1252.TimeStampNeg.dwLowPart;
+Ch2_XFC_TRIGGER_REF.TimestampFallingEdge:=Ch2_Io_EL1252.TimeStampPos.dwLowPart;
+Ch2_XFC_TRIGGER_REF.Edge:=E_SignalEdge.FallingEdge;
+Ch2_XFC_TRIGGER_REF.FreeRun:=TRUE;
+Ch2_XFC_TRIGGER_REF.ModuloPositions:=FALSE;
+Ch2_XFC_TRIGGER_REF.EncoderIndex:=0;//DWORD_TO_UINT(RemAxis.NcToPlc.AxisId);
+*)
+Ch2_XFC_TRIGGER_REF.Signal:=Ch2_Io_EL1252.Input;
+Ch2_XFC_TRIGGER_REF.TimestampRisingEdge:=Ch2_Io_EL1252.TimeStampPos.dwLowPart;
+Ch2_XFC_TRIGGER_REF.TimestampFallingEdge:=Ch2_Io_EL1252.TimeStampNeg.dwLowPart;
+Ch2_XFC_TRIGGER_REF.Edge:=E_SignalEdge.RisingEdge;
+Ch2_XFC_TRIGGER_REF.FreeRun:=TRUE;
+Ch2_XFC_TRIGGER_REF.ModuloPositions:=FALSE;
+Ch2_XFC_TRIGGER_REF.EncoderIndex:=0;//DWORD_TO_UINT(RemAxis_Ch2.NcToPlc.AxisId);
+
+RemAxis_Ch2.ReadStatus();
+Ch2_XFC_TouchProbe(
+	Axis:=RemAxis_Ch2 , 
+	TriggerInput:=Ch2_XFC_TRIGGER_REF , 
+	Execute:=TRUE , 
+	WindowOnly:=FALSE , 
+	FirstPosition:=0 , 
+	LastPosition:=0 , 
+	Options:=Ch2_ST_XfcTouchProbeOptions , 
+	Done=> , 
+	Busy=> , 
+	Error=> , 
+	ErrorID=> , 
+	RecordedPosition=>Ch2_fRecPos );
+
+
+Ch2_RecTrig(clk:=Ch2_XFC_TouchProbe.Done);
+IF EnableOut2 THEN
+	IF Ch2_RecTrig.Q THEN
+		out2RecPosArray2[Ch2_nRecTimes]:=Ch2_fRecPos;
+		Ch2_nRecTimes:=Ch2_nRecTimes+1;
+	END_IF
+END_IF
+
+Ch2_LogRtrig(clk:=EnableOut2);
+IF Ch2_LogRtrig.Q THEN
+	FOR Ch2ClearI:=1 TO gMaxPosNum DO
+		Out2RecPosArray2[Ch2ClearI]:=0;
+	END_FOR
+END_IF
+
+Ch2_LogFtrig(clk:=EnableOut2);
+IF Ch2_LogFtrig.Q THEN
+	Ch2_LogOut:='out2 Pos:,';
+	//FOR Ch2_i:=1 TO FlipperOut2Times BY 1 DO
+	FOR Ch2_i:=1 TO (Ch2_nRecTimes-1) BY 1 DO
+		//Ch2_LogOut:=concat(Ch2_LogOut,LREAL_TO_STRING(out2RecPosArray2[Ch2_i]));
+		Ch2_LogOut:=concat(Ch2_LogOut,LREAL_TO_FMTSTR(out2RecPosArray2[Ch2_i],5,FALSE));
+		Ch2_LogOut:=concat(Ch2_LogOut,',');
+	END_FOR
+	Ch2_nRecTimes:=1;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="EL2262" Id="{1b974703-1a36-49d9-a00c-8c726ba4333f}">
+      <Declaration><![CDATA[METHOD PRIVATE EL2262
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//*******************   output 1  *****************************//
+Ch1_ST_CamSwitchOptions.EncoderIndex:=0;//DWORD_TO_UINT(RefAxis.NcToPlc.AxisId);
+Ch1_ST_CamSwitchOptions.UseAcceleration:=TRUE;//FALSE TRUE
+
+Ch1_TRACK_REF.ModuloPositions:=FALSE;//启用 模位置
+Ch1_TRACK_REF.Disable:=FALSE;
+Ch1_TRACK_REF.Force:=ForceOut1;
+Ch1_TRACK_REF.OnCompensation:=0;//延时 ON
+Ch1_TRACK_REF.OffCompensation:=0;//延时 OFF
+
+RefAxis_Ch1.ReadStatus();
+Ch1_MC_DigitalCamSwitch(
+	Axis:=RefAxis_Ch1 , 
+	Switches:=Ch1_CAMSWITCH_REF , 
+	Output:=Ch1_OUTPUT_REF , 
+	TrackOptions:=Ch1_TRACK_REF , 
+	Enable:=EnableOut1 , 
+	Options:=Ch1_ST_CamSwitchOptions , 
+	InOperation=> , 
+	Busy=> , 
+	Error=> , 
+	ErrorID=> );
+(*
+IF RefAxis_Ch1.Status.NotMoving THEN
+	Ch1_MC_DigitalCamSwitch(
+		Axis:=RefAxis_Ch1 , 
+		Switches:=Ch1_CAMSWITCH_REF , 
+		Output:=Ch1_OUTPUT_REF , 
+		TrackOptions:=Ch1_TRACK_REF , 
+		Enable:=FALSE , 
+		Options:=Ch1_ST_CamSwitchOptions , 
+		InOperation=> , 
+		Busy=> , 
+		Error=> , 
+		ErrorID=> );
+END_IF
+*)
+//*******************   output 2  *****************************//
+Ch2_ST_CamSwitchOptions.EncoderIndex:=0;//DWORD_TO_UINT(RefAxis.NcToPlc.AxisId);
+Ch2_ST_CamSwitchOptions.UseAcceleration:=TRUE;//FALSE TRUE
+
+Ch2_TRACK_REF.ModuloPositions:=FALSE;//启用 模位置
+Ch2_TRACK_REF.Disable:=FALSE;
+Ch2_TRACK_REF.Force:=ForceOut2;
+Ch2_TRACK_REF.OnCompensation:=0;//延时 ON
+Ch2_TRACK_REF.OffCompensation:=0;//延时 OFF
+
+RefAxis_Ch2.ReadStatus();
+Ch2_MC_DigitalCamSwitch(
+	Axis:=RefAxis_Ch2 , 
+	Switches:=Ch2_CAMSWITCH_REF , 
+	Output:=Ch2_OUTPUT_REF , 
+	TrackOptions:=Ch2_TRACK_REF , 
+	Enable:=EnableOut2 , 
+	Options:=Ch2_ST_CamSwitchOptions , 
+	InOperation=> , 
+	Busy=> , 
+	Error=> , 
+	ErrorID=> );
+(*
+IF RefAxis_Ch2.Status.NotMoving THEN
+	Ch2_MC_DigitalCamSwitch(
+		Axis:=RefAxis_Ch2 , 
+		Switches:=Ch2_CAMSWITCH_REF , 
+		Output:=Ch2_OUTPUT_REF , 
+		TrackOptions:=Ch2_TRACK_REF , 
+		Enable:=FALSE , 
+		Options:=Ch2_ST_CamSwitchOptions , 
+		InOperation=> , 
+		Busy=> , 
+		Error=> , 
+		ErrorID=> );
+END_IF
+*)
+//***************** EL2262 *****************************//
+Flipper_CH1_XFC_EL2262(
+	OversamplingFactor:= OversamplingFactor, 
+	OutputOneCycleDelayed:= FALSE, 
+	ForceWhenLate:= TRUE, 
+	Channel:= 0, 
+	Error=> , 
+	ErrorID=> , 
+	ErrorOutputMissed=> , 
+	PrecisionReduced=> , 
+	Output:= Ch1_OUTPUT_REF, 
+	TrackOptions:= Ch1_TRACK_REF, 
+	EL2262:= Io_EL2262);
+
+Flipper_CH2_XFC_EL2262(
+	OversamplingFactor:= OversamplingFactor, 
+	OutputOneCycleDelayed:= FALSE, 
+	ForceWhenLate:= TRUE, 
+	Channel:= 1, 
+	Error=> , 
+	ErrorID=> , 
+	ErrorOutputMissed=> , 
+	PrecisionReduced=> , 
+	Output:= Ch2_OUTPUT_REF, 
+	TrackOptions:= Ch2_TRACK_REF, 
+	EL2262:= Io_EL2262_Ch2);
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="SetCamSwitchData_Ch1" Id="{c0bdbe4b-1186-4995-ad7c-b5e09f88a131}">
+      <Declaration><![CDATA[METHOD SetCamSwitchData_Ch1 : BOOL
+VAR_INPUT
+	nIndex:INT;
+	
+	bTimeMode:BOOL;//TRUE表示时间控制模式, 持续时间由fDuration控制; FALSE表示位置控制模式，持续时间由fFirstOnPosition和fLastOnPosition控制
+	fDuration:LREAL;//持续时间, 单位s
+	
+	fFirstOnPosition:LREAL;//时间控制模式和位置控制模式触发起始点
+	fLastOnPosition:LREAL;//位置控制模式触发结束点
+	iAxisDirection:INT;//-1表示负方向检测; 0表示正负方向检测(时间控制模式必须是0); 1表示正方向检测;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF nIndex<1 OR nIndex>gMaxPosNum THEN
+	SetCamSwitchData_Ch1:=FALSE;
+	RETURN;
+END_IF
+Out1_CamSwitchData[nIndex].bTimeMode:=bTimeMode;
+Out1_CamSwitchData[nIndex].fDuration:=fDuration;
+Out1_CamSwitchData[nIndex].fFirstOnPosition:=fFirstOnPosition;
+Out1_CamSwitchData[nIndex].fLastOnPosition:=fLastOnPosition;
+Out1_CamSwitchData[nIndex].iAxisDirection:=iAxisDirection;
+SetCamSwitchData_Ch1:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="SetCamSwitchData_Ch2" Id="{9ade2b91-e133-4108-9b1b-5f7a70a5b91e}">
+      <Declaration><![CDATA[METHOD SetCamSwitchData_Ch2 : BOOL
+VAR_INPUT
+	nIndex:INT;
+	
+	bTimeMode:BOOL;//TRUE表示时间控制模式, 持续时间由fDuration控制; FALSE表示位置控制模式，持续时间由fFirstOnPosition和fLastOnPosition控制
+	fDuration:LREAL;//持续时间, 单位s
+	
+	fFirstOnPosition:LREAL;//时间控制模式和位置控制模式触发起始点
+	fLastOnPosition:LREAL;//位置控制模式触发结束点
+	iAxisDirection:INT;//-1表示负方向检测; 0表示正负方向检测(时间控制模式必须是0); 1表示正方向检测;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF nIndex<1 OR nIndex>gMaxPosNum THEN
+	SetCamSwitchData_Ch2:=FALSE;
+	RETURN;
+END_IF
+Out2_CamSwitchData[nIndex].bTimeMode:=bTimeMode;
+Out2_CamSwitchData[nIndex].fDuration:=fDuration;
+Out2_CamSwitchData[nIndex].fFirstOnPosition:=fFirstOnPosition;
+Out2_CamSwitchData[nIndex].fLastOnPosition:=fLastOnPosition;
+Out2_CamSwitchData[nIndex].iAxisDirection:=iAxisDirection;
+SetCamSwitchData_Ch2:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="VersionLog" Id="{e3ec132b-f390-4e61-9952-c864d42e5264}">
+      <Implementation>
+        <ST><![CDATA[(*
+版本: V1.0.0.0
+说明:
+	1. 首个版本
+/**************************************************/
+版本: V1.0.0.1
+说明:
+	1. 增加触发上升沿清空EL1252位置记录数据
+/**************************************************/
+版本: V1.0.0.2
+说明:
+	1. 增加函数接口，用于设置飞拍监控数据
+/**************************************************/
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="FlipperModule_EL2262">
+      <LineId Id="3" Count="67" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FlipperModule_EL2262.EL1252">
+      <LineId Id="3" Count="119" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FlipperModule_EL2262.EL2262">
+      <LineId Id="3" Count="99" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FlipperModule_EL2262.SetCamSwitchData_Ch1">
+      <LineId Id="3" Count="9" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FlipperModule_EL2262.SetCamSwitchData_Ch2">
+      <LineId Id="3" Count="9" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="FlipperModule_EL2262.VersionLog">
+      <LineId Id="2" Count="12" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,298 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="PRG_ADS_Comm_ByName_A2B" Id="{348aa192-442a-4381-9573-575fd5b0f425}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM PRG_ADS_Comm_ByName_A2B
+VAR
+	// 1808ErrorID 多数是ADS访问变量出错，需要仔细查看变量名称是否有误
+	fbGetHandle					: ADSRDWRT;				//获取句柄功能块
+	fbADSGetData				: ADSREAD;				//A机从B机读功能块
+	fbADSSendData				: ADSWRITE;				//A机向B机写功能块
+	iHandle_A_R					: UDINT			:= 0;	//A机接收数据句柄
+	iHandle_A_T					: UDINT			:= 0;	//A机向B机写收据句柄
+	sVarName					:STRING;				//结构体变量名
+	AdsNETID					: T_AmsNetId	:= '5.117.124.188.1.1';//B机AMS Net Id   ICP:5.114.113.208.1.1
+	AdsPort						:T_AmsPort		:=851;	//B机PLC端口号
+	iADSCommStep				:INT;
+	iDelayTM					:INT;
+	bAdsCommErr					:BOOL;
+	tHeartBeat					:TON;
+	tON							:TON;
+	tOFF						:TON;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[MsgMap_A2B();
+CASE iADSCommStep OF
+0:// 获取gSTA2BData句柄-----TC3定义全局变量，必须加'GVL.'.-----ADSIGRP_SYM_HNDBYNAME----A---->Write to---->C
+	sVarName					:='GVL_AllGLOBAL.gSTA2BData';
+	fbGetHandle(NETID:=AdsNETID , PORT:=AdsPort , IDXGRP:=ADSIGRP_SYM_HNDBYNAME , IDXOFFS:=16#00 , WRITELEN:=INT_TO_UDINT(len(sVarName)) ,
+	 READLEN:=SIZEOF(iHandle_A_T) , SRCADDR:=ADR(sVarName) , DESTADDR:=ADR(iHandle_A_T) , WRTRD:= FALSE, );
+	IF iDelayTM>200 THEN
+		iDelayTM				:=0;
+		iADSCommStep			:=iADSCommStep+1;
+	ELSE
+		iDelayTM				:=iDelayTM+1;
+	END_IF
+1:
+	IF NOT fbGetHandle.BUSY THEN
+		iADSCommStep			:=iADSCommStep+1;
+	ELSE
+		iADSCommStep			:=999;
+	END_IF
+2:
+	fbGetHandle(WRTRD:= TRUE );
+	IF fbGetHandle.BUSY THEN
+		iADSCommStep			:=iADSCommStep+1;
+	ELSE
+		iADSCommStep			:=999;
+	END_IF
+3:
+	fbGetHandle(WRTRD:= FALSE );
+	IF NOT fbGetHandle.BUSY THEN
+		IF NOT fbGetHandle.ERR THEN
+			iADSCommStep			:=iADSCommStep+1;
+		ELSE
+			iADSCommStep			:=999;
+		END_IF
+	ELSE
+		IF iDelayTM>100 THEN
+			iDelayTM					:=0;
+			iADSCommStep				:=999;
+		ELSE
+			iDelayTM					:=iDelayTM+1;
+		END_IF
+	END_IF
+4:
+	iADSCommStep				:=10;
+10://-B---->Write to---->A
+	sVarName					:='GVL_AllGLOBAL.gSTB2AData';
+	fbGetHandle(NETID:=AdsNETID , PORT:=AdsPort , IDXGRP:=ADSIGRP_SYM_HNDBYNAME , IDXOFFS:=16#00 , WRITELEN:=INT_TO_UDINT(LEN(sVarName)) , 
+	READLEN:=SIZEOF(iHandle_A_R) , SRCADDR:=ADR(sVarName) , DESTADDR:=ADR(iHandle_A_R) , WRTRD:= FALSE, );
+	iADSCommStep			:=iADSCommStep+1;
+11:
+	IF NOT fbGetHandle.BUSY THEN
+		iADSCommStep			:=iADSCommStep+1;
+	ELSE
+		iADSCommStep				:=999;
+	END_IF
+12:
+	fbGetHandle(WRTRD:= TRUE );
+	IF fbGetHandle.BUSY THEN
+		iADSCommStep			:=iADSCommStep+1;
+	ELSE
+		iADSCommStep				:=999;
+	END_IF
+13:
+	fbGetHandle(WRTRD:= FALSE );
+	IF NOT fbGetHandle.BUSY THEN
+		IF NOT fbGetHandle.ERR THEN
+			iADSCommStep			:=iADSCommStep+1;
+		ELSE
+			iADSCommStep				:=999;
+		END_IF
+	ELSE
+		IF iDelayTM>100 THEN
+			iDelayTM					:=0;
+			iADSCommStep				:=999;
+		ELSE
+			iDelayTM					:=iDelayTM+1;
+		END_IF
+	END_IF
+14:
+	iADSCommStep				:=20;
+20://'GVL_AllGLOBAL.stA2CData'定义全局变量就这么写。注意-------'IDXGRP:=ADSIGRP_SYM_VALBYHND 'A---->WRITE TO ----C
+	fbADSSendData(	NETID:= AdsNETID, PORT:=AdsPort , IDXGRP:=ADSIGRP_SYM_VALBYHND , IDXOFFS:=iHandle_A_T ,
+	 LEN:=SIZEOF(GVL_AllGLOBAL.gSTA2BData) , SRCADDR:=ADR(GVL_AllGLOBAL.gSTA2BData) , WRITE:=FALSE ,  );
+	iADSCommStep			:=iADSCommStep+1;
+21:
+	IF 	NOT fbADSSendData.BUSY THEN
+		iADSCommStep			:=iADSCommStep+1;
+	ELSE
+		iADSCommStep				:=999;
+	END_IF
+22:
+	fbADSSendData(WRITE:=TRUE ,);
+	IF fbADSSendData.BUSY THEN
+		iADSCommStep			:=iADSCommStep+1;
+	ELSE
+		iADSCommStep				:=999;
+	END_IF
+23:
+	fbADSSendData(WRITE:=FALSE ,);
+	IF NOT fbADSSendData.BUSY THEN
+		IF NOT  fbADSSendData.ERR THEN
+			iADSCommStep			:=iADSCommStep+1;
+		ELSE
+			iADSCommStep				:=999;
+		END_IF
+	ELSE
+		IF iDelayTM>100 THEN
+			iDelayTM					:=0;
+			iADSCommStep				:=999;
+		ELSE
+			iDelayTM					:=iDelayTM+1;
+		END_IF
+	END_IF
+24:
+	iADSCommStep			:=30;
+30://C---->WRITE TO ----A
+	fbADSGetData(NETID:=AdsNETID , PORT:=AdsPort , IDXGRP:=ADSIGRP_SYM_VALBYHND , IDXOFFS:=iHandle_A_R , 
+	LEN:=SIZEOF(GVL_AllGLOBAL.gSTB2AData) , DESTADDR:= ADR(GVL_AllGLOBAL.gSTB2AData), READ:=FALSE );
+	iADSCommStep				:=iADSCommStep+1;
+31:
+	IF NOT fbADSGetData.BUSY THEN
+		iADSCommStep			:=iADSCommStep+1;
+	ELSE
+		iADSCommStep			:=999;
+	END_IF
+32:
+	fbADSGetData(READ:=TRUE );
+	IF  fbADSGetData.BUSY THEN
+		iADSCommStep			:=iADSCommStep+1;
+	ELSE
+		iADSCommStep			:=999;
+	END_IF
+33:
+	fbADSGetData(READ:=FALSE );
+	IF  NOT fbADSGetData.BUSY THEN
+		IF NOT fbADSGetData.ERR THEN
+			iADSCommStep			:=iADSCommStep+1;
+		ELSE
+			iADSCommStep				:=999;
+		END_IF
+	ELSE
+		IF iDelayTM>100 THEN
+			iDelayTM					:=0;
+			iADSCommStep				:=999;
+		ELSE
+			iDelayTM					:=iDelayTM+1;
+		END_IF
+	END_IF	
+34:
+	iADSCommStep			:=20;
+999://异常处理
+	iADSCommStep			:=0;
+END_CASE
+//A机建立心跳
+tHeartBeat(IN:=NOT tHeartBeat.Q , PT:=T#1S , Q=> , ET=> );
+IF tHeartBeat.Q THEN
+	gSTA2BData.bHeartBeatMonitor			:=NOT gSTA2BData.bHeartBeatMonitor;
+END_IF
+
+
+// A机监控C机心跳
+IF gSTB2AData.bHeartBeatMonitor THEN
+	tON(IN:=gSTB2AData.bHeartBeatMonitor , PT:=T#2S , Q=> , ET=> );
+	tOFF(IN:=FALSE , PT:=T#2S , Q=> , ET=> );
+	IF tON.Q THEN
+		bAdsCommErr					:=TRUE;
+		gADSConnected				:=FALSE;
+	ELSE
+		bAdsCommErr					:=FALSE;
+		gADSConnected				:=TRUE;
+	END_IF
+ELSE
+	tOFF(IN:=NOT gSTB2AData.bHeartBeatMonitor , PT:=T#2S , Q=> , ET=> );
+	tON(IN:=FALSE , PT:=T#2S , Q=> , ET=> );
+	IF tOFF.Q THEN
+		bAdsCommErr					:=TRUE;
+		gADSConnected			:=FALSE;
+	ELSE
+		bAdsCommErr					:=FALSE;
+		gADSConnected			:=TRUE;
+	END_IF
+END_IF
+gSTA2BData.bError:=bAdsCommErr;
+MsgMap_B2A();
+
+]]></ST>
+    </Implementation>
+    <Action Name="MsgClear_AB" Id="{63867afe-32e4-4ccd-a5aa-c220523c70c0}">
+      <Implementation>
+        <ST><![CDATA[gSTA2BData.Cmd_1:=FALSE;
+gSTA2BData.Cmd_2:=FALSE;
+gSTA2BData.Cmd_3:=FALSE;
+gSTA2BData.Cmd_4:=FALSE;
+gSTA2BData.Cmd_5:=FALSE;
+gSTA2BData.Cmd_6:=FALSE;
+gSTA2BData.Cmd_7:=FALSE;
+gSTA2BData.Cmd_8:=FALSE;
+gSTA2BData.Cmd_9:=FALSE;
+gSTA2BData.Cmd_10:=FALSE;
+gSTA2BData.O_1:=FALSE;
+gSTA2BData.O_2:=FALSE;
+gSTA2BData.O_3:=FALSE;
+gSTA2BData.O_4:=FALSE;
+gSTA2BData.O_5:=FALSE;
+gSTA2BData.O_6:=FALSE;
+gSTA2BData.O_7:=FALSE;
+gSTA2BData.O_8:=FALSE;
+gSTA2BData.O_9:=FALSE;
+gSTA2BData.O_10:=FALSE;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="MsgMap_A2B" Id="{275c8426-4c38-4ed0-b595-f3a188ef417e}">
+      <Implementation>
+        <ST><![CDATA[// 变量中转
+//gSTA2BData.Cmd_1:=    ;
+//gSTA2BData.Cmd_2:=    ;
+//gSTA2BData.Cmd_3:=    ;
+//gSTA2BData.Cmd_4:=    ;
+//gSTA2BData.Cmd_5:=    ;
+//gSTA2BData.Cmd_6:=    ;
+//gSTA2BData.Cmd_7:=    ;
+//gSTA2BData.Cmd_8:=    ;
+//gSTA2BData.Cmd_9:=    ;
+//gSTA2BData.Cmd_10:=    ;
+
+//gSTA2BData.O_1:=    ;
+//gSTA2BData.O_2:=    ;
+//gSTA2BData.O_3:=    ;
+//gSTA2BData.O_4:=    ;
+//gSTA2BData.O_5:=    ;
+//gSTA2BData.O_6:=    ;
+//gSTA2BData.O_7:=    ;
+//gSTA2BData.O_8:=    ;
+//gSTA2BData.O_9:=    ;
+//gSTA2BData.O_10:=    ;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="MsgMap_B2A" Id="{f77d416b-0cfd-49f8-a0c0-29fc4a373f0d}">
+      <Implementation>
+        <ST><![CDATA[// 变量中转
+//gSTA2BData.I_1 :=gSTA2BData.I_1     ;
+//gSTA2BData.I_2 :=gSTA2BData.I_2     ;
+//gSTA2BData.I_3 :=gSTA2BData.I_3     ;
+//gSTA2BData.I_4 :=gSTA2BData.I_4     ;
+//gSTA2BData.I_5 :=gSTA2BData.I_5     ;
+//gSTA2BData.I_6 :=gSTA2BData.I_6     ;
+//gSTA2BData.I_7 :=gSTA2BData.I_7     ;
+//gSTA2BData.I_8 :=gSTA2BData.I_8     ;
+//gSTA2BData.I_9 :=gSTA2BData.I_9     ;
+//gSTA2BData.I_10:=gSTA2BData.I_10    ;]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="PRG_ADS_Comm_ByName_A2B">
+      <LineId Id="617" Count="183" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PRG_ADS_Comm_ByName_A2B.MsgClear_AB">
+      <LineId Id="1" Count="0" />
+      <LineId Id="30" Count="8" />
+      <LineId Id="40" Count="9" />
+    </LineIds>
+    <LineIds Name="PRG_ADS_Comm_ByName_A2B.MsgMap_A2B">
+      <LineId Id="71" Count="0" />
+      <LineId Id="166" Count="0" />
+      <LineId Id="87" Count="0" />
+      <LineId Id="167" Count="7" />
+      <LineId Id="176" Count="9" />
+      <LineId Id="175" Count="0" />
+    </LineIds>
+    <LineIds Name="PRG_ADS_Comm_ByName_A2B.MsgMap_B2A">
+      <LineId Id="243" Count="0" />
+      <LineId Id="245" Count="8" />
+      <LineId Id="244" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

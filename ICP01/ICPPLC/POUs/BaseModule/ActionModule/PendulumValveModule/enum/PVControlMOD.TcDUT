@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="PVControlMOD" Id="{5c27c366-9b57-4e1c-baf4-814baa8d67f6}">
+    <Declaration><![CDATA[
+TYPE PVControlMOD :
+(
+	PVControl_Default := 0, // 位置控制
+	PVControl_Pressure := 1, // 压力控制模式
+	PVControl_Other := 2 // Other
+)UINT;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

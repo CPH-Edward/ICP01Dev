@@ -1,0 +1,266 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="S_BackOfHeliumClear" Id="{147cd780-f23c-4746-ba94-4a62c75e19f5}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM S_BackOfHeliumClear
+VAR_INPUT
+	bInit				:BOOL:=FALSE;// 初始化状态 busy/done/errDone
+	bTrig				:BOOL:=FALSE;// 执行触发 信号
+	bReset				:BOOL:=FALSE;// 报错 复位
+	bPause				:BOOL:=FALSE;// 暂停 运行
+	bStop				:BOOL:=FALSE;// 停止 运行
+	bAbort				:BOOL:=FALSE;// 中止 运行
+	
+	atmflag:BOOL;
+END_VAR
+VAR_OUTPUT
+	busy				:BOOL;
+	done				:BOOL;
+	errDone				:BOOL;
+END_VAR
+VAR
+	actStep				:ActStepBase;
+END_VAR
+VAR
+	i: INT;
+	t1:ton;
+	t2:ton;
+	t3:ton;
+	notchoose:BOOL;
+//	str:STRING;
+//	wstr:WSTRING;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[busy:=actStep.isBusy();
+done:=actStep.isDone();
+errDone:=actStep.isError();
+actStep.Act_Pause(pause:=bPause);
+
+IF bTrig THEN
+	bTrig:=FALSE;
+	IF NOT busy THEN
+		actStep.Act_ex();
+	END_IF
+END_IF
+
+//状态复位
+IF bInit THEN
+	bInit:=FALSE;
+	Act_init_status();
+END_IF
+
+IF bAbort OR bStop THEN
+	bAbort:=FALSE;
+	bStop:=FALSE;
+	Act_init_status();
+	actStep.toZeroStep();
+	gShowLogTextTitle:='NON';
+END_IF
+ActionRun(tempActStep:=actStep);]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{b174e540-97d2-4760-b204-b670f0bae141}" />
+    <Method Name="Act_Ex" Id="{dbf8a514-51e9-4737-9e7c-22b4f365669b}">
+      <Declaration><![CDATA[(*
+---Trigger action
+*)
+METHOD Act_Ex : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT busy THEN
+	actStep.Act_ex();
+	Act_Ex:=TRUE;
+ELSE
+	Act_Ex:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Init_Status" Id="{4cc84bf6-3944-414f-97dd-222f7ac1a1a7}">
+      <Declaration><![CDATA[(*
+---功能: 状态复位 busy/done/errDone;
+*)
+METHOD Act_Init_Status
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[actStep.Act_Init();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ActionRun" Id="{133b26e4-996a-4e68-a79a-f06a9e1cba98}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE ActionRun
+VAR_INPUT
+	tempActStep:ITFActStep;
+END_VAR
+VAR
+END_VAR
+VAR_STAT//此处定义静态变量, 保证每次进入该函数时能够在线监控当前值
+	tempStep:DINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[tempStep:=tempActStep.getStep();
+CASE tempStep OF
+0:
+	IF tempActStep.isEx() THEN
+		tempActStep.setBusyFlag();
+		tempActStep.toBeginStep();
+	END_IF
+	t1(IN:= FALSE );
+	t2(IN:= FALSE );
+	t3(IN:= FALSE );
+10:
+	IF gICP.HeMFC_ActFlow<0.2 AND gICP.HeCheckGaugeReal<0.1 AND NOT gICP.HeINExtRelay AND NOT gICP.HePumExtRelay THEN
+		tempActStep.toStep(430,FALSE);
+		gRunningLog.append(CONCAT('He Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('He Actuator Recovery POU Run: Back of helium clear done');
+	ELSE
+		tempActStep.addStep(10,FALSE);
+		gRunningLog.append(CONCAT('He Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('He Actuator Recovery POU Run: Back of helium not clear');
+	END_IF
+20:
+	tempActStep.addStep(10,TRUE);
+30:
+	IF gICP.HeINValve.Act_Retract() THEN
+		tempActStep.addStep(10,FALSE);
+		gRunningLog.append(CONCAT('He Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('He Actuator Recovery POU Run: HeIN Close');
+	END_IF
+40:
+	IF gICP.HeINValve.Get_Done_Ret() THEN
+		tempActStep.addStep(10,FALSE);
+		gRunningLog.append(CONCAT('He Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('He Actuator Recovery POU Run: HeIN Close');
+	END_IF
+50:
+	tempActStep.addStep(10,TRUE);
+60:
+	IF gICP.HePumValve.Act_Extend() THEN
+		tempActStep.addStep(10,FALSE);
+		gRunningLog.append(CONCAT('He Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('He Actuator Recovery POU Run: HePumValve Open');
+	END_IF
+70:
+	IF gICP.HePumValve.Get_Done_Ext() THEN
+		tempActStep.addStep(10,FALSE);
+		gRunningLog.append(CONCAT('He Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('He Actuator Recovery POU Run: HePumValve Open done');
+	END_IF
+80:
+	t2(IN:=TRUE ,PT:=T#2S);
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(10,FALSE);
+	END_IF
+90:
+	t1(IN:=gICP.HeMFC_ActFlow<0.2 AND gICP.HeCheckGaugeReal<0.1 ,PT:=T#2S);
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		gICP.HePumValve.Act_Retract();
+		gRunningLog.append(CONCAT('He Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('He Actuator Recovery POU Run: HePumValve close');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+100:
+	IF gICP.HeINValve.Act_Retract() THEN
+		tempActStep.addStep(10,FALSE);
+		gRunningLog.append(CONCAT('He Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('He Actuator Recovery POU Run: HePumValve close done');
+	END_IF
+110:
+	IF gICP.HeINValve.Get_Done_Ret() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+120:
+	tempActStep.addStep(10,TRUE);
+130:
+	IF gICP.HePumValve.Act_Extend() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+140:
+	IF gICP.HePumValve.Get_Done_Ext() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+150:
+	t2(IN:=TRUE ,PT:=T#2S);
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(10,FALSE);
+	END_IF
+160:
+	t1(IN:=gICP.HeMFC_ActFlow<0.2AND gICP.HeCheckGaugeReal<0.1 AND gICP.ChamberGauge.outputValue1<500.0 AND NOT gICP.ChamberGauge.error,PT:=T#2S);
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		gICP.HePumValve.Act_Retract();
+		tempActStep.addStep(10,FALSE);
+	END_IF
+170:
+	IF gICP.HePumValve.Get_Done_Ret() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+180:
+	tempActStep.toStep(430,FALSE);
+430:
+	tempActStep.toStep(1000,FALSE);
+1000:
+	tempActStep.toDoneStep();
+
+60000://Done
+	tempActStep.setDoneFlag();
+	tempActStep.toZeroStep();
+	
+65000://Error
+	tempActStep.setErrDoneFlag();
+	tempActStep.toZeroStep();
+	error_Trigger(300);
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="S_BackOfHeliumClear">
+      <LineId Id="49" Count="0" />
+      <LineId Id="385" Count="2" />
+      <LineId Id="406" Count="12" />
+      <LineId Id="422" Count="0" />
+      <LineId Id="530" Count="1" />
+      <LineId Id="489" Count="0" />
+      <LineId Id="510" Count="0" />
+      <LineId Id="509" Count="0" />
+      <LineId Id="560" Count="0" />
+      <LineId Id="395" Count="0" />
+      <LineId Id="446" Count="0" />
+    </LineIds>
+    <LineIds Name="S_BackOfHeliumClear.Act_Ex">
+      <LineId Id="14" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="17" Count="0" />
+    </LineIds>
+    <LineIds Name="S_BackOfHeliumClear.Act_Init_Status">
+      <LineId Id="15" Count="0" />
+    </LineIds>
+    <LineIds Name="S_BackOfHeliumClear.ActionRun">
+      <LineId Id="1302" Count="10" />
+      <LineId Id="2341" Count="4" />
+      <LineId Id="2443" Count="1" />
+      <LineId Id="2354" Count="88" />
+      <LineId Id="1969" Count="0" />
+      <LineId Id="2445" Count="1" />
+      <LineId Id="1970" Count="0" />
+      <LineId Id="1943" Count="0" />
+      <LineId Id="1668" Count="9" />
+      <LineId Id="1692" Count="0" />
+      <LineId Id="1092" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

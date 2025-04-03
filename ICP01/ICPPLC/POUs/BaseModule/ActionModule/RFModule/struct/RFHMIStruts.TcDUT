@@ -1,0 +1,64 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="RFHMIStruts" Id="{90a0fa3f-30cf-40ce-8a9e-127f5e345de7}">
+    <Declaration><![CDATA[{attribute 'pack_mode' := 1}
+TYPE RFHMIStruts :
+STRUCT
+	// Aiko
+	extendAndretract: BOOL:=FALSE;//单控件触发信号
+	singleControl	: BOOL:=FALSE;//单一信号控制
+	singleControltemp	: BOOL:=FALSE;//单一信号控制
+	
+	bopen			: BOOL:=FALSE;//启动触发信号
+	runTimeClear	: BOOL:=FALSE;//清空计时时间
+//control signal or data
+	open			: BOOL:=FALSE;//启动触发信号
+	close			: BOOL:=FALSE;//停止触发信号
+	reset			: BOOL:=FALSE;//复位信号
+	stop			: BOOL:=FALSE;//停止信号
+	power			: BOOL:=TRUE;//no power, two relay will lost power
+
+//monitor
+	AccAprSw		: BOOL:=FALSE;//HW: cylinder extent approach switch
+	DccAprSw		: BOOL:=FALSE;//HW: cylinder retract approach switch	
+	NormalAprSw		: BOOL:=FALSE;//HW: cylinder retract approach switch	
+	AlmAprSw		: BOOL:=FALSE;//HW: cylinder retract approach switch
+	ErrorAprSw		: BOOL:=FALSE;//HW: cylinder retract approach switch
+	
+	openRelay		: BOOL:=FALSE;//HW: cylinder extent action relay
+	closeRelay		: BOOL:=FALSE;//HW: cylinder retract action relay	
+	resetRelay		: BOOL:=FALSE;//HW: cylinder retract action relay	
+	
+	temperature		:REAL;// TMP Motor Temperature
+	current			:REAL;// TMP Motor Current
+	vol				:REAL;// TMP Voltage
+	
+	setpower		:UDINT;
+	settime			:UDINT;
+
+	enableOpen		: BOOL:=TRUE;//for outside control instance
+	enableClose		: BOOL:=TRUE;//for outside control instance
+	
+	runTime			: LINT;
+//state
+	HMIEnable		: BOOL:=TRUE;
+	enable			: BOOL;
+	busy			: BOOL;
+	done			: BOOL;
+	error			: BOOL;
+	Accerror		: BOOL;
+	Dccerror		: BOOL;
+	Alm				: BOOL;
+	errID			: DINT;
+	nameTXT			: STRING(255);//分子泵名称
+	errTXT			: STRING;
+	opencondition	: BOOL;// 开条件
+	closecondition	: BOOL;// 关条件
+END_STRUCT
+END_TYPE
+(*
+按照字节对齐规则，将变量按字节大小按顺序定义，用于ADS读取
+*)
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

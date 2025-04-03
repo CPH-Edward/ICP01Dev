@@ -1,0 +1,81 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="ChamberGaugeViewModule" Id="{373cbe64-6a33-4413-9035-9fef5e8ee2fe}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK ChamberGaugeViewModule
+VAR_INPUT
+	inputValue:DINT;// 输入值
+	gaugeType:INT;// 类型，1：AIM；2：PSG
+	calValueH:REAL;// 计算值上限
+	calValueL:REAL;// 计算值下限
+	moduleValueH:REAL;// 模块上限
+	moduleValueL:REAL;// 模块下限
+	alrmmaxValue:REAL;// 警告上限
+	alrmminValue:REAL;// 警告下限
+	condition:BOOL;// 显示条件
+	initString:STRING:='-----';// 初始显示字符串：*****
+END_VAR
+VAR_OUTPUT
+	outputValue:REAL;
+	outputValue1:REAL;
+	outputValue_String:STRING;
+	error:BOOL;
+END_VAR
+VAR
+	factor:REAL;// 转换因子
+	temp:REAL;
+	test:REAL;
+	tT:TON;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF ((moduleValueH-moduleValueL)>0.0) THEN
+	factor:=(calValueH-calValueL)/(moduleValueH-moduleValueL);
+	temp:=factor*DINT_TO_REAL(inputValue);
+	outputValue:=temp*((alrmmaxValue-alrmminValue)/(19-4));
+//	IF outputValue<100000 THEN
+//		outputValue_String:=REAL_TO_STRING(outputValue-1100);
+//		outputValue1:=(outputValue-1100);
+//	ELSE
+//		outputValue_String:=REAL_TO_STRING(outputValue);
+//		outputValue1:=(outputValue);
+//	END_IF
+	IF outputValue-1100<1 THEN
+		outputValue:=1112.4;
+	END_IF
+	outputValue_String:=REAL_TO_STRING(outputValue-1100);
+	outputValue1:=(outputValue-1100);
+	tT(IN:=NOT (( outputValue>alrmminValue) AND inputValue>10),PT:=T#2S);
+	IF tT.Q THEN
+		error:=TRUE;
+	ELSE
+		error:=FALSE;
+	END_IF
+	
+	IF condition THEN
+		;
+	ELSE
+		outputValue_String:=initString;
+	END_IF
+END_IF
+]]></ST>
+    </Implementation>
+    <LineIds Name="ChamberGaugeViewModule">
+      <LineId Id="102" Count="0" />
+      <LineId Id="105" Count="1" />
+      <LineId Id="256" Count="0" />
+      <LineId Id="259" Count="0" />
+      <LineId Id="261" Count="0" />
+      <LineId Id="266" Count="0" />
+      <LineId Id="262" Count="1" />
+      <LineId Id="267" Count="0" />
+      <LineId Id="167" Count="0" />
+      <LineId Id="294" Count="2" />
+      <LineId Id="292" Count="1" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="107" Count="4" />
+      <LineId Id="138" Count="0" />
+      <LineId Id="112" Count="3" />
+      <LineId Id="103" Count="1" />
+      <LineId Id="45" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

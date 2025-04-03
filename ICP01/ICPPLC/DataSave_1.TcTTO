@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <Task Name="DataSave_1" Id="{8f01f4a2-8543-441c-91f5-aded3311f9a1}">
+    <!--CycleTime in micro seconds.-->
+    <CycleTime>20000</CycleTime>
+    <Priority>18</Priority>
+    <PouCall>
+      <Name>DataSave</Name>
+    </PouCall>
+    <TaskFBGuid>{95980bb4-401e-40e1-b532-ecced8d1a5c5}</TaskFBGuid>
+    <Fb_init>{50e0dd6f-1594-4ecc-8235-bd817a14026e}</Fb_init>
+    <Fb_exit>{23e91446-731b-40ed-ace5-a6b775abb982}</Fb_exit>
+    <CycleUpdate>{7deda89d-42bb-4e62-9591-53092223726e}</CycleUpdate>
+    <PostCycleUpdate>{2c5965a5-b499-4d59-8ade-339060bbfadc}</PostCycleUpdate>
+  </Task>
+</TcPlcObject>

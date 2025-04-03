@@ -1,0 +1,180 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="FB_IOBase_Output_New" Id="{564f62fc-3b83-447b-871e-429db47d4b73}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_IOBase_Output_New
+VAR CONSTANT
+	MAX_IO_MODULE_NUM:DINT:=15;
+END_VAR
+VAR_INPUT
+	iIOModuleNum:DINT;//输入输出模块数量
+	stIOBase:ARRAY [1..MAX_IO_MODULE_NUM] OF ST_OUTPUT_IO;
+	iLanguage:UINT;//0：英文；1：中文
+	sFileName:T_MaxString:='C:\IOFilePath\iocsvfile.csv';//'Hard Disk\IOFilePath\iocsvfile.csv'
+	bReload:BOOL;//加载配置文件 触发
+END_VAR
+VAR_OUTPUT
+END_VAR
+VAR
+	HMIITF:ST_IOBase_Show_HMI;
+	
+	iIOModuleNum_Temp:DINT;//输入输出模块数量
+	
+	next_R_TRIG:R_TRIG;
+	back_R_TRIG:R_TRIG;
+	targer_R_TRIG:R_TRIG;
+	
+	iCurrPage:DINT:=1;
+	iIndex_1:DINT;
+	iIndex_2:DINT;
+	
+	readBuff:ARRAY [1..MAX_IO_MODULE_NUM*16] OF ST_DataFmtBase;
+	fbFileReadWrite:FB_IOFileReadWrite;
+	bInit:BOOL;
+	bRefresh:BOOL;
+	Refresh_R_TRIG:R_TRIG;
+	iLanguage_temp:UINT;//0：英文；1：中文
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+HMIITF.sIOType:='Output';
+
+iIOModuleNum_Temp:=iIOModuleNum;
+IF iIOModuleNum<0 THEN
+	iIOModuleNum_Temp:=0;
+ELSIF iIOModuleNum>MAX_IO_MODULE_NUM THEN
+	iIOModuleNum_Temp:=MAX_IO_MODULE_NUM;
+END_IF
+
+(*HMI process*)
+ (* Next button *)
+	next_R_TRIG(CLK:=HMIITF.bNextPage);
+	IF next_R_TRIG.Q THEN
+		iCurrPage:=iCurrPage+1;
+		bRefresh:=TRUE;
+	END_IF
+ (* Back button *)
+	back_R_TRIG(CLK:=HMIITF.bBackPage);
+	IF back_R_TRIG.Q THEN
+		iCurrPage:=iCurrPage-1;
+		bRefresh:=TRUE;
+	END_IF
+ (* Targer button *)
+ 	IF HMIITF.iTargerPage<=0 THEN
+		HMIITF.iTargerPage:=iIOModuleNum_Temp;
+	ELSIF HMIITF.iTargerPage>iIOModuleNum_Temp THEN
+		HMIITF.iTargerPage:=1;
+	END_IF
+	targer_R_TRIG(CLK:=HMIITF.bTargerPage);
+	IF targer_R_TRIG.Q THEN
+		iCurrPage:=HMIITF.iTargerPage;
+		bRefresh:=TRUE;
+	END_IF
+
+	IF iCurrPage<=0 THEN
+		iCurrPage:=iIOModuleNum_Temp;
+	ELSIF iCurrPage>iIOModuleNum_Temp THEN
+		iCurrPage:=1;
+	END_IF
+	HMIITF.iCurrPage:=iCurrPage;
+	HMIITF.iMaxPage:=iIOModuleNum_Temp;
+	FOR iIndex_1:=1 TO 16 BY 1 DO
+		HMIITF.bIO[iIndex_1]:=stIOBase[iCurrPage].io[iIndex_1];
+	END_FOR
+	IF bRefresh THEN
+		FOR iIndex_1:=1 TO 16 BY 1 DO
+			HMIITF.bIO[iIndex_1]:=stIOBase[iCurrPage].io[iIndex_1];
+			
+			CASE iLanguage_temp OF
+				0:
+					FOR iIndex_2:=1 TO (MAX_IO_MODULE_NUM*16) BY 1 DO
+						IF iCurrPage=readBuff[iIndex_2].nGroup AND iIndex_1=readBuff[iIndex_2].nNumber THEN
+							HMIITF.sInfor[iIndex_1]:=TO_WSTRING(readBuff[iIndex_2].sTxt_ENG);
+							IF 16=iIndex_1 THEN
+								EXIT;
+							END_IF
+						END_IF
+					END_FOR
+				1:
+					FOR iIndex_2:=1 TO (MAX_IO_MODULE_NUM*16) BY 1 DO
+						IF iCurrPage=readBuff[iIndex_2].nGroup AND iIndex_1=readBuff[iIndex_2].nNumber THEN
+							HMIITF.sInfor[iIndex_1]:=readBuff[iIndex_2].sTxt_CHN;
+							IF 16=iIndex_1 THEN
+								EXIT;
+							END_IF
+						END_IF
+					END_FOR
+			END_CASE
+		END_FOR
+	END_IF
+	bRefresh:=FALSE;
+	
+(*Read csv file*)
+	IF NOT bInit THEN
+		bInit:=TRUE;
+		bReload:=TRUE;
+	END_IF
+	fbFileReadWrite(
+		readBuff:= readBuff, 
+		sFileName:= sFileName, 
+		bRead:= bReload, 
+		sTxtHead:= 'GROUP,NUM,ENG,CHN,NO USE', 
+		bBusy=> , 
+		bDone=> , 
+		bError=> , 
+		nErrid=> );
+	IF bReload THEN
+		bReload:=FALSE;
+	END_IF
+	Refresh_R_TRIG(CLK:=fbFileReadWrite.bDone);
+	IF Refresh_R_TRIG.Q THEN
+		bRefresh:=TRUE;
+	END_IF
+	IF iLanguage_temp<>iLanguage THEN
+		iLanguage_temp:=iLanguage;
+		bRefresh:=TRUE;
+	END_IF
+	]]></ST>
+    </Implementation>
+    <LineIds Name="FB_IOBase_Output_New">
+      <LineId Id="25" Count="0" />
+      <LineId Id="175" Count="0" />
+      <LineId Id="98" Count="0" />
+      <LineId Id="26" Count="4" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="46" Count="2" />
+      <LineId Id="281" Count="0" />
+      <LineId Id="49" Count="4" />
+      <LineId Id="282" Count="0" />
+      <LineId Id="111" Count="1" />
+      <LineId Id="118" Count="3" />
+      <LineId Id="117" Count="0" />
+      <LineId Id="113" Count="2" />
+      <LineId Id="283" Count="0" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="72" Count="0" />
+      <LineId Id="68" Count="3" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="64" Count="1" />
+      <LineId Id="356" Count="1" />
+      <LineId Id="355" Count="0" />
+      <LineId Id="76" Count="0" />
+      <LineId Id="93" Count="1" />
+      <LineId Id="261" Count="19" />
+      <LineId Id="260" Count="0" />
+      <LineId Id="236" Count="0" />
+      <LineId Id="259" Count="0" />
+      <LineId Id="237" Count="10" />
+      <LineId Id="321" Count="0" />
+      <LineId Id="248" Count="10" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="285" Count="0" />
+      <LineId Id="287" Count="0" />
+      <LineId Id="286" Count="0" />
+      <LineId Id="77" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

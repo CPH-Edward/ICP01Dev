@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <GVL Name="GVL_TcpIpModule_EX" Id="{d21087ed-7822-4ae8-8f35-36e77104fff8}">
+    <Declaration><![CDATA[//{attribute 'qualified_only'}
+VAR_GLOBAL CONSTANT
+	(*这部分可按照实际项目去分配数量*)
+	g_nMaxByte_Client			:UINT:=32;//二进制数据结构字符最大长度
+	g_nMaxByte_Server			:UINT:=32;//二进制数据结构字符最大长度
+END_VAR
+
+VAR_GLOBAL
+	
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

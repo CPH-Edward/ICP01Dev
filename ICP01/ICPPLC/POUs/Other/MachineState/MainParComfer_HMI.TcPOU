@@ -1,0 +1,48 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="MainParComfer_HMI" Id="{f84b23e7-df2a-469e-aea3-f3048715a0cb}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM MainParComfer_HMI
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[MainFramDUT.ComName:='GIDEON';//公司名称;
+MainFramDUT.ProjectName:='ICP_01';//项目名称	
+MainFramDUT.ShowTime:=g_SystemTime;//当前时间显示变量
+//按钮灯
+MainFramDUT.StartLamp:=fbMachineState.StartLamp;//启面急停动指示
+MainFramDUT.ResetLamp:=fbMachineState.ResetLamp;//复面急停位指示
+MainFramDUT.StopLamp:=fbMachineState.StopLamp;//停面急停止，报错指示
+	
+fbMachineState.HMI_E_Stop:=MainFramDUT.E_Stop;//界面急停显示
+fbMachineState.HMI_Start:=MainFramDUT.Start;//界面启动
+fbMachineState.HMI_Reset:=MainFramDUT.Reset;//界面复位
+fbMachineState.HMI_Stop:=MainFramDUT.Stop;//界面停止
+//三色灯
+MainFramDUT.GreenLamp:=fbMachineState.GreenLamp;//绿灯
+MainFramDUT.RedLamp:=fbMachineState.RedLamp;//红灯
+MainFramDUT.YellowLamp:=fbMachineState.YellowLamp;//黄灯
+//MainFramDUT.Loading:=;//界面登录
+//MainFramDUT.Quit:=;//界面退出
+MainFramDUT.versions:=gVersion;//版本号传递
+MainFramDUT.RunStateTxt:=fbMachineState.RunStateTxtS;//版本号传递
+MainFramDUT.ErrWTxtShow:=gErrWTxtShow;//版本号传递
+
+]]></ST>
+    </Implementation>
+    <LineIds Name="MainParComfer_HMI">
+      <LineId Id="5" Count="0" />
+      <LineId Id="8" Count="1" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="11" Count="7" />
+      <LineId Id="29" Count="2" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="23" Count="1" />
+      <LineId Id="39" Count="0" />
+      <LineId Id="22" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,434 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="FuncModule_TCPIP_Binary_POU" Id="{11bdef2d-2dfb-42ad-b01f-5f699ce43dd4}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM FuncModule_TCPIP_Binary_POU
+VAR_INPUT
+	nSocketType:UINT:=0;// socket 类型; 0 表示 server; 1 表示 client;
+	sTerminalName:STRING;// 通讯对方名称 自定义
+	sHost:STRING(20):='127.0.0.1';// 通讯IP地址; server时表示本地host; client时表示远程host
+	nPort:UDINT:=8900;// 通讯端口号;
+	bEnable:BOOL:=TRUE;// 通讯启用\禁用连接
+	nQueueInterval:UDINT:=50;// 发送队列时间间隔 单位ms
+	logHandleArray:ARRAY [1..5] OF POINTER TO printLogModule_EX;// log 操作 handle 数组
+	logHandleArrayLength:UINT:=0;// log 操作 handle 数组长度, 不超过5
+	enHeartBeat:BOOL;// 启用心跳包命令
+	cmdHeartBeat:DINT;// 心跳包命令
+END_VAR
+VAR_OUTPUT
+	bSendCondition	:BOOL;//可发送条件
+	bSocketConnected:BOOL;//连接状态
+END_VAR
+VAR CONSTANT
+	cNumBegin		:DINT:=1;
+	cNumEnd			:DINT:=100;
+END_VAR
+VAR
+	sendDataArray	:ARRAY [cNumBegin..cNumEnd] OF struct_Tester;
+	length			:DINT:=0;
+	endPoint		:DINT:=cNumBegin;
+	popupSendData	:struct_Tester;
+	//popup
+	popupStep		:UINT:=0;
+	popupTON1		:TON;
+	popupTON2		:TON;
+	iPopup			:DINT:=0;
+	_PopupLength	:DINT:=0;
+END_VAR
+VAR
+	tcpipClient					:tcpipClientModule_EX;
+	tcpipServer					:tcpipServerModule_EX;////定义服务器对象
+	
+	tcpipSendDataBuff_Server	:ST_TCPIP_DATA_STRUCT_ALC;//发送数据 Buff server
+	tcpipSendDataBuff_Client	:ST_TCPIP_DATA_STRUCT_ALC;//发送数据 Buff client
+	
+	tcpipSendDataClear			:ST_TCPIP_DATA_STRUCT_ALC;//发送数据 清空
+	tcpipSendData				:ST_TCPIP_DATA_STRUCT_ALC;//发送数据
+	
+	tcpipRecDataBuff_Server		:ST_TCPIP_DATA_STRUCT_ALC;//已接收数据 Buff server
+	tcpipRecDataBuff_Client		:ST_TCPIP_DATA_STRUCT_ALC;//已接收数据 Buff client
+	
+	tcpipRecDataClear			:ST_TCPIP_DATA_STRUCT_ALC;//已接收数据 清空
+	tcpipRecData				:ST_TCPIP_DATA_STRUCT_ALC;//已接收数据
+	
+	tcpConnectR_Trig			:R_Trig;//初始连接上升沿
+	tcpConnectF_Trig			:F_Trig;//初始连接下降沿
+	registerStep				:UDINT;//ALC注册控制步
+	registerTON					:TON;//ALC注册延时
+	
+	logHandleArray_index		:UINT:=1;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+CASE nSocketType OF
+0://TCPIP server
+	tcpipServer(
+		sSrvNetId:= , 
+		sLocalHost:=sHost , 
+		nLocalPort:=nPort , 
+		bStartConnect:=bEnable , 
+		tcpipSDataLen:=SIZEOF(tcpipSendDataBuff_Server) , 
+		tcpipSData:=ADR(tcpipSendDataBuff_Server) , 
+		bSend:= , 
+		tcpipRecDataLen:=SIZEOF(tcpipRecDataBuff_Server) , 
+		tcpipRecData:=ADR(tcpipRecDataBuff_Server) , 
+		bAccepted=> , 
+		bSendBusy=> , 
+		bRecData=> );
+	bSendCondition:=tcpipServer.bAccepted AND NOT tcpipServer.bSendBusy;
+	//TCPIP连接
+	bSocketConnected:=tcpipServer.bAccepted;
+	IF NOT tcpipServer.bAccepted THEN
+		length:=0;
+		endPoint:=cNumBegin;
+	END_IF
+	tcpConnectR_Trig(CLK:=tcpipServer.bAccepted);
+	tcpConnectF_Trig(CLK:=tcpipServer.bAccepted);
+
+1://TCPIP client
+	tcpipClient(
+		sSrvNetId:= , 
+		sRemoteHost:=sHost , 
+		nRemotePort:=nPort , 
+		bStartConnect:=bEnable , 
+		tcpipSDataLen:=SIZEOF(tcpipSendDataBuff_Client) , 
+		tcpipSData:=ADR(tcpipSendDataBuff_Client) , 
+		bSend:= , 
+		tcpipRecDataLen:=SIZEOF(tcpipRecDataBuff_Client) , 
+		tcpipRecData:=ADR(tcpipRecDataBuff_Client) , 
+		bConnected=> , 
+		bSendBusy=> , 
+		bRecData=> );
+	bSendCondition:=tcpipClient.bConnected AND NOT tcpipClient.bSendBusy;
+	//TCPIP连接
+	bSocketConnected:=tcpipClient.bConnected;
+	IF NOT tcpipClient.bConnected THEN
+		length:=0;
+		endPoint:=cNumBegin;
+	END_IF
+	tcpConnectR_Trig(CLK:=tcpipClient.bConnected);
+	tcpConnectF_Trig(CLK:=tcpipClient.bConnected);
+END_CASE
+
+IF tcpConnectR_Trig.Q THEN
+	FOR logHandleArray_index:=1 TO logHandleArrayLength DO
+		logHandleArray[logHandleArray_index]^.append(CONCAT(sTerminalName, ' has been connected'));
+	END_FOR
+	registerStep:=10;
+END_IF
+IF tcpConnectF_Trig.Q THEN
+	FOR logHandleArray_index:=1 TO logHandleArrayLength DO
+		logHandleArray[logHandleArray_index]^.append(CONCAT(sTerminalName, ' has been disconnected'));
+	END_FOR
+	registerStep:=0;
+END_IF
+//数据接收处理
+CASE nSocketType OF
+0://TCPIP server
+	IF tcpipServer.bRecData THEN
+		tcpipRecData:=tcpipRecDataBuff_Server;//buff转存
+		tcpipRecDataBuff_Server:=tcpipRecDataClear;//转存之后清空buff
+		dataProcessing();
+	END_IF
+1://TCPIP client
+	IF tcpipClient.bRecData THEN
+		tcpipRecData:=tcpipRecDataBuff_Client;//buff转存
+		tcpipRecDataBuff_Client:=tcpipRecDataClear;//转存之后清空buff
+		dataProcessing();
+	END_IF
+END_CASE
+
+
+popup();
+
+CASE registerStep OF
+0:
+	//Ready
+END_CASE]]></ST>
+    </Implementation>
+    <Folder Name="Recevie" Id="{bd1ad037-96b3-406f-8409-f7eb4dba0d9b}" />
+    <Folder Name="Send" Id="{6ef276c4-5e59-4448-a951-ff9bafec01c0}">
+      <Folder Name="Private" Id="{9bee0de7-532d-4af2-8b38-5ac672462fa8}" />
+    </Folder>
+    <Method Name="appendSend" Id="{5be0ec0a-f8a1-41ac-b4ff-5396fa220078}" FolderPath="Send\">
+      <Declaration><![CDATA[METHOD appendSend : BOOL
+VAR_INPUT
+	channel		:DINT;
+	msgType		:DINT:=0;
+	funCode		:DINT;
+	value1		:REAL:=0;
+	value2		:REAL:=0;
+	value3		:REAL:=0;
+	value4		:REAL:=0;
+	value5		:REAL:=0;
+	errID		:LINT:=0;
+	str			:STRING(g_nMaxByte_Client):='';
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+IF endPoint>(cNumEnd-1) THEN
+	RETURN;
+END_IF
+sendDataArray[endPoint].channel:=channel;
+sendDataArray[endPoint].msgType:=msgType;
+sendDataArray[endPoint].funCode:=funCode;
+sendDataArray[endPoint].msgType:=msgType;
+sendDataArray[endPoint].value1:=value1;
+sendDataArray[endPoint].value2:=value2;
+sendDataArray[endPoint].value3:=value3;
+sendDataArray[endPoint].value4:=value4;
+sendDataArray[endPoint].value5:=value5;
+sendDataArray[endPoint].errID:=errID;
+sendDataArray[endPoint].str:=str;
+
+endPoint:=endPoint+1;
+length:=endPoint-cNumBegin;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="dataProcessing" Id="{678634e7-3e92-456b-bf31-8bcc953cd9e5}" FolderPath="Recevie\">
+      <Declaration><![CDATA[METHOD dataProcessing : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[FOR logHandleArray_index:=1 TO logHandleArrayLength DO
+	CASE nSocketType OF
+	0://TCPIP server
+		IF enHeartBeat AND tcpipRecData.funCode=cmdHeartBeat THEN// 不打印心跳包命令
+			EXIT;
+		END_IF
+		logHandleArray[logHandleArray_index]^.append(CONCAT(CONCAT(CONCAT('Recevie From ', sTerminalName), ' -- '),ALCData2String(tcpipRecData)));
+	1://TCPIP client
+		IF enHeartBeat AND tcpipRecData.funCode=cmdHeartBeat THEN// 不打印心跳包命令
+			EXIT;
+		END_IF
+		logHandleArray[logHandleArray_index]^.append(CONCAT(CONCAT(CONCAT('Recevie From ', sTerminalName), ' -- '),ALCData2String(tcpipRecData)));
+	END_CASE
+END_FOR
+
+appendSend(1,1,23,0,9.9,0,0,0,88,'1213adf');
+CASE tcpipRecData.msgType OF
+0://对方请求
+	CASE tcpipRecData.funCode OF
+	(*RotateStart_TM:
+		gRotateStart_TM_Trig:=TRUE;
+		gRotateStart_TM_SetVelo:=TO_LREAL(tcpipRecData.value1);
+		Rotate_Start_POU.func_reset_status();
+		Rotate_Start_POU.trigger:=TRUE;
+		
+		IF 0=tcpipRecData.errID THEN
+			;
+		ELSE
+			;
+		END_IF
+		//appendSend(0,1,tcpipRecData.funCode,0.0,0.0,0.0,0.0,0.0,0,'');
+	
+	RotateStop_TM:
+		IF 0=tcpipRecData.errID THEN
+			;
+		ELSE
+			;
+		END_IF
+		//appendSend(0,1,tcpipRecData.funCode,0.0,0.0,0.0,0.0,0.0,0,'');
+	*)
+	END_CASE
+1://对方响应
+	CASE tcpipRecData.funCode OF
+	(*LoadDUT_TM:
+		IF 0=tcpipRecData.errID THEN
+			;
+		ELSE
+			;
+		END_IF
+	Error_TM:
+		IF 0=tcpipRecData.errID THEN
+			;
+		ELSE
+			;
+		END_IF
+	*)
+	END_CASE
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="popup" Id="{75afbf88-9c10-4ee8-8916-87fbab810480}" FolderPath="Send\Private\">
+      <Declaration><![CDATA[METHOD PRIVATE popup : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[CASE popupStep OF
+0:
+	IF length>0 AND bSendCondition THEN
+		_PopupLength:=length;
+		popupSendData:=sendDataArray[cNumBegin];
+		FOR iPopup:=cNumBegin TO (_PopupLength-1) DO
+			sendDataArray[iPopup]:=sendDataArray[iPopup+1];
+		END_FOR
+		endPoint:=endPoint-1;
+		length:=endPoint-cNumBegin;
+		sendData(popupSendData);//此处是调用信息发送
+		popupStep:=10;
+	END_IF
+10:
+	popupTON2(IN:=NOT popupTON2.Q, PT:=T#2S);
+	IF NOT bSendCondition OR popupTON2.Q THEN
+		popupTON2(IN:=FALSE);
+		popupStep:=11;
+	END_IF
+11:
+	IF bSendCondition THEN
+		popupStep:=12;
+	END_IF
+	popupTON1(IN:=FALSE);
+12:
+	//popupTON1(IN:=NOT popupTON1.Q,PT:=T#10MS);
+	popupTON1(IN:=NOT popupTON1.Q,PT:=TO_TIME(nQueueInterval));
+	IF popupTON1.Q THEN
+		popupStep:=0;
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="sendData" Id="{030de1ba-38c2-4a63-ba83-8fbcaa333f01}" FolderPath="Send\Private\">
+      <Declaration><![CDATA[METHOD PRIVATE sendData : BOOL
+VAR_INPUT
+	dataStruct	:struct_Tester;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF bSendCondition AND bEnable THEN
+	tcpipSendData.channel	:=dataStruct.channel;
+	tcpipSendData.msgType	:=dataStruct.msgType;
+	tcpipSendData.funCode	:=dataStruct.funCode;
+	tcpipSendData.value1	:=dataStruct.value1;
+	tcpipSendData.value2	:=dataStruct.value2;
+	tcpipSendData.value3	:=dataStruct.value3;
+	tcpipSendData.value4	:=dataStruct.value4;
+	tcpipSendData.value5	:=dataStruct.value5;
+	tcpipSendData.errID		:=dataStruct.errID;
+	tcpipSendData.str		:=tcpipServer.string2ASCII(dataStruct.str);
+	
+	CASE nSocketType OF
+	0://TCPIP server
+		tcpipSendDataBuff_Server:=tcpipSendData;
+		tcpipSendData:=tcpipSendDataClear;	
+		tcpipServer.bSend:=TRUE;
+	1://TCPIP client
+		tcpipSendDataBuff_Client:=tcpipSendData;
+		tcpipSendData:=tcpipSendDataClear;	
+		tcpipClient.bSend:=TRUE;
+	END_CASE
+	
+	FOR logHandleArray_index:=1 TO logHandleArrayLength DO
+		CASE nSocketType OF
+		0://TCPIP server
+			IF enHeartBeat AND dataStruct.funCode=cmdHeartBeat THEN// 不打印心跳包命令
+				EXIT;
+			END_IF
+			logHandleArray[logHandleArray_index]^.append(CONCAT(CONCAT(CONCAT('Send To ', sTerminalName), ' -- '),ALCData2String(tcpipSendDataBuff_Server)));
+		1://TCPIP client
+			IF enHeartBeat AND dataStruct.funCode=cmdHeartBeat THEN// 不打印心跳包命令
+				EXIT;
+			END_IF
+			logHandleArray[logHandleArray_index]^.append(CONCAT(CONCAT(CONCAT('Send To ', sTerminalName), ' -- '),ALCData2String(tcpipSendDataBuff_Client)));
+		END_CASE
+	END_FOR
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="FuncModule_TCPIP_Binary_POU">
+      <LineId Id="54" Count="0" />
+      <LineId Id="92" Count="1" />
+      <LineId Id="97" Count="11" />
+      <LineId Id="96" Count="0" />
+      <LineId Id="154" Count="0" />
+      <LineId Id="168" Count="0" />
+      <LineId Id="155" Count="0" />
+      <LineId Id="159" Count="2" />
+      <LineId Id="158" Count="0" />
+      <LineId Id="169" Count="0" />
+      <LineId Id="171" Count="0" />
+      <LineId Id="194" Count="0" />
+      <LineId Id="95" Count="0" />
+      <LineId Id="112" Count="11" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="156" Count="0" />
+      <LineId Id="167" Count="0" />
+      <LineId Id="157" Count="0" />
+      <LineId Id="163" Count="2" />
+      <LineId Id="162" Count="0" />
+      <LineId Id="170" Count="0" />
+      <LineId Id="173" Count="0" />
+      <LineId Id="94" Count="0" />
+      <LineId Id="64" Count="1" />
+      <LineId Id="199" Count="0" />
+      <LineId Id="202" Count="0" />
+      <LineId Id="67" Count="2" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="205" Count="1" />
+      <LineId Id="73" Count="1" />
+      <LineId Id="79" Count="1" />
+      <LineId Id="181" Count="0" />
+      <LineId Id="180" Count="0" />
+      <LineId Id="185" Count="3" />
+      <LineId Id="184" Count="0" />
+      <LineId Id="182" Count="0" />
+      <LineId Id="190" Count="3" />
+      <LineId Id="189" Count="0" />
+      <LineId Id="183" Count="0" />
+      <LineId Id="85" Count="1" />
+      <LineId Id="175" Count="4" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_TCPIP_Binary_POU.appendSend">
+      <LineId Id="17" Count="16" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_TCPIP_Binary_POU.dataProcessing">
+      <LineId Id="65" Count="0" />
+      <LineId Id="67" Count="0" />
+      <LineId Id="86" Count="2" />
+      <LineId Id="68" Count="1" />
+      <LineId Id="89" Count="2" />
+      <LineId Id="70" Count="1" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="64" Count="0" />
+      <LineId Id="8" Count="24" />
+      <LineId Id="48" Count="0" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="49" Count="13" />
+      <LineId Id="72" Count="0" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_TCPIP_Binary_POU.popup">
+      <LineId Id="6" Count="25" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="32" Count="2" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_TCPIP_Binary_POU.sendData">
+      <LineId Id="6" Count="11" />
+      <LineId Id="29" Count="1" />
+      <LineId Id="42" Count="1" />
+      <LineId Id="35" Count="1" />
+      <LineId Id="44" Count="1" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="51" Count="0" />
+      <LineId Id="73" Count="2" />
+      <LineId Id="52" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="76" Count="2" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

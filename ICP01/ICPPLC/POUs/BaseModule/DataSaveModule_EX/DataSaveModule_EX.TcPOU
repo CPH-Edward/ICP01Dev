@@ -1,0 +1,910 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="DataSaveModule_EX" Id="{7bdad25d-01c7-4baa-98a0-414e39962d7b}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK DataSaveModule_EX
+VAR_INPUT
+	sFileName						:T_MaxString:='C:\IASaveData.csv';//'Hard Disk\IASaveData.csv'  数据文件存储路径
+	readB							:BOOL:=FALSE;//读取触发
+	saveB							:BOOL:=FALSE;//保存触发
+	dataBool						:ARRAY[0..gMAX_BOOL_NUM] OF BOOL;//BOOL数据源
+	dataBoolLength					:UDINT:=gMAX_BOOL_NUM;//BOOL数据源 长度，从0开始计数，且不能随意变动
+	dataDint						:ARRAY[0..gMAX_DINT_NUM] OF DINT;//DINT数据源
+	dataDintLength					:UDINT:=gMAX_DINT_NUM;//DINT数据源 长度，从0开始计数，且不能随意变动
+	dataLreal						:ARRAY[0..gMAX_LREAL_NUM] OF LREAL;//LREAL数据源
+	dataLrealLength					:UDINT:=gMAX_LREAL_NUM;//LREAL数据源 长度，从0开始计数，且不能随意变动
+END_VAR
+VAR_OUTPUT
+	busy							:BOOL:=FALSE;
+	rDone							:BOOL:=FALSE;
+	sDone							:BOOL:=FALSE;
+	error							:BOOL:=FALSE;
+	errID							:UDINT:=0;
+	errTxt							:STRING(255):='';
+END_VAR
+VAR_IN_OUT
+	
+END_VAR
+VAR
+	pDatabase						:ARRAY[0..gMAX_CSV_ROWS, 0..gMAX_CSV_COLUMNS ] OF STRING(30);(* Target PLC database *)	
+	csv_rows						:UDINT:=gMAX_CSV_ROWS;
+	csv_columns						:UDINT:=gMAX_CSV_COLUMNS;
+	
+	startUpB						:BOOL:=FALSE;
+	writeTxt						:P_TextModeWrite;
+	readTxt							:P_TextModeRead;
+	fbFileOpen						:FB_FileOpen;//检查文件是否存在
+	fbFileClose						:FB_FileClose;(* Closes file *)
+	hFile							:UINT:=0;(* File handle of the source file *)
+	checkFileExistError				:BOOL;
+	initB							:BOOL:=FALSE;
+	saveStep						:UINT:=0;
+	readStep						:UINT:=0;
+	sFileNameOld					:T_MaxString;//旧文件名
+//获取系统时间
+	ntGetTime				: NT_GetTime;
+	systemTimeStruct		: TIMESTRUCT;
+	getSystemTimeStep		: UINT:=0;
+	systemTIMEStr			: STRING:='';//系统时间，格式YYYY-MM-DD hh:mm:ss_zzz
+	systemTIMEStr2			: STRING:='';//系统时间，格式YYYYMMDDhhmmss
+	sysTIMEStrYY			: STRING:='';//系统时间，年
+	sysTIMEStrMM			: STRING:='';//系统时间，月
+	sysTIMEStrDD			: STRING:='';//系统时间，日
+	sysTIMEStr_HH			: STRING:='';//系统时间，时
+	sysTIMEStr_mm			: STRING:='';//系统时间，分
+	sysTIMEStr_ss			: STRING:='';//系统时间，秒
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF dataBoolLength>gMAX_BOOL_NUM THEN
+	dataBoolLength:=gMAX_BOOL_NUM;
+END_IF
+IF dataDintLength>gMAX_DINT_NUM THEN
+	dataDintLength:=gMAX_DINT_NUM;
+END_IF
+IF dataLrealLength>gMAX_LREAL_NUM THEN
+	dataLrealLength:=gMAX_LREAL_NUM;
+END_IF
+
+csv_rows:=dataBoolLength + dataDintLength + dataLrealLength + 3;
+IF csv_rows>gMAX_CSV_ROWS THEN
+	csv_rows:=gMAX_CSV_ROWS;
+END_IF
+
+//judge length
+IF gMAX_CSV_ROWS<(gMAX_BOOL_NUM+gMAX_DINT_NUM+gMAX_LREAL_NUM+3) THEN
+	error:=TRUE;
+	errTxt:='dataBase$'s length too short';
+	RETURN;
+END_IF
+IF csv_rows<(dataBoolLength+dataDintLength+dataLrealLength+3) THEN
+	error:=TRUE;
+	errTxt:='dataBase$'s length too short';
+	RETURN;
+END_IF
+
+init();
+IF initB THEN
+	readMethod();
+	saveMethod();
+END_IF
+getSystemTime();
+]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{f2b31bab-99d6-45c9-b9e4-b4df02f5f321}" />
+    <Folder Name="Public" Id="{874cf1ad-c184-443c-9b9e-fe9b02ae7e61}" />
+    <Method Name="createDir" Id="{04f0a4cb-3215-4e9d-9a76-ba67f8d1ce7a}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE createDir : BOOL
+VAR
+	sPathNameTemp	: T_MaxString := 'C:\TwinCAT\Data.txt';
+	sDriveTemp		: STRING(3);
+	sDirTemp		: T_MaxString;
+	sFileNameTemp	: T_MaxString;
+	sExtTemp		: T_MaxString;
+	bSuccess		: BOOL;
+	fbCreateDir		: FB_CreateDir;
+	fbCreateDir2		: FB_CreateDir;
+	sFileDirTemp	: T_MaxString;
+	sFileDirTemp2	: T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sPathNameTemp:=sFileName;
+bSuccess := F_SplitPathName( sPathName := sPathNameTemp,
+	sDrive := sDriveTemp,
+	sDir := sDirTemp,
+	sFileName := sFileNameTemp,
+	sExt := sExtTemp );
+IF bSuccess THEN
+	bSuccess:=FALSE;
+	IF LEFT(sDirTemp,LEN(sDirTemp)-1) <> '' THEN
+		//sFileDirTemp:=CONCAT(STR1:=sDriveTemp,STR2:=LEFT(sDirTemp,LEN(sDirTemp)-1));
+		//sFileNameOld:=CONCAT(STR1:=sFileDirTemp,STR2:=CONCAT('\',CONCAT(sFileNameTemp,'_Old.csv')));//用于重命名参数文件
+		sFileDirTemp:='';
+		sFileDirTemp:=CONCAT(sFileDirTemp,sDriveTemp);
+		sFileDirTemp:=CONCAT(sFileDirTemp,LEFT(sDirTemp,LEN(sDirTemp)-1));
+		sFileDirTemp2:='';
+		sFileDirTemp2:=CONCAT(sFileDirTemp2,sFileDirTemp);
+		sFileDirTemp2:=CONCAT(sFileDirTemp2,'\Old');
+		
+		sFileNameOld:='';
+		sFileNameOld:=CONCAT(sFileNameOld,sFileDirTemp);
+		sFileNameOld:=CONCAT(sFileNameOld,'\Old\');//'\'
+		sFileNameOld:=CONCAT(sFileNameOld,sFileNameTemp);
+		sFileNameOld:=CONCAT(sFileNameOld,'_Old_');
+		sFileNameOld:=CONCAT(sFileNameOld,systemTIMEStr2);
+		sFileNameOld:=CONCAT(sFileNameOld,'.csv');
+		
+		fbCreateDir(
+			sNetId:= , 
+			sPathName:= sFileDirTemp, 
+			ePath:= PATH_GENERIC, 
+			bExecute:= TRUE, 
+			tTimeout:= , 
+			bBusy=> , 
+			bError=> , 
+			nErrId=> );
+		fbCreateDir2(
+			sNetId:= , 
+			sPathName:= sFileDirTemp2, 
+			ePath:= PATH_GENERIC, 
+			bExecute:= TRUE, 
+			tTimeout:= , 
+			bBusy=> , 
+			bError=> , 
+			nErrId=> );
+	END_IF
+END_IF
+fbCreateDir(
+	sNetId:= , 
+	sPathName:= , 
+	ePath:= , 
+	bExecute:= FALSE, 
+	tTimeout:= , 
+	bBusy=> , 
+	bError=> , 
+	nErrId=> );
+fbCreateDir2(
+	sNetId:= , 
+	sPathName:= , 
+	ePath:= , 
+	bExecute:= FALSE, 
+	tTimeout:= , 
+	bBusy=> , 
+	bError=> , 
+	nErrId=> );]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="data2String" Id="{ceea82bf-8f77-429b-b196-790f455b24fc}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE data2String : BOOL
+VAR_INPUT
+END_VAR
+VAR
+	i:UDINT:=0;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//judge length
+IF gMAX_CSV_ROWS<(gMAX_BOOL_NUM+gMAX_DINT_NUM+gMAX_LREAL_NUM+3) THEN
+	error:=TRUE;
+	errTxt:='dataBase$'s length too short';
+	RETURN;
+END_IF
+IF csv_rows<(dataBoolLength+dataDintLength+dataLrealLength+3) THEN
+	error:=TRUE;
+	errTxt:='dataBase$'s length too short';
+	RETURN;
+END_IF
+
+
+//bool
+FOR i:=0 TO dataBoolLength DO
+	pDatabase[i+1,0]:=TO_STRING(i);//num
+	pDatabase[i+1,1]:='BOOL';//data type
+	pDatabase[i+1,2]:=TO_STRING(i);;//name
+	pDatabase[i+1,3]:=TO_STRING(dataBool[i]);//value
+	pDatabase[i+1,4]:='';//no use
+END_FOR
+
+//dint
+FOR i:=(dataBoolLength+1) TO (dataBoolLength+1+dataDintLength) DO
+	pDatabase[i+1,0]:=TO_STRING(i);//num
+	pDatabase[i+1,1]:='DINT';//data type
+	pDatabase[i+1,2]:=TO_STRING(i-(dataBoolLength+1));;//name
+	pDatabase[i+1,3]:=TO_STRING(dataDint[i-(dataBoolLength+1)]);//value
+	pDatabase[i+1,4]:='';//no use
+END_FOR
+
+//lreal
+FOR i:=(dataBoolLength+dataDintLength+2) TO (dataBoolLength+dataDintLength+dataLrealLength+2) DO
+	pDatabase[i+1,0]:=TO_STRING(i);//num
+	pDatabase[i+1,1]:='LREAL';//data type
+	pDatabase[i+1,2]:=TO_STRING(i-(dataBoolLength+dataDintLength+2));;//name
+	pDatabase[i+1,3]:=TO_STRING(dataLreal[i-(dataBoolLength+dataDintLength+2)]);//value
+	pDatabase[i+1,4]:='';//no use
+END_FOR]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getBoolValue" Id="{d1585230-8e68-44ed-84bc-6fe1a6fbddfd}" FolderPath="Public\">
+      <Declaration><![CDATA[METHOD getBoolValue : BOOL
+VAR_IN_OUT
+	value:BOOL;
+END_VAR
+VAR_INPUT
+	num:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF 0<=num AND num<=dataBoolLength THEN
+	value:=dataBool[num];
+	getBoolValue:=TRUE;
+ELSE
+	value:=FALSE;
+	getBoolValue:=FALSE;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getDintValue" Id="{8c812018-f17b-4d00-b5c9-f88831a4289d}" FolderPath="Public\">
+      <Declaration><![CDATA[METHOD getDintValue : BOOL
+VAR_IN_OUT
+	value:DINT;
+END_VAR
+VAR_INPUT
+	num:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF 0<=num AND num<=dataDintLength THEN
+	value:=dataDint[num];
+	getDintValue:=TRUE;
+ELSE
+	value:=0;
+	getDintValue:=FALSE;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getLrealValue" Id="{efa51952-7a73-44c3-9f77-c3fb0f4ad906}" FolderPath="Public\">
+      <Declaration><![CDATA[METHOD getLrealValue : BOOL
+VAR_IN_OUT
+	value:LREAL;
+END_VAR
+VAR_INPUT
+	num:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF 0<=num AND num<=dataLrealLength THEN
+	value:=dataLreal[num];
+	getLrealValue:=TRUE;
+ELSE
+	value:=0;
+	getLrealValue:=FALSE;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getSystemTime" Id="{b84fd43c-67e6-4360-a3ec-883a609901f7}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE getSystemTime : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//获取本地系统时间--输出到变量 systemTIMEStr
+CASE getSystemTimeStep OF
+0:
+	ntGetTime(
+		NETID:= , 
+		START:= FALSE, 
+		TMOUT:= , 
+		BUSY=> , 
+		ERR=> , 
+		ERRID=> , 
+		TIMESTR=> systemTimeStruct);
+	IF NOT ntGetTime.BUSY AND NOT ntGetTime.ERR THEN
+		getSystemTimeStep:=getSystemTimeStep+1;
+	END_IF
+1:
+	ntGetTime(
+		NETID:= , 
+		START:= TRUE, 
+		TMOUT:= , 
+		BUSY=> , 
+		ERR=> , 
+		ERRID=> , 
+		TIMESTR=> systemTimeStruct);
+	IF NOT ntGetTime.BUSY AND NOT ntGetTime.ERR THEN
+		systemTIMEStr:=SYSTEMTIME_TO_STRING(systemTimeStruct);//系统时间转成字符串格式
+		
+		sysTIMEStrYY:=WORD_TO_DECSTR(in:=systemTimeStruct.wYear,iPrecision:=4);
+		sysTIMEStrMM:=WORD_TO_DECSTR(in:=systemTimeStruct.wMonth,iPrecision:=2);
+		sysTIMEStrDD:=WORD_TO_DECSTR(in:=systemTimeStruct.wDay,iPrecision:=2);
+		sysTIMEStr_HH:=WORD_TO_DECSTR(in:=systemTimeStruct.wHour,iPrecision:=2);
+		sysTIMEStr_mm:=WORD_TO_DECSTR(in:=systemTimeStruct.wMinute,iPrecision:=2);
+		sysTIMEStr_ss:=WORD_TO_DECSTR(in:=systemTimeStruct.wSecond,iPrecision:=2);
+		
+		systemTIMEStr2:='';
+		systemTIMEStr2:=CONCAT(systemTIMEStr2,sysTIMEStrYY);
+		systemTIMEStr2:=CONCAT(systemTIMEStr2,sysTIMEStrMM);
+		systemTIMEStr2:=CONCAT(systemTIMEStr2,sysTIMEStrDD);
+		systemTIMEStr2:=CONCAT(systemTIMEStr2,sysTIMEStr_HH);
+		systemTIMEStr2:=CONCAT(systemTIMEStr2,sysTIMEStr_mm);
+		systemTIMEStr2:=CONCAT(systemTIMEStr2,sysTIMEStr_ss);
+		
+		getSystemTimeStep:=0;
+	ELSIF ntGetTime.ERR THEN
+		systemTIMEStr:='';
+		getSystemTimeStep:=0;
+	END_IF	
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="init" Id="{76d6b8d8-466f-45c2-8ed2-aee89dd6f950}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE init : BOOL
+VAR_INPUT
+END_VAR
+VAR
+	i:UDINT:=0;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//创建生成初始表格
+//judge length
+IF gMAX_CSV_ROWS<(gMAX_BOOL_NUM+gMAX_DINT_NUM+gMAX_LREAL_NUM+3) THEN
+	error:=TRUE;
+	errTxt:='dataBase$'s length too short';
+	RETURN;
+END_IF
+IF csv_rows<(dataBoolLength+dataDintLength+dataLrealLength+3) THEN
+	error:=TRUE;
+	errTxt:='dataBase$'s length too short';
+	RETURN;
+END_IF
+
+
+IF initB AND (NOT busy) THEN
+	RETURN;
+END_IF
+initB:=TRUE;
+
+//header
+	pDatabase[0,0]:='NUM';//NUM
+	pDatabase[0,1]:='DATA_TYPE';//data type
+	pDatabase[0,2]:='NAME';//name
+	pDatabase[0,3]:='VALUE';//value
+	pDatabase[0,4]:='NO USE';//no use
+(*--- 不在此处填充，转移到保存数据时填充
+//bool
+FOR i:=1 TO (dataBoolLength+1) DO
+	//pDatabase[i,0]:=UDINT_TO_STRING(i-1);//NUM  --- 不在此处填充
+	//pDatabase[i,1]:='BOOL';//data type --- 不在此处填充
+	//pDatabase[i,2]:='';//name
+	//pDatabase[i,3]:=BOOL_TO_STRING(FALSE);//value
+	//pDatabase[i,4]:='';//no use
+END_FOR
+
+//dint
+FOR i:=(dataBoolLength+2) TO (dataBoolLength+2+dataDintLength) DO
+	//pDatabase[i,0]:=UDINT_TO_STRING(i-(dataBoolLength+2));//NUM  --- 不在此处填充
+	//pDatabase[i,1]:='DINT';//data type --- 不在此处填充
+	//pDatabase[i,2]:='';//name
+	//pDatabase[i,3]:=DINT_TO_STRING(0);//value
+	//pDatabase[i,4]:='';//no use
+END_FOR
+
+//lreal
+FOR i:=(dataBoolLength+dataDintLength+3) TO (dataBoolLength+dataDintLength+dataLrealLength+3) DO
+	//pDatabase[i,0]:=UDINT_TO_STRING(i-(dataBoolLength+dataDintLength+3));//NUM  --- 不在此处填充
+	//pDatabase[i,1]:='LREAL';//data type --- 不在此处填充
+	//pDatabase[i,2]:='';//name
+	//pDatabase[i,3]:=DINT_TO_STRING(0);//value
+	//pDatabase[i,4]:='';//no use
+END_FOR
+*)]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="readMethod" Id="{8a9d4208-77ba-4ad3-901f-430345c6b2b0}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE readMethod : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[CASE readStep OF
+0:
+	IF (readB OR (NOT startUPb)) AND (NOT busy) THEN
+		readStep:=1;
+		startUPb:=TRUE;//for first time, 
+		readB:=FALSE;
+		rDone:=FALSE;
+		busy:=TRUE;
+		error:=FALSE;
+		errID:=0;
+		errTxt:='';
+		fbFileOpen(bExecute:= FALSE);
+		checkFileExistError:=FALSE;
+	END_IF
+	
+1:
+	fbFileOpen(
+		sNetId:= , 
+		sPathName:= sFileName, 
+		nMode:= FOPEN_MODEREAD, 
+		ePath:= PATH_GENERIC, 
+		bExecute:= TRUE, 
+		tTimeout:= , 
+		bBusy=> , 
+		bError=> , 
+		nErrId=> , 
+		hFile=> hFile);
+	IF NOT fbFileOpen.bBusy THEN
+		IF fbFileOpen.bError THEN
+			checkFileExistError:=TRUE;
+		END_IF
+		fbFileOpen(bExecute:= FALSE);
+		readStep:=2;
+	END_IF
+	fbFileClose(bExecute:= FALSE);
+2:
+	fbFileClose(
+		sNetId:= , 
+		hFile:= hFile, 
+		bExecute:= TRUE, 
+		tTimeout:= , 
+		bBusy=> , 
+		bError=> , 
+		nErrId=> );
+	IF NOT fbFileClose.bBusy THEN
+		IF checkFileExistError THEN
+			readStep:=110;
+		ELSE
+			readStep:=11;
+		END_IF
+		fbFileClose(bExecute:= FALSE);
+	END_IF
+
+11:
+	//read txt to Database
+	readTxt(
+		database:= pDatabase, 
+		csv_rows:= csv_rows, 
+		csv_columns:= csv_columns, 
+		bRead:= TRUE, 
+		sFileName:= sFileName);
+	readStep:=12;
+
+12:
+	readTxt(
+		database:= pDatabase, 
+		csv_rows:= csv_rows, 
+		csv_columns:= csv_columns, 
+		bRead:= FALSE, 
+		sFileName:= sFileName,
+		Error=>error,
+		nErrId=>errID);
+		
+	IF error THEN
+		readStep:=110;
+		RETURN;
+	END_IF
+	
+	IF NOT readTxt.bBusy THEN
+		readStep:=13;
+	END_IF
+	
+13:
+	string2Data();
+	readStep:=100;
+	
+100:
+	rDone:=TRUE;
+	busy:=FALSE;
+	error:=error;
+	errID:=errID;
+	errTxt:=errTxt;
+	IF NOT readB THEN
+		readStep:=0;
+	END_IF	
+
+
+110:
+	rDone:=FALSE;
+	busy:=FALSE;
+	error:=TRUE;
+	errID:=errID;
+	errTxt:='read data fail';	
+	IF NOT readB THEN
+		readStep:=0;
+	END_IF		
+	
+END_CASE
+
+
+
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="saveMethod" Id="{42fc3ae9-3eff-4b19-abd4-f1ac52c0063c}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE saveMethod : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[CASE saveStep OF
+0:
+	IF saveB AND (NOT busy) THEN
+		saveStep:=1;
+		saveB:=FALSE;
+		busy:=TRUE;
+		sDone:=FALSE;
+		error:=FALSE;
+		errID:=0;
+		errTxt:='';
+	END_IF
+
+1:
+	createDir();
+	data2String();
+	saveStep:=2;
+
+2:
+	writeTxt(
+		database:= pDatabase, 
+		csv_rows:= csv_rows, 
+		csv_columns:= csv_columns, 
+		bWrite:= TRUE, 
+		sFileName:= sFileName,
+		sFileNameOld:= sFileNameOld);	
+	saveStep:=3;
+
+3:
+	writeTxt(
+		database:= pDatabase, 
+		csv_rows:= csv_rows, 
+		csv_columns:= csv_columns, 
+		bWrite:= FALSE, 
+		sFileName:= sFileName,
+		sFileNameOld:= sFileNameOld,
+		Error=>error,
+		nErrID=>errID);	
+	
+	IF error THEN
+		saveStep:=110;
+		RETURN;
+	END_IF
+
+	IF NOT writeTxt.bBusy THEN
+		saveStep:=100;
+	END_IF
+
+100:
+	busy:=FALSE;
+	sDone:=TRUE;
+	error:=error;
+	errID:=errID;
+	errTxt:=errTxt;
+
+	IF NOT saveB THEN
+		saveStep:=0;
+	END_IF
+
+110:
+	busy:=FALSE;
+	sDone:=FALSE;
+	error:=TRUE;
+	errID:=errID;
+	errTxt:='save data fail';
+
+	IF NOT saveB THEN
+		saveStep:=0;
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="setBoolValue" Id="{30676f03-fa46-411d-9ceb-b294b154c9da}" FolderPath="Public\">
+      <Declaration><![CDATA[METHOD setBoolValue : BOOL
+VAR_INPUT
+	value:BOOL;
+END_VAR
+VAR_INPUT
+	num:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF 0<=num AND num<=dataBoolLength THEN
+	dataBool[num]:=value;
+	setBoolValue:=TRUE;
+ELSE
+	setBoolValue:=FALSE;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="setDintValue" Id="{b1582c55-0a0e-4518-9429-c1a411fd59f5}" FolderPath="Public\">
+      <Declaration><![CDATA[METHOD setDintValue : BOOL
+VAR_INPUT
+	value:DINT;
+END_VAR
+VAR_INPUT
+	num:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF 0<=num AND num<=dataDintLength THEN
+	dataDint[num]:=value;
+	setDintValue:=TRUE;
+ELSE
+	setDintValue:=FALSE;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="setLrealValue" Id="{431ff0cd-4585-4316-8864-b5d56606dbb6}" FolderPath="Public\">
+      <Declaration><![CDATA[METHOD setLrealValue : BOOL
+VAR_INPUT
+	value:LREAL;
+END_VAR
+VAR_INPUT
+	num:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+IF 0<=num AND num<=dataLrealLength THEN
+	dataLreal[num]:=value;
+	setLrealValue:=TRUE;
+ELSE
+	setLrealValue:=FALSE;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="string2Data" Id="{06aee564-5e01-4268-a777-ada3ce3ef5c9}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE string2Data : BOOL
+VAR_INPUT
+END_VAR
+VAR
+	i:UDINT:=0;
+	index_temp:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//judge length
+IF gMAX_CSV_ROWS<(gMAX_BOOL_NUM+gMAX_DINT_NUM+gMAX_LREAL_NUM+3) THEN
+	error:=TRUE;
+	errTxt:='dataBase$'s length too short';
+	RETURN;
+END_IF
+IF csv_rows<(dataBoolLength+dataDintLength+dataLrealLength+3) THEN
+	error:=TRUE;
+	errTxt:='dataBase$'s length too short';
+	RETURN;
+END_IF
+
+(*
+//bool
+FOR i:=0 TO dataBoolLength DO
+	dataBool[i]:=STRING_TO_BOOL(pDatabase[i+1,3]);//value
+END_FOR
+
+//dint
+FOR i:=(dataBoolLength+1) TO (dataBoolLength+1+dataDintLength) DO
+	dataDint[i-(dataBoolLength+1)]:=STRING_TO_DINT(pDatabase[i+1,3]);//value
+END_FOR
+
+//lreal
+FOR i:=(dataBoolLength+dataDintLength+2) TO (dataBoolLength+dataDintLength+dataLrealLength+2) DO
+	dataLreal[i-(dataBoolLength+dataDintLength+2)]:=STRING_TO_LREAL(pDatabase[i+1,3]);//value
+END_FOR
+*)
+FOR i:=0 TO gMAX_CSV_ROWS DO
+	index_temp:=TO_UDINT(pDatabase[i,2]);
+	
+	IF 'BOOL'=pDatabase[i,1] 
+		AND 0<=index_temp  
+		AND index_temp<=dataBoolLength THEN
+		dataBool[index_temp]:=TO_BOOL(pDatabase[i,3]);
+	END_IF
+	IF 'DINT'=pDatabase[i,1] 
+		AND 0<=index_temp  
+		AND index_temp<=dataDintLength THEN
+		dataDint[index_temp]:=TO_DINT(pDatabase[i,3]);
+	END_IF
+	IF 'LREAL'=pDatabase[i,1] 
+		AND 0<=index_temp  
+		AND index_temp<=dataLrealLength THEN
+		dataLreal[index_temp]:=TO_LREAL(pDatabase[i,3]);
+	END_IF
+END_FOR
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="VersionLog" Id="{0b1f151e-5d0c-45e6-9999-105ab30daffa}">
+      <Implementation>
+        <ST><![CDATA[(*
+版本: V1.0.0.0
+说明:
+	1. 首个版本
+(**************************************************)
+版本: V1.0.0.1
+说明:
+	1. 增加参数备份文件，文件名以原文件名+时间命名
+(**************************************************)
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="DataSaveModule_EX">
+      <LineId Id="50" Count="1" />
+      <LineId Id="48" Count="0" />
+      <LineId Id="53" Count="1" />
+      <LineId Id="52" Count="0" />
+      <LineId Id="56" Count="1" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="49" Count="0" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="45" Count="2" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="112" Count="15" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="180" Count="1" />
+    </LineIds>
+    <LineIds Name="DataSaveModule_EX.createDir">
+      <LineId Id="56" Count="0" />
+      <LineId Id="58" Count="3" />
+      <LineId Id="22" Count="2" />
+      <LineId Id="87" Count="0" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="88" Count="2" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="102" Count="2" />
+      <LineId Id="99" Count="0" />
+      <LineId Id="91" Count="0" />
+      <LineId Id="93" Count="5" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="48" Count="7" />
+      <LineId Id="115" Count="8" />
+      <LineId Id="45" Count="1" />
+      <LineId Id="35" Count="8" />
+      <LineId Id="106" Count="8" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="DataSaveModule_EX.data2String">
+      <LineId Id="3" Count="4" />
+      <LineId Id="29" Count="5" />
+      <LineId Id="8" Count="3" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="48" Count="0" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="12" Count="4" />
+      <LineId Id="52" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="49" Count="0" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="18" Count="3" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="50" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="51" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="DataSaveModule_EX.getBoolValue">
+      <LineId Id="10" Count="1" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="13" Count="1" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="DataSaveModule_EX.getDintValue">
+      <LineId Id="12" Count="6" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="DataSaveModule_EX.getLrealValue">
+      <LineId Id="13" Count="6" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="DataSaveModule_EX.getSystemTime">
+      <LineId Id="3" Count="24" />
+      <LineId Id="29" Count="3" />
+      <LineId Id="45" Count="2" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="73" Count="6" />
+      <LineId Id="35" Count="5" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="DataSaveModule_EX.init">
+      <LineId Id="3" Count="5" />
+      <LineId Id="54" Count="5" />
+      <LineId Id="9" Count="38" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="66" Count="0" />
+    </LineIds>
+    <LineIds Name="DataSaveModule_EX.readMethod">
+      <LineId Id="3" Count="10" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="94" Count="0" />
+      <LineId Id="14" Count="1" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="75" Count="9" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="85" Count="1" />
+      <LineId Id="88" Count="1" />
+      <LineId Id="95" Count="1" />
+      <LineId Id="87" Count="0" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="97" Count="0" />
+      <LineId Id="100" Count="6" />
+      <LineId Id="99" Count="0" />
+      <LineId Id="108" Count="1" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="113" Count="1" />
+      <LineId Id="112" Count="0" />
+      <LineId Id="115" Count="0" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="98" Count="0" />
+      <LineId Id="16" Count="2" />
+      <LineId Id="121" Count="1" />
+      <LineId Id="19" Count="7" />
+      <LineId Id="119" Count="1" />
+      <LineId Id="27" Count="42" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="DataSaveModule_EX.saveMethod">
+      <LineId Id="3" Count="12" />
+      <LineId Id="67" Count="0" />
+      <LineId Id="16" Count="4" />
+      <LineId Id="76" Count="1" />
+      <LineId Id="21" Count="2" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="24" Count="3" />
+      <LineId Id="78" Count="1" />
+      <LineId Id="28" Count="2" />
+      <LineId Id="72" Count="0" />
+      <LineId Id="31" Count="32" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="DataSaveModule_EX.setBoolValue">
+      <LineId Id="10" Count="1" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="DataSaveModule_EX.setDintValue">
+      <LineId Id="12" Count="3" />
+      <LineId Id="17" Count="1" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="DataSaveModule_EX.setLrealValue">
+      <LineId Id="12" Count="4" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="DataSaveModule_EX.string2Data">
+      <LineId Id="3" Count="4" />
+      <LineId Id="30" Count="5" />
+      <LineId Id="8" Count="15" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="64" Count="1" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="68" Count="9" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="DataSaveModule_EX.VersionLog">
+      <LineId Id="2" Count="1" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="42" Count="4" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

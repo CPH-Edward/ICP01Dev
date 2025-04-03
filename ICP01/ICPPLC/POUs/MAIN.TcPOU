@@ -1,0 +1,185 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="MAIN" Id="{76329b34-6b6f-4611-a441-2a0649ffbbc1}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM MAIN
+VAR_INPUT
+	tInit:TON;
+END_VAR
+VAR
+	DelayStartGetSystemTime:TON;
+	DelayFlagGetSystemTime:BOOL:=TRUE;
+	fbGetLocalAmsNetId:FB_GetLocalAmsNetId;
+	r1:r_trig;
+	elm:STRING;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[tInit(IN:= TRUE, PT:= T#5S, Q=> , ET=> );
+GetSystemTime();// 获取系统时钟
+ups_CX51X0();//UPS掉电保存
+MainParComfer_HMI();//CPH-主界面参数传递
+MainRunPOU();//实例化、函数调用等内容
+CloseAllSocket();//关闭所有Socket接口
+ServicesRefreshPOU();//服务重启
+r1(CLK:=gAutoRunningFlag AND (gRunningState=RunningStatus.eErrorState));
+IF r1.Q THEN
+	gDownTimeLog.append_EX(WCONCAT("Step,Current error,",gErrWTxtShow));//仅打印到DownTime信息中，方便查询错误信息
+END_IF
+
+//PageChange();
+gCurrentUser:=VisuUserManagement.g_VisuLoginProviderManager.m_arrLoginProvider[0].stUserName;
+//VisuUserManagement.g_VisuLoginProviderManager.m_arrLoginProvider[1].stUserName;
+//VisuUserManagement.g_VisuLoginProviderManager.m_arrLoginProvider[2].stUserName;
+//VisuUserManagement.g_VisuLoginProviderManager.m_arrLoginProvider[3].stUserName;]]></ST>
+    </Implementation>
+    <Method Name="changePage" Id="{cec0fb19-3000-4b03-8159-758eb5ac87da}">
+      <Declaration><![CDATA[METHOD changePage : BOOL
+VAR_INPUT
+	page:INT;
+END_VAR
+VAR
+	itemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//FOR itemp:=1 TO SIZEOF(gWindowsPageBt) DO
+//	IF itemp<>page THEN
+//		gWindowsPageBt[itemp]:=FALSE;
+//	ELSE
+//		gWindowsPageBt[itemp]:=TRUE;
+//	END_IF
+//END_FOR
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="GetSystemNetId" Id="{75533a2b-91b1-44f5-afb4-865da612cb72}">
+      <Implementation>
+        <ST><![CDATA[////获取系统ID先启动
+//DelayStartGetSystemTime(IN:=DelayFlagGetSystemTime , PT:=T#0.5S , Q=> , ET=> );
+//IF DelayStartGetSystemTime.Q THEN
+//	DelayFlagGetSystemTime:=FALSE;
+//	fbGetLocalAmsNetId(
+//		 bExecute:=TRUE, 
+//		 tTimeOut:= , 
+//		 bBusy=> , 
+//		 bError=> , 
+//		 nErrId=> , 
+//		 AddrString=> , 
+//		 AddrBytes=> );
+//END_IF
+//IF DelayFlagGetSystemTime THEN
+//	RETURN;
+//END_IF
+//fbGetLocalAmsNetId(
+//	 bExecute:=FALSE, 
+//	 tTimeOut:= , 
+//	 bBusy=> , 
+//	 bError=> , 
+//	 nErrId=> , 
+//	 AddrString=> , 
+//	 AddrBytes=> );
+//g_sAmsNetId:=fbGetLocalAmsNetId.AddrString;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="GetSystemTime" Id="{a709b63e-9f41-4a63-a472-ff334cf02c93}">
+      <Implementation>
+        <ST><![CDATA[// 获取系统NetID;有时间延时启动的效果
+// 获取系统ID先启动
+DelayStartGetSystemTime(IN:=DelayFlagGetSystemTime , PT:=T#0.5S , Q=> , ET=> );
+IF DelayStartGetSystemTime.Q THEN
+	DelayFlagGetSystemTime:=FALSE;
+	fbGetLocalAmsNetId(
+		 bExecute:=TRUE, 
+		 tTimeOut:= , 
+		 bBusy=> , 
+		 bError=> , 
+		 nErrId=> , 
+		 AddrString=> , 
+		 AddrBytes=> );
+END_IF
+IF DelayFlagGetSystemTime THEN
+	RETURN;
+END_IF
+fbGetLocalAmsNetId(
+	 bExecute:=FALSE, 
+	 tTimeOut:= , 
+	 bBusy=> , 
+	 bError=> , 
+	 nErrId=> , 
+	 AddrString=> , 
+	 AddrBytes=> );
+g_sAmsNetId:=fbGetLocalAmsNetId.AddrString;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="PageChange" Id="{0cc28ebf-7cb5-40aa-be4b-88a5b795171c}">
+      <Implementation>
+        <ST><![CDATA[//elm:=VisuElemsWinControls.CURRENTVISU;
+//IF (elm='Main' OR elm='Auto_Main') THEN
+//	MAIN.changePage(1);
+//END_IF
+
+//IF (elm='Recipe_Main') THEN
+//	MAIN.changePage(2);
+//END_IF
+
+//IF (elm='IO_Main') THEN
+//	MAIN.changePage(3);
+//END_IF
+
+//IF (elm='Log_Main') THEN
+//	MAIN.changePage(4);
+//END_IF
+
+//IF (elm='Config_Main') THEN
+//	MAIN.changePage(5);
+//END_IF
+
+//IF (elm='Loadding_Main') THEN
+//	MAIN.changePage(6);
+//END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="MAIN">
+      <LineId Id="350" Count="0" />
+      <LineId Id="376" Count="0" />
+      <LineId Id="285" Count="5" />
+      <LineId Id="292" Count="1" />
+      <LineId Id="259" Count="0" />
+      <LineId Id="394" Count="0" />
+      <LineId Id="406" Count="0" />
+      <LineId Id="408" Count="0" />
+      <LineId Id="389" Count="0" />
+      <LineId Id="409" Count="0" />
+      <LineId Id="411" Count="0" />
+    </LineIds>
+    <LineIds Name="MAIN.changePage">
+      <LineId Id="5" Count="0" />
+      <LineId Id="13" Count="1" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="11" Count="1" />
+    </LineIds>
+    <LineIds Name="MAIN.GetSystemNetId">
+      <LineId Id="26" Count="23" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="MAIN.GetSystemTime">
+      <LineId Id="2" Count="24" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="MAIN.PageChange">
+      <LineId Id="2" Count="2" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="6" Count="2" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="10" Count="2" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="14" Count="2" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="18" Count="2" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="22" Count="2" />
+      <LineId Id="21" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

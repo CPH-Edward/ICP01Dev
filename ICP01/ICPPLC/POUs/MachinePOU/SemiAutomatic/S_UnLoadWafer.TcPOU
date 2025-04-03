@@ -1,0 +1,891 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="S_UnLoadWafer" Id="{fa77902a-dbc1-441b-b684-82dc0496a7e0}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM S_UnLoadWafer
+VAR_INPUT
+	bInit				:BOOL:=FALSE;// 初始化状态 busy/done/errDone
+	bTrig				:BOOL:=FALSE;// 执行触发 信号
+	bReset				:BOOL:=FALSE;// 报错 复位
+	bPause				:BOOL:=FALSE;// 暂停 运行
+	bStop				:BOOL:=FALSE;// 停止 运行
+	bAbort				:BOOL:=FALSE;// 中止 运行
+	
+END_VAR
+VAR_OUTPUT
+	busy				:BOOL;
+	done				:BOOL;
+	errDone				:BOOL;
+END_VAR
+VAR
+	actStep				:ActStepBase;
+END_VAR
+VAR
+	i: INT;
+	t1:ton;
+	t2:ton;
+	t3:ton;
+	notchoose:BOOL;
+	timeOutTime:TIME:= T#120S;
+	ventTime:TIME:=T#25S;
+	ventTimes:INT;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[busy:=actStep.isBusy();
+done:=actStep.isDone();
+errDone:=actStep.isError();
+actStep.Act_Pause(pause:=bPause);
+
+IF bTrig THEN
+	bTrig:=FALSE;
+	IF NOT busy THEN
+		actStep.Act_ex();
+	END_IF
+END_IF
+
+//状态复位
+IF bInit THEN
+	bInit:=FALSE;
+	Act_init_status();
+END_IF
+
+IF bAbort OR bStop THEN
+	bAbort:=FALSE;
+	bStop:=FALSE;
+	Act_init_status();
+	actStep.toZeroStep();
+	gShowLogTextTitle:='NON';
+END_IF
+ActionRun(tempActStep:=actStep);]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{17a15fc6-a961-4d42-a3a3-e318d1c15368}" />
+    <Method Name="Act_Ex" Id="{a5e6d000-ba96-49d1-bed6-3e5af4359ca2}">
+      <Declaration><![CDATA[(*
+---Trigger action
+*)
+METHOD Act_Ex : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT busy THEN
+	actStep.Act_ex();
+	Act_Ex:=TRUE;
+ELSE
+	Act_Ex:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Init_Status" Id="{ce65aa57-518f-4da3-8a89-78a9dfe8310a}">
+      <Declaration><![CDATA[(*
+---功能: 状态复位 busy/done/errDone;
+*)
+METHOD Act_Init_Status
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[actStep.Act_Init();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ActionRun" Id="{46efe462-2ef3-4af6-8cee-fd21614ff578}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE ActionRun
+VAR_INPUT
+	tempActStep:ITFActStep;
+END_VAR
+VAR_STAT//此处定义静态变量, 保证每次进入该函数时能够在线监控当前值
+	tempStep:DINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[tempStep:=tempActStep.getStep();
+CASE tempStep OF
+0:
+	IF tempActStep.isEx() THEN
+		tempActStep.setBusyFlag();
+		tempActStep.toBeginStep();
+	END_IF
+	t1(IN:= FALSE );
+	t2(IN:= FALSE );
+	t3(IN:= FALSE );
+10:
+	gShowLogTextTitle:='UnLoad Wafer';
+	IF gRunningState<>RunningStatus.eErrorState THEN
+		tempActStep.addStep(10,FALSE);
+	ELSE
+		error_Trigger(105);
+		IF gCtrlMode=ControlMode.eManualCtrMode THEN
+			tempActStep.toErrDoneStep();
+		END_IF
+	END_IF
+20:
+	IF ControlMode.eManualCtrMode=gCtrlMode THEN
+		tempActStep.addStep(40,FALSE);
+	ELSIF( ControlMode.eAutoCtrMode=gCtrlMode) THEN
+		tempActStep.addStep(40,FALSE);
+	ELSE
+		tempActStep.toErrDoneStep();
+	END_IF
+30:
+	tempActStep.addStep(10,FALSE);
+40:
+	tempActStep.addStep(10,TRUE);
+50:
+	tempActStep.addStep(10,FALSE);
+60:
+	S_RoughPumping.Act_Init_Status();
+	S_RoughPumping.Act_Ex();
+	tempActStep.addStep(10,FALSE);
+70:
+	IF S_RoughPumping.done THEN
+		gShowLogTextTitle:='UnLoad Wafer';
+		tempActStep.addStep(10,FALSE);
+	END_IF
+	IF S_RoughPumping.errDone THEN
+		tempActStep.toErrDoneStep();
+	END_IF
+80:
+	tempActStep.addStep(20,TRUE);
+100:
+	IF gWaferMemoryState=1 OR gWaferMemoryState=2 THEN// 腔体有晶圆
+		IF NOT gICP.I_WaferCheck THEN
+			tempActStep.addStep(10,FALSE);
+		ELSE
+			error_Trigger(115);
+			tempActStep.toErrDoneStep();
+		END_IF
+	ELSE
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:Wafer In Chamber To Vent LoadLock');
+		tempActStep.toStep(500,FALSE);// LoadLock有料，则直接判断UnLoad完成（或者衔接无料Vent的过程）
+	END_IF
+110:
+	tempActStep.addStep(5,TRUE);
+115:
+	IF gICP.GateDoorValve.Act_Retract() AND gICP.VentValve.Act_Retract() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:Gate Door Close And Vent Close');
+		tempActStep.addStep(5,FALSE);
+	END_IF
+120:
+	IF gICP.GateDoorValve.Get_Done_Ret() AND gICP.GateDoorRetSensor AND
+       gICP.VentValve.Get_Done_Ret() AND NOT gICP.VentExtRelay THEN
+	   gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+	   gRunningLog.append('UnLoad Wafer POU Run:Gate Door Close Done And Vent Valve Close Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+130:
+	IF gICP.ElectrodeCyl.Act_Retract() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:ElectrodeCyl Dowm');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+140:
+	IF gICP.ElectrodeCyl.Get_Done_Ret() AND gICP.ElectrodeCylRetSensor THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:ElectrodeCyl Dowm Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+150:
+	tempActStep.addStep(10,FALSE);
+160:
+	tempActStep.addStep(10,TRUE);
+170:
+	IF gICP.LiftPinCyl.Act_Extend() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:LiftPinCyl UP');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+180:
+	IF gICP.LiftPinCyl.Get_Done_Ext() AND gICP.LiftPinExtSensor THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:LiftPinCyl UP Down');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+190:
+	t1(IN:=TRUE,PT:=T#1S);
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(10,FALSE);
+	END_IF
+200:
+	tempActStep.addStep(10,FALSE);
+210:
+	tempActStep.addStep(10,TRUE);
+220:
+	IF NOT gICP.VentExtRelay AND gICP.ForlinLineValveExtRelay AND NOT gICP.RoughValveExtRelay THEN
+		tempActStep.addStep(10,FALSE);
+	ELSE
+		error_Trigger(105);
+		tempActStep.toStep(210,FALSE);
+	END_IF
+230://////////////准备破LoadLock
+	IF gICP.LoadLockGauge.outputValue<gRoughtPumVaccum THEN // LL 真空满足
+		IF NOT gICP.LoadLockGauge.error AND gICP.PDV.Act_Retract()  THEN
+			tempActStep.toStep(340,FALSE);
+			gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+			gRunningLog.append(CONCAT('UnLoad Wafer POU Run:LL Pressure Arrive ',REAL_TO_STRING(gICP.LoadLockGauge.outputValue)));
+		ELSE
+			error_Trigger(105);
+			tempActStep.toStep(210,FALSE);
+		END_IF
+	ELSE
+		tempActStep.addStep(10,FALSE);
+	END_IF
+240:
+	tempActStep.addStep(2,TRUE);
+242:
+	IF gICP.ForlinLineValve.Act_Retract() AND gICP.PDV.Act_Retract() THEN
+		tempActStep.addStep(2,FALSE);
+	END_IF
+244:
+	IF gICP.ForlinLineValve.Get_Done_Ret() AND (gICP.PDVCloseSensor OR gICP.PDV.Get_Done_Ret()) THEN
+		tempActStep.addStep(2,FALSE);
+	END_IF
+246:
+	tempActStep.addStep(4,TRUE);
+250:
+	IF gICP.SlowPummingValve.Act_Extend() AND gICP.FastPummingValve.Act_Retract() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:SlowPummingValve Open and FastPummingValve Close');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+260:
+	IF gICP.SlowPummingValve.Get_Done_Ext() AND gICP.FastPummingValve.Get_Done_Ret() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:SlowPummingValve Open Done and FastPummingValve Close Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+270:
+	t2(IN:=gICP.LoadLockGauge.outputValue<gLoadLockPumSVaccum,PT:=T#2S);
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Run:LL Pressure Arrive ',REAL_TO_STRING(gICP.LoadLockGauge.outputValue)));
+		tempActStep.addStep(10,FALSE);
+	END_IF
+280:
+	IF gICP.SlowPummingValve.Act_Retract() AND gICP.FastPummingValve.Act_Extend() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:SlowPummingValve Close and FastPummingValve Open');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+290:
+	IF gICP.SlowPummingValve.Get_Done_Ret() AND gICP.FastPummingValve.Get_Done_Ext() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:SlowPummingValve Close Done and FastPummingValve Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+300:
+	t2(IN:=gICP.LoadLockGauge.outputValue<gRoughtPumVaccum,PT:=T#2S);
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Run:LL Pressure Arrive ',REAL_TO_STRING(gICP.LoadLockGauge.outputValue)));
+		tempActStep.addStep(10,FALSE);
+	END_IF
+310:
+	tempActStep.addStep(10,TRUE);
+320:
+	IF gICP.SlowPummingValve.Act_Retract() AND gICP.FastPummingValve.Act_Retract() AND gICP.PDV.Act_Retract() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:SlowPummingValve Close | FastPummingValve Close | PDV Open');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+330:
+	IF gICP.SlowPummingValve.Get_Done_Ret() AND gICP.FastPummingValve.Get_Done_Ret() AND (gICP.PDV.Get_Done_Ret() OR gICP.PDVCloseSensor) THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:SlowPummingValve Close Done | FastPummingValve Close Done | PDV Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+340:
+	IF (gICP.PDV.Get_Done_Ret() OR gICP.PDVCloseSensor) THEN
+		tempActStep.addStep(10,TRUE);
+	END_IF
+350:
+	IF gICP.GateDoorValve.Act_Extend() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:Gate Door Open');
+		tempActStep.addStep(5,FALSE);
+	END_IF
+355:
+	IF gICP.GateDoorValve.Get_Done_Ext() AND gICP.GateDoorExtSensor THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:Gate Door Open Done');
+		tempActStep.addStep(5,FALSE);
+	END_IF
+360:
+	IF gICP.HeMFC_ActFlow<1 AND gICP.HeCheckGaugeReal<1 AND NOT gICP.HeINExtRelay AND NOT gICP.HePumExtRelay THEN
+		tempActStep.addStep(1,FALSE);
+	ELSE
+		tempActStep.addStep(10,FALSE);
+	END_IF
+361:
+	tempActStep.addStep(1,TRUE);
+362:
+	IF gICP.HeINValve.Act_Retract() THEN
+		tempActStep.addStep(1,FALSE);
+	END_IF
+363:
+	IF gICP.HeINValve.Get_Done_Ret() THEN
+		tempActStep.addStep(1,FALSE);
+	END_IF
+364:
+	tempActStep.addStep(1,TRUE);
+365:
+	IF gICP.HePumValve.Act_Extend() THEN
+		tempActStep.addStep(1,FALSE);
+	END_IF
+366:
+	IF gICP.HePumValve.Get_Done_Ext() THEN
+		tempActStep.addStep(1,FALSE);
+	END_IF
+367:
+	t2(IN:=TRUE ,PT:=T#2S);
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(1,FALSE);
+	END_IF
+368:
+	t1(IN:=gICP.HeMFC_ActFlow<1 AND gICP.HeCheckGaugeReal<1 ,PT:=T#2S);
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		gICP.HePumValve.Act_Retract();
+		tempActStep.addStep(2,FALSE);
+	END_IF
+370:
+	IF gICP.ElectrodeCyl.Act_Retract() AND gICP.HePumValve.Get_Done_Ret() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:ElectrodeCyl Down');
+		tempActStep.addStep(2,FALSE);
+	END_IF
+372:
+	IF gICP.ElectrodeCyl.Get_Done_Ret() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:ElectrodeCyl Down Done');
+		tempActStep.addStep(2,FALSE);
+	END_IF
+374:
+	tempActStep.addStep(2,TRUE);
+376:
+	IF gICP.LiftPinCyl.Act_Extend() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:LiftPinCyl UP');
+		tempActStep.addStep(2,FALSE);
+	END_IF
+378:
+	IF gICP.LiftPinCyl.Get_Done_Ext() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:LiftPinCyl UP Done');
+		tempActStep.addStep(1,FALSE);
+	END_IF
+379:
+	tempActStep.addStep(1,TRUE);
+380:
+	tempActStep.addStep(20,FALSE);
+400:
+	IF gICP.ARM.Act_IN_Auto() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:ARM IN');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+410:
+	IF NOT gICP.I_ARMHome THEN// 手臂当前不应该在原点位置
+		tempActStep.addStep(10,FALSE);
+	END_IF
+420:
+	t1(IN:=gICP.ARM.Get_Done_IN() AND NOT gICP.ARM.busy AND ABS(gICP.ARM.actpos-gARMPosition)<=1 ,PT:=T#2S);
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:ARM IN Done');
+		tempActStep.addStep(10,FALSE);
+		RETURN;
+	END_IF
+	t2(IN:=TRUE,PT:=T#20S);
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		error_Trigger(114);
+		tempActStep.toStep(379,FALSE);
+		RETURN;
+	END_IF
+430:
+	tempActStep.addStep(10,TRUE);
+440:
+	IF gICP.LiftPinCyl.Act_Retract() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:LiftPinCyl Down');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+450:
+	IF gICP.LiftPinCyl.Get_Done_Ret() AND gICP.LiftPinRetSensor THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:LiftPinCyl Down Done');
+		// 记忆状态更新
+		gWaferMemoryState:=0;
+		ups_CX51X0.Act_Wrtie();
+		tempActStep.addStep(10,FALSE);
+	END_IF
+460:
+	tempActStep.addStep(10,TRUE);
+470:
+	IF gICP.ARM.Act_HOME_Auto() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:ARM Home');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+480:
+	IF gICP.ARM.Get_Done_HOME() AND gICP.I_ARMHome AND ABS(gICP.ARM.actpos-0)<=1 AND NOT gICP.ARM.busy THEN// 手臂当前不应该在原点位置
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:ARM Home Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+490:
+	t2(IN:=TRUE,PT:=T#2S);
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(10,FALSE);
+		RETURN;
+	END_IF
+500:
+	ventTimes:=1;
+	tempActStep.addStep(10,TRUE);
+510:
+	IF gICP.GateDoorValve.Act_Retract() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:GateDoorValve Close');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+520:
+	IF gICP.GateDoorValve.Get_Done_Ret() AND gICP.GateDoorRetSensor THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:GateDoorValve Close Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+530:
+	tempActStep.addStep(10,TRUE);
+540:
+	IF  gICP.GateDoorValve.Act_Retract() AND 
+	    gICP.SlowPummingValve.Act_Retract() AND 
+	    gICP.FastPummingValve.Act_Retract() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+550:
+	IF gICP.GateDoorValve.Get_Done_Ret() AND gICP.GateDoorRetSensor AND
+	   gICP.SlowPummingValve.Get_Done_Ret() AND NOT gICP.SlowPummingExtRelay AND
+	   gICP.FastPummingValve.Get_Done_Ret() AND NOT gICP.FastPummingExtRelay THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+560:
+	IF gICP.VentValve.Act_Extend() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:VentValve Open');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+570:
+	IF gICP.VentValve.Get_Done_Ext() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:VentValve Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+580:
+	t2(IN:=gICP.LoadLockGauge.outputValue>gATMPressure,PT:=ventTime/ventTimes);
+	IF t2.Q OR NOT gICP.I_LLSwitch THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Run:LL Pressure Arrive ',REAL_TO_STRING(gICP.LoadLockGauge.outputValue)));
+		tempActStep.addStep(10,FALSE);
+	END_IF
+590:
+	tempActStep.addStep(10,TRUE);
+600:
+	IF gICP.VentValve.Act_Retract() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:VentValve Close');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+610:
+	IF gICP.VentValve.Get_Done_Ret() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:VentValve Close Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+620:
+	t1(IN:=TRUE,PT:=T#1S);
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		gRunningLog.append('UnLoad Wafer POU Run:Wait for the wafer to be removed');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+630:
+	t2(IN:=NOT gICP.I_WaferCheck AND gICP.I_LLSwitch,PT:=T#1S);// 拿走晶圆，且关上盖子
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:Wafer tack out and close LL');
+		tempActStep.addStep(10,FALSE);
+		RETURN;
+	END_IF
+	t3(IN:=TRUE,PT:=timeOutTime);
+	IF t3.Q THEN
+		error_Trigger(114);
+		ventTimes:=3;
+		tempActStep.toStep(530,FALSE);
+	END_IF
+640:
+	IF gICP.ForlinLineValve.Act_Extend() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:ForLineValve Open');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+650:
+	IF gICP.ForlinLineValve.Get_Done_Ext() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:ForLineValve Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+660:
+	tempActStep.addStep(10,TRUE);
+670:
+	IF gICP.PDV.Act_Open() THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:PDV Open');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+680:
+	IF gICP.PDV.Get_Done_Ext() OR gICP.PDVOpenSensor THEN
+		gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('UnLoad Wafer POU Run:PDV Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+690:
+	// 记忆状态更新
+	gWaferMemoryState:=0;
+	ups_CX51X0.Act_Wrtie();
+	gRunningLog.append(CONCAT('UnLoad Wafer POU Step:',DINT_TO_STRING(tempStep)));
+	gRunningLog.append('UnLoad Wafer POU Run:----Finish----');
+	tempActStep.toDoneStep();
+1000:
+	tempActStep.toDoneStep();
+
+60000://Done
+	tempActStep.setDoneFlag();
+	tempActStep.toZeroStep();
+	
+65000://Error
+	tempActStep.setErrDoneFlag();
+	tempActStep.toZeroStep();
+	IF gICP.VentExtRelay THEN
+		gICP.VentValve.Act_Retract();
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="S_UnLoadWafer">
+      <LineId Id="49" Count="0" />
+      <LineId Id="385" Count="2" />
+      <LineId Id="406" Count="12" />
+      <LineId Id="422" Count="0" />
+      <LineId Id="530" Count="1" />
+      <LineId Id="489" Count="0" />
+      <LineId Id="510" Count="0" />
+      <LineId Id="509" Count="0" />
+      <LineId Id="560" Count="0" />
+      <LineId Id="395" Count="0" />
+      <LineId Id="446" Count="0" />
+    </LineIds>
+    <LineIds Name="S_UnLoadWafer.Act_Ex">
+      <LineId Id="14" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="17" Count="0" />
+    </LineIds>
+    <LineIds Name="S_UnLoadWafer.Act_Init_Status">
+      <LineId Id="15" Count="0" />
+    </LineIds>
+    <LineIds Name="S_UnLoadWafer.ActionRun">
+      <LineId Id="1302" Count="10" />
+      <LineId Id="2319" Count="0" />
+      <LineId Id="1687" Count="2" />
+      <LineId Id="2150" Count="0" />
+      <LineId Id="2327" Count="1" />
+      <LineId Id="1690" Count="0" />
+      <LineId Id="1667" Count="0" />
+      <LineId Id="1691" Count="0" />
+      <LineId Id="2010" Count="0" />
+      <LineId Id="2012" Count="0" />
+      <LineId Id="2016" Count="3" />
+      <LineId Id="2013" Count="0" />
+      <LineId Id="1694" Count="0" />
+      <LineId Id="1866" Count="2" />
+      <LineId Id="1870" Count="0" />
+      <LineId Id="2234" Count="6" />
+      <LineId Id="2242" Count="6" />
+      <LineId Id="1869" Count="0" />
+      <LineId Id="1864" Count="0" />
+      <LineId Id="1702" Count="0" />
+      <LineId Id="2152" Count="1" />
+      <LineId Id="2155" Count="0" />
+      <LineId Id="2157" Count="0" />
+      <LineId Id="2156" Count="0" />
+      <LineId Id="2154" Count="0" />
+      <LineId Id="1719" Count="0" />
+      <LineId Id="2249" Count="0" />
+      <LineId Id="2151" Count="0" />
+      <LineId Id="1723" Count="0" />
+      <LineId Id="1720" Count="0" />
+      <LineId Id="1724" Count="1" />
+      <LineId Id="2020" Count="1" />
+      <LineId Id="2250" Count="0" />
+      <LineId Id="2158" Count="0" />
+      <LineId Id="2022" Count="1" />
+      <LineId Id="1726" Count="1" />
+      <LineId Id="2024" Count="0" />
+      <LineId Id="2251" Count="0" />
+      <LineId Id="2159" Count="0" />
+      <LineId Id="1874" Count="0" />
+      <LineId Id="1872" Count="0" />
+      <LineId Id="1730" Count="0" />
+      <LineId Id="1877" Count="0" />
+      <LineId Id="2252" Count="0" />
+      <LineId Id="2160" Count="0" />
+      <LineId Id="1878" Count="0" />
+      <LineId Id="1876" Count="0" />
+      <LineId Id="1737" Count="1" />
+      <LineId Id="2253" Count="0" />
+      <LineId Id="2161" Count="0" />
+      <LineId Id="1739" Count="2" />
+      <LineId Id="1744" Count="3" />
+      <LineId Id="2025" Count="0" />
+      <LineId Id="2254" Count="0" />
+      <LineId Id="2162" Count="0" />
+      <LineId Id="2026" Count="3" />
+      <LineId Id="2255" Count="0" />
+      <LineId Id="2163" Count="0" />
+      <LineId Id="2030" Count="0" />
+      <LineId Id="1754" Count="0" />
+      <LineId Id="1756" Count="0" />
+      <LineId Id="1883" Count="5" />
+      <LineId Id="1755" Count="0" />
+      <LineId Id="1757" Count="0" />
+      <LineId Id="1900" Count="0" />
+      <LineId Id="1783" Count="1" />
+      <LineId Id="1769" Count="0" />
+      <LineId Id="1771" Count="1" />
+      <LineId Id="1901" Count="0" />
+      <LineId Id="2164" Count="0" />
+      <LineId Id="1902" Count="0" />
+      <LineId Id="1773" Count="1" />
+      <LineId Id="2166" Count="0" />
+      <LineId Id="2172" Count="1" />
+      <LineId Id="2256" Count="0" />
+      <LineId Id="2178" Count="0" />
+      <LineId Id="2175" Count="2" />
+      <LineId Id="2174" Count="0" />
+      <LineId Id="2169" Count="1" />
+      <LineId Id="2165" Count="0" />
+      <LineId Id="1777" Count="1" />
+      <LineId Id="2291" Count="4" />
+      <LineId Id="2297" Count="1" />
+      <LineId Id="2296" Count="0" />
+      <LineId Id="2300" Count="0" />
+      <LineId Id="2299" Count="0" />
+      <LineId Id="1781" Count="0" />
+      <LineId Id="1785" Count="0" />
+      <LineId Id="2257" Count="0" />
+      <LineId Id="2179" Count="0" />
+      <LineId Id="1786" Count="3" />
+      <LineId Id="2258" Count="0" />
+      <LineId Id="2180" Count="0" />
+      <LineId Id="1790" Count="0" />
+      <LineId Id="1782" Count="0" />
+      <LineId Id="1791" Count="0" />
+      <LineId Id="1903" Count="4" />
+      <LineId Id="2259" Count="0" />
+      <LineId Id="2181" Count="0" />
+      <LineId Id="1908" Count="0" />
+      <LineId Id="1792" Count="1" />
+      <LineId Id="1909" Count="0" />
+      <LineId Id="2260" Count="0" />
+      <LineId Id="2182" Count="0" />
+      <LineId Id="1910" Count="0" />
+      <LineId Id="1796" Count="1" />
+      <LineId Id="1911" Count="0" />
+      <LineId Id="2261" Count="0" />
+      <LineId Id="2183" Count="0" />
+      <LineId Id="1912" Count="0" />
+      <LineId Id="1800" Count="1" />
+      <LineId Id="1913" Count="4" />
+      <LineId Id="2262" Count="0" />
+      <LineId Id="2184" Count="0" />
+      <LineId Id="1918" Count="0" />
+      <LineId Id="1802" Count="0" />
+      <LineId Id="1822" Count="1" />
+      <LineId Id="1810" Count="0" />
+      <LineId Id="1919" Count="0" />
+      <LineId Id="2263" Count="0" />
+      <LineId Id="2185" Count="0" />
+      <LineId Id="1920" Count="0" />
+      <LineId Id="1814" Count="1" />
+      <LineId Id="1921" Count="0" />
+      <LineId Id="2264" Count="0" />
+      <LineId Id="2186" Count="0" />
+      <LineId Id="1922" Count="0" />
+      <LineId Id="1818" Count="1" />
+      <LineId Id="2316" Count="2" />
+      <LineId Id="1820" Count="0" />
+      <LineId Id="1923" Count="0" />
+      <LineId Id="2265" Count="0" />
+      <LineId Id="2187" Count="0" />
+      <LineId Id="1924" Count="0" />
+      <LineId Id="1828" Count="2" />
+      <LineId Id="2266" Count="0" />
+      <LineId Id="2188" Count="0" />
+      <LineId Id="1831" Count="1" />
+      <LineId Id="2346" Count="0" />
+      <LineId Id="2381" Count="0" />
+      <LineId Id="2385" Count="0" />
+      <LineId Id="2384" Count="0" />
+      <LineId Id="2382" Count="1" />
+      <LineId Id="2386" Count="1" />
+      <LineId Id="2348" Count="31" />
+      <LineId Id="2388" Count="0" />
+      <LineId Id="2380" Count="0" />
+      <LineId Id="2345" Count="0" />
+      <LineId Id="1833" Count="0" />
+      <LineId Id="1925" Count="0" />
+      <LineId Id="2267" Count="0" />
+      <LineId Id="2189" Count="0" />
+      <LineId Id="1926" Count="0" />
+      <LineId Id="1821" Count="0" />
+      <LineId Id="1841" Count="0" />
+      <LineId Id="1927" Count="0" />
+      <LineId Id="2268" Count="0" />
+      <LineId Id="2202" Count="0" />
+      <LineId Id="1928" Count="0" />
+      <LineId Id="1842" Count="1" />
+      <LineId Id="1847" Count="0" />
+      <LineId Id="2190" Count="0" />
+      <LineId Id="2193" Count="0" />
+      <LineId Id="2269" Count="0" />
+      <LineId Id="2194" Count="4" />
+      <LineId Id="2270" Count="0" />
+      <LineId Id="2203" Count="0" />
+      <LineId Id="2199" Count="0" />
+      <LineId Id="2191" Count="0" />
+      <LineId Id="2200" Count="1" />
+      <LineId Id="2290" Count="0" />
+      <LineId Id="2289" Count="0" />
+      <LineId Id="1848" Count="0" />
+      <LineId Id="1929" Count="0" />
+      <LineId Id="2271" Count="0" />
+      <LineId Id="2204" Count="0" />
+      <LineId Id="1930" Count="11" />
+      <LineId Id="2272" Count="0" />
+      <LineId Id="2214" Count="0" />
+      <LineId Id="1942" Count="2" />
+      <LineId Id="2206" Count="4" />
+      <LineId Id="2213" Count="0" />
+      <LineId Id="2211" Count="1" />
+      <LineId Id="2205" Count="0" />
+      <LineId Id="1945" Count="3" />
+      <LineId Id="2273" Count="0" />
+      <LineId Id="2215" Count="0" />
+      <LineId Id="1949" Count="3" />
+      <LineId Id="2274" Count="0" />
+      <LineId Id="2216" Count="0" />
+      <LineId Id="2008" Count="1" />
+      <LineId Id="2007" Count="0" />
+      <LineId Id="1953" Count="5" />
+      <LineId Id="2275" Count="0" />
+      <LineId Id="2217" Count="0" />
+      <LineId Id="1959" Count="3" />
+      <LineId Id="2276" Count="0" />
+      <LineId Id="2218" Count="0" />
+      <LineId Id="1963" Count="11" />
+      <LineId Id="2336" Count="0" />
+      <LineId Id="1975" Count="2" />
+      <LineId Id="2277" Count="0" />
+      <LineId Id="2219" Count="0" />
+      <LineId Id="1978" Count="3" />
+      <LineId Id="2278" Count="0" />
+      <LineId Id="2220" Count="0" />
+      <LineId Id="1982" Count="0" />
+      <LineId Id="1857" Count="2" />
+      <LineId Id="1983" Count="0" />
+      <LineId Id="2045" Count="12" />
+      <LineId Id="2279" Count="0" />
+      <LineId Id="2221" Count="0" />
+      <LineId Id="2058" Count="3" />
+      <LineId Id="2280" Count="0" />
+      <LineId Id="2222" Count="0" />
+      <LineId Id="2062" Count="7" />
+      <LineId Id="2281" Count="0" />
+      <LineId Id="2223" Count="0" />
+      <LineId Id="2070" Count="0" />
+      <LineId Id="2002" Count="0" />
+      <LineId Id="2071" Count="0" />
+      <LineId Id="2074" Count="2" />
+      <LineId Id="2282" Count="0" />
+      <LineId Id="2224" Count="0" />
+      <LineId Id="2077" Count="3" />
+      <LineId Id="2283" Count="0" />
+      <LineId Id="2225" Count="0" />
+      <LineId Id="2081" Count="7" />
+      <LineId Id="2307" Count="0" />
+      <LineId Id="2089" Count="7" />
+      <LineId Id="2284" Count="0" />
+      <LineId Id="2226" Count="0" />
+      <LineId Id="2097" Count="4" />
+      <LineId Id="2227" Count="0" />
+      <LineId Id="2337" Count="0" />
+      <LineId Id="2102" Count="0" />
+      <LineId Id="2072" Count="0" />
+      <LineId Id="2104" Count="1" />
+      <LineId Id="2285" Count="0" />
+      <LineId Id="2228" Count="0" />
+      <LineId Id="2106" Count="3" />
+      <LineId Id="2286" Count="0" />
+      <LineId Id="2229" Count="0" />
+      <LineId Id="2110" Count="4" />
+      <LineId Id="2127" Count="0" />
+      <LineId Id="2287" Count="0" />
+      <LineId Id="2230" Count="0" />
+      <LineId Id="2128" Count="3" />
+      <LineId Id="2288" Count="0" />
+      <LineId Id="2231" Count="0" />
+      <LineId Id="2132" Count="0" />
+      <LineId Id="2121" Count="3" />
+      <LineId Id="2303" Count="0" />
+      <LineId Id="2305" Count="1" />
+      <LineId Id="2103" Count="0" />
+      <LineId Id="1668" Count="9" />
+      <LineId Id="2141" Count="1" />
+      <LineId Id="2140" Count="0" />
+      <LineId Id="1092" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

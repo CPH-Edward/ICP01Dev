@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <GVL Name="GVL_AllPERSISTENT" Id="{d01995bf-8727-4a43-8e9a-36f85754ac81}">
+    <Declaration><![CDATA[//{attribute 'qualified_only'}
+VAR_GLOBAL PERSISTENT
+	gEnablePower					:BOOL:=TRUE;
+	gWaferMemoryState				:INT:=0;// Charmber晶圆记忆状态    0:没有晶圆；1：有晶圆但未Etch； 2：有晶圆且Etch完成；
+	gARMPosition					:DINT:=8900;// ARM 工作位	
+	gCO_ControlRFTime				:UDINT:=10;		
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

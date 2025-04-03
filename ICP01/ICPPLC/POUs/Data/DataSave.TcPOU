@@ -1,0 +1,472 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="DataSave" Id="{4314e44a-fe74-4e78-b7f7-25588b4b5dfe}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM DataSave
+VAR_INPUT
+	fbDataSaveModule_EX_1			:DataSaveModule_EX;
+	fbDataSaveModule_EX_recipe		:RecipeSaveModule_EX;
+	fbDataSaveModule_EX_recipename	:RecipeNameModule_EX;
+	RecipeDataClear					:ARRAY [1..gRecipeMAX_String_NUM] OF RecipePar;     
+	//上料相机轴
+	DOEX1AxisPar					: ARRAY [1..20] OF FB_SavePar;
+	DOEX2AxisPar					: ARRAY [1..20] OF FB_SavePar;
+	wstrShow						:WSTRING:="";
+END_VAR
+VAR_OUTPUT
+	busy					:BOOL;
+	done					:BOOL;
+	error					:BOOL;
+END_VAR
+VAR
+	itemp:INT;
+	jtemp:INT;
+	save_R_Trig				:R_Trig;
+	load_R_Trig				:R_Trig;
+	
+	save_F_Trig				:F_Trig;
+	load_F_Trig				:F_Trig;
+	chinnesename			:WSTRING;
+	posname					:WSTRING;
+	englishname				:STRING;
+	
+//	rtrig_RX				:R_TRIG;
+	error_Rtrig				:R_TRIG;
+END_VAR
+VAR
+	
+	
+END_VAR
+VAR
+	nSaveStep:INT;
+	tTimeout:TON;
+	stamovestep:INT;
+	
+	tLoadTime:TON;
+	TestRead:LREAL;	
+	RXPosIndex : UINT;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+//
+fbDataSaveModule_EX_recipe.RecipeChange();
+save_R_Trig(CLK:=gSaveTemp OR gsave );//点击保存按钮:需要并上某一条件，进行限制
+//rtrig_RX(CLK:=gDUTType=0 , Q=> );
+
+//IF rtrig_TX.Q THEN
+//	gRead:=TRUE;
+//END_IF
+
+//
+IF save_R_Trig.Q THEN
+	gLog.append('Save All Config');
+	gDataChangeLog.append_EX("数据发生更改");
+	gSaveTemp:=FALSE;
+	ups_CX51X0.Act_Wrtie();
+	IF 0=nSaveStep THEN
+		nSaveStep:=100;
+	END_IF
+END_IF
+load_R_Trig(CLK:=gRead);
+
+tLoadTime(IN:= gRead, PT:=T#1S , Q=> , ET=> );
+load_F_Trig(CLK:=tLoadTime.Q , Q=> );
+//
+
+
+IF load_R_Trig.Q THEN
+	gDataChangeLog.append_EX(" DOE 配置");
+	gLog.append('Load All Config');
+	fbDataSaveModule_EX_1.readB:=TRUE;//按实际需要进行屏蔽和启用
+	fbDataSaveModule_EX_recipe.readB:=TRUE;
+END_IF
+error_Rtrig(CLK:=NOT MainRunPOU.DelayFlag AND fbDataSaveModule_EX_recipe.error AND 
+				 fbDataSaveModule_EX_recipe.checkFileExistError AND NOT fbDataSaveModule_EX_recipe.busy, Q=> );
+IF error_Rtrig.Q  THEN
+	gShowNum:=0;
+	gRecipeEditorData:=RecipeDataClear;
+	gRecipeViewData:=RecipeDataClear;
+	
+	gLog.append(gRecipeShowNameNow);
+	error_Trigger(30);
+END_IF
+
+ACT_MainPara();
+ACT_StructInstance_DOE();
+
+
+
+busy:=fbDataSaveModule_EX_1.busy    //按实际需要进行屏蔽和启用
+		;
+error:=fbDataSaveModule_EX_1.error  //按实际需要进行屏蔽和启用
+		;
+
+tTimeout(IN:=0<>nSaveStep,PT:=T#10S);
+IF tTimeout.Q THEN
+	tTimeout(IN:=FALSE);
+	nSaveStep:=0;
+END_IF
+CASE nSaveStep OF
+	0:
+		;
+	100:
+		IF NOT fbDataSaveModule_EX_1.busy THEN
+			nSaveStep:=nSaveStep+10;
+		END_IF
+	110:
+		//savePara1_Inner:=TRUE;
+		nSaveStep:=nSaveStep+10;
+	120:
+		IF fbDataSaveModule_EX_1.busy THEN
+			nSaveStep:=nSaveStep+10;
+		END_IF
+	130:
+		IF NOT fbDataSaveModule_EX_1.busy THEN
+			nSaveStep:=nSaveStep+10;
+		END_IF
+	140:
+		nSaveStep:=500;
+		
+	500:
+		nSaveStep:=0;
+END_CASE]]></ST>
+    </Implementation>
+    <Action Name="ACT_MainPara" Id="{80e49863-e715-4cd7-86b6-e717710ef837}">
+      <Implementation>
+        <ST><![CDATA[
+//(*
+//保存参数
+
+
+IF save_R_Trig.Q THEN
+	gLog.append('Save Sta1 Config');
+	
+	//offset-500-720
+//Int类型存储
+
+	
+	
+	fbDataSaveModule_EX_1.setDintValue((gTestDelayTime),4);
+//	fbDataSaveModule_EX_1.setDintValue((gDUTType),5);
+	
+//	fbDataSaveModule_EX_1.setBoolValue((gTXPosEnable[0]),10);
+//	fbDataSaveModule_EX_1.setBoolValue((gTXPosEnable[1]),11);
+//	fbDataSaveModule_EX_1.setBoolValue((gTXPosEnable[2]),12);
+//	fbDataSaveModule_EX_1.setBoolValue((gTXPosEnable[3]),13);
+//	fbDataSaveModule_EX_1.setBoolValue((gTXPosEnable[4]),14);
+//	fbDataSaveModule_EX_1.setBoolValue((gTXPosEnable[5]),15);
+//	fbDataSaveModule_EX_1.setBoolValue((gTXPosEnable[6]),16);
+//	fbDataSaveModule_EX_1.setBoolValue((gTXPosEnable[7]),17);
+	
+//	fbDataSaveModule_EX_1.setBoolValue(gEnableCOffset,20); 
+//	fbDataSaveModule_EX_1.setBoolValue(gEnableTxOffset,21); 
+//	fbDataSaveModule_EX_1.setBoolValue(gEnableRXLimit,22); 
+//	fbDataSaveModule_EX_1.setBoolValue(gEnableRXOffset,23); 
+	
+
+ 	fbDataSaveModule_EX_1.setLrealValue(FuncModule_RS232_SRF.goPosLoad,1);
+	fbDataSaveModule_EX_1.setLrealValue(FuncModule_RS232_SRF.goPosPhase,2);
+	
+//中文文档读写
+	FB_WStringSave.setWString(gDataArrName2[1],1);
+	FB_WStringSave.setWString(gDataArrName2[2],2);
+	FB_WStringSave.setWString(gDataArrName2[3],3);
+	FB_WStringSave.setWString(gDataArrName2[4],4);
+	FB_WStringSave.setWString(gDataArrName2[5],5);
+	FB_WStringSave.setWString(gDataArrName2[6],6);
+	FB_WStringSave.setWString(gDataArrName2[7],7);
+	FB_WStringSave.setWString(gDataArrName2[8],8);
+	FB_WStringSave.setWString(gDataArrName2[9],9);
+	FB_WStringSave.setWString(gDataArrName2[10],10);
+	FB_WStringSave.setWString(gDataArrName2[11],11);
+	FB_WStringSave.setWString(gDataArrName2[12],12);
+	FB_WStringSave.setWString(gDataArrName2[13],13);
+	FB_WStringSave.setWString(gDataArrName2[14],14);
+	FB_WStringSave.setWString(gDataArrName2[15],15);
+	FB_WStringSave.setWString(gDataArrName2[16],16);
+	FB_WStringSave.setWString(gDataArrName2[17],17);
+	FB_WStringSave.setWString(gDataArrName2[18],18);
+	FB_WStringSave.setWString(gDataArrName2[19],19);
+	FB_WStringSave.setWString(gDataArrName2[20],20);
+	FB_WStringSave.writeTrig:=TRUE;
+	fbDataSaveModule_EX_1.saveB:=TRUE;
+	fbDataSaveModule_EX_recipe.saveB:=TRUE;
+	ups_CX51X0.Act_Wrtie();
+END_IF
+//*)
+//(*
+//读取参数
+IF tLoadTime.Q AND DataSave.fbDataSaveModule_EX_recipe.rDone THEN
+	fbDataSaveModule_EX_recipe.readB:=FALSE;
+END_IF
+
+
+IF tLoadTime.Q AND DataSave.fbDataSaveModule_EX_1.rDone THEN
+
+//Int类型存储
+	
+	fbDataSaveModule_EX_1.getDintValue((gTestDelayTime),4);
+//	fbDataSaveModule_EX_1.getDintValue((gDutTypeComfirm),5);
+	
+//	fbDataSaveModule_EX_1.getBoolValue((gTXPosEnable[0]),10);
+//	fbDataSaveModule_EX_1.getBoolValue((gTXPosEnable[1]),11);
+//	fbDataSaveModule_EX_1.getBoolValue((gTXPosEnable[2]),12);
+//	fbDataSaveModule_EX_1.getBoolValue((gTXPosEnable[3]),13);
+//	fbDataSaveModule_EX_1.getBoolValue((gTXPosEnable[4]),14);
+//	fbDataSaveModule_EX_1.getBoolValue((gTXPosEnable[5]),15);
+//	fbDataSaveModule_EX_1.getBoolValue((gTXPosEnable[6]),16);
+//	fbDataSaveModule_EX_1.getBoolValue((gTXPosEnable[7]),17);
+	
+//	fbDataSaveModule_EX_1.getBoolValue(gEnableCOffset,20);
+//	fbDataSaveModule_EX_1.getBoolValue(gEnableTxOffset,21); 
+//	fbDataSaveModule_EX_1.getBoolValue(gEnableRXLimit,22); 
+//	fbDataSaveModule_EX_1.getBoolValue(gEnableRXOffset,23); 
+////上料速度
+// 	fbDataSaveModule_EX_1.getLrealValue(gLoad_AXIS.Y1RunVel,600);
+//	fbDataSaveModule_EX_1.getLrealValue(gLoad_AXIS.X1RunVel,601);
+//	fbDataSaveModule_EX_1.getLrealValue(gLoad_AXIS.Z1RunVel,602);
+//	fbDataSaveModule_EX_1.getLrealValue(gLoad_AXIS.R1RunVel,603);
+//	fbDataSaveModule_EX_1.getLrealValue(gLoad_AXIS.CY1RunVel,604);
+//	fbDataSaveModule_EX_1.getLrealValue(gUnLoad_AXIS.CY1RunVel,605);
+
+	fbDataSaveModule_EX_1.getLrealValue(FuncModule_RS232_SRF.goPosLoad,1);
+	fbDataSaveModule_EX_1.getLrealValue(FuncModule_RS232_SRF.goPosPhase,2);	
+
+
+	fbDataSaveModule_EX_1.readB:=FALSE;
+	gRead:=FALSE;
+END_IF
+IF load_F_Trig.Q THEN
+	FB_WStringSave.readTrig:=TRUE;
+END_IF
+IF FB_WStringSave.readDone THEN
+	FB_WStringSave.getWString(gDataArrName2[1],1);
+	FB_WStringSave.getWString(gDataArrName2[2],2);
+	FB_WStringSave.getWString(gDataArrName2[3],3);
+	FB_WStringSave.getWString(gDataArrName2[4],4);
+	FB_WStringSave.getWString(gDataArrName2[5],5);
+	FB_WStringSave.getWString(gDataArrName2[6],6);
+	FB_WStringSave.getWString(gDataArrName2[7],7);
+	FB_WStringSave.getWString(gDataArrName2[8],8);
+	FB_WStringSave.getWString(gDataArrName2[9],9);
+	FB_WStringSave.getWString(gDataArrName2[10],10);
+	FB_WStringSave.getWString(gDataArrName2[11],11);
+	FB_WStringSave.getWString(gDataArrName2[12],12);
+	FB_WStringSave.getWString(gDataArrName2[13],13);
+	FB_WStringSave.getWString(gDataArrName2[14],14);
+	FB_WStringSave.getWString(gDataArrName2[15],15);
+	FB_WStringSave.getWString(gDataArrName2[16],16);
+	FB_WStringSave.getWString(gDataArrName2[17],17);
+	FB_WStringSave.getWString(gDataArrName2[18],18);
+	FB_WStringSave.getWString(gDataArrName2[19],19);
+	FB_WStringSave.getWString(gDataArrName2[20],20);
+	;
+END_IF
+
+//*)
+//其他
+fbDataSaveModule_EX_1(
+		sFileName:= 'C:\Config\ICP_Para.csv', 
+		readB:= , 
+		saveB:= , 
+		dataBool:= , 
+		dataBoolLength:= 50, 
+		dataDint:= , 
+		dataDintLength:= 50, 
+		dataLreal:= , 
+		dataLrealLength:=1000 , 
+		busy=> , 
+		rDone=> , 
+		sDone=> , 
+		error=> , 
+		errID=> , 
+		errTxt=> );
+		
+fbDataSaveModule_EX_recipename(
+	sFileName:= 'C:\Config\Name.csv', 
+	readB:= , 
+	saveB:= , 
+	dataString:= , 
+	dataStringLength:=99 , 
+	busy=> , 
+	rDone=> , 
+	sDone=> , 
+	error=> , 
+	errID=> , 
+	errTxt=> );
+
+gRecipeFullPath:='';
+gRecipeFullPath:=CONCAT(gRecipeFullPath,'C:\Config\');
+gRecipeFullPath:=CONCAT(gRecipeFullPath,gRecipeNameSelect[gRecipeSelectIndex1].Name);
+gRecipeFullPath:=CONCAT(gRecipeFullPath,'.csv');
+fbDataSaveModule_EX_recipe(
+	sFileName:= gRecipeFullPath, 
+	readB:= , 
+	saveB:= , 
+	dataString:= , 
+	dataStringLength:= , 
+	busy=> , 
+	rDone=> , 
+	sDone=> , 
+	error=> , 
+	errID=> , 
+	errTxt=> );
+
+FB_WStringSave(//中文读写
+	filter:="," , 
+	savePath:='C:\Config\ChinessPar.txt', 
+	nErrorId=> , 
+	bError=> , 
+	readDone=> , 
+	saveDone=> , 
+	readError=> , 
+	saveError=> );
+
+
+fbDataSaveModule_EX_1.saveB:=FALSE;
+fbDataSaveModule_EX_recipe.saveB:=FALSE;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ACT_StructInstance_DOE" Id="{83c03731-6601-4efa-9003-f7204121292e}">
+      <Implementation>
+        <ST><![CDATA[
+////saveIndexOffset处于递增的过程
+
+////offset-gParSaveMax倍数  0-5倍
+//FOR itemp:=1 TO 20 BY 1 DO//相机景深CY1
+	
+//	chinnesename:=wCONCAT(chinnesename,"DOEAXIS1-");
+//	chinnesename:=wCONCAT(chinnesename,gDataArrName2[itemp]);
+//	englishname:=CONCAT(englishname,'DOEAXIS1 Parameter');
+//	englishname:=CONCAT(englishname,TO_STRING(iTemp));
+//	DOEAXIS1AxisParSet[itemp].RunVel:=gDOE_AXIS.DOE1RunVel;
+//	IF gCNErrShow THEN
+//		posname:=wCONCAT(posname,"位置");
+//	ELSE
+//		posname:=wCONCAT(posname,"Pos");
+//	END_IF
+//	posname:=wCONCAT(posname,TO_WSTRING(iTemp));
+//	DOEX1AxisPar[itemp](////////
+//		logOut:=gDataChangeLog,
+//		gStaParSet:=DOEAXIS1AxisParSet[itemp] , ///////
+//		motorAix:=gDOE_AXIS.DOE1Axis , 
+//		saveRef:= fbDataSaveModule_EX_1, 
+//		chinnesename:=chinnesename , ///////
+//		pos1name:=posname,////
+//		eglishname:= englishname,///// 
+//		languageswitch:=gCNErrShow , 
+//		saveIndexOffset:=0*20+itemp,///////
+//		moveerro=> DOEAXIS1AxisParSet[itemp].moveerror, ////////
+//		movebusy=> , 
+//		movedone=> );
+//	chinnesename:="";
+//	posname:="";
+//	englishname:='';
+//END_FOR
+//FOR itemp:=1 TO 20 BY 1 DO//相机景深CY1
+//	chinnesename:=wCONCAT(chinnesename,"DOEAXIS2-");
+//	chinnesename:=wCONCAT(chinnesename,gDataArrName2[itemp]);
+//	englishname:=CONCAT(englishname,'DOEAXIS2 Parameter');
+//	englishname:=CONCAT(englishname,TO_STRING(iTemp));
+//	DOEAXIS2AxisParSet[itemp].RunVel:=gDOE_AXIS.DOE2RunVel;
+//	IF gCNErrShow THEN
+//		posname:=wCONCAT(posname,"位置");
+//	ELSE
+//		posname:=wCONCAT(posname,"Pos");
+//	END_IF
+//	posname:=wCONCAT(posname,TO_WSTRING(iTemp));
+//	DOEX2AxisPar[itemp](////////
+//		logOut:=gDataChangeLog,
+//		gStaParSet:=DOEAXIS2AxisParSet[itemp] , ///////
+//		motorAix:=gDOE_AXIS.DOE2Axis , 
+//		saveRef:= fbDataSaveModule_EX_1, 
+//		chinnesename:=chinnesename , ///////
+//		pos1name:=posname,////
+//		eglishname:= englishname,///// 
+//		languageswitch:=gCNErrShow , 
+//		saveIndexOffset:=1*20+itemp,///////
+//		moveerro=> DOEAXIS2AxisParSet[itemp].moveerror, ////////
+//		movebusy=> , 
+//		movedone=> );
+//	chinnesename:="";
+//	posname:="";
+//	englishname:='';
+//END_FOR
+]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="DataSave">
+      <LineId Id="1901" Count="1" />
+      <LineId Id="2351" Count="0" />
+      <LineId Id="1903" Count="27" />
+      <LineId Id="2059" Count="0" />
+      <LineId Id="1931" Count="0" />
+      <LineId Id="2212" Count="0" />
+      <LineId Id="2353" Count="0" />
+      <LineId Id="2103" Count="0" />
+      <LineId Id="2105" Count="0" />
+      <LineId Id="2107" Count="0" />
+      <LineId Id="2109" Count="0" />
+      <LineId Id="2349" Count="0" />
+      <LineId Id="2348" Count="0" />
+      <LineId Id="2303" Count="0" />
+      <LineId Id="2106" Count="0" />
+      <LineId Id="2115" Count="0" />
+      <LineId Id="1933" Count="0" />
+      <LineId Id="1935" Count="0" />
+      <LineId Id="1981" Count="35" />
+      <LineId Id="240" Count="0" />
+    </LineIds>
+    <LineIds Name="DataSave.ACT_MainPara">
+      <LineId Id="3186" Count="30" />
+      <LineId Id="3222" Count="0" />
+      <LineId Id="3775" Count="0" />
+      <LineId Id="3333" Count="23" />
+      <LineId Id="3724" Count="0" />
+      <LineId Id="3357" Count="4" />
+      <LineId Id="3725" Count="0" />
+      <LineId Id="3727" Count="1" />
+      <LineId Id="3726" Count="0" />
+      <LineId Id="3362" Count="27" />
+      <LineId Id="3779" Count="0" />
+      <LineId Id="3501" Count="0" />
+      <LineId Id="3778" Count="0" />
+      <LineId Id="3777" Count="0" />
+      <LineId Id="3776" Count="0" />
+      <LineId Id="3502" Count="31" />
+      <LineId Id="3709" Count="14" />
+      <LineId Id="3694" Count="0" />
+      <LineId Id="3761" Count="0" />
+      <LineId Id="3763" Count="10" />
+      <LineId Id="3762" Count="0" />
+      <LineId Id="3774" Count="0" />
+      <LineId Id="3759" Count="0" />
+      <LineId Id="3757" Count="1" />
+      <LineId Id="3760" Count="0" />
+      <LineId Id="3745" Count="10" />
+      <LineId Id="3729" Count="0" />
+      <LineId Id="3695" Count="12" />
+      <LineId Id="3756" Count="0" />
+    </LineIds>
+    <LineIds Name="DataSave.ACT_StructInstance_DOE">
+      <LineId Id="19" Count="0" />
+      <LineId Id="138" Count="0" />
+      <LineId Id="551" Count="1" />
+      <LineId Id="980" Count="0" />
+      <LineId Id="1021" Count="0" />
+      <LineId Id="1031" Count="1" />
+      <LineId Id="1034" Count="1" />
+      <LineId Id="985" Count="0" />
+      <LineId Id="1197" Count="3" />
+      <LineId Id="986" Count="2" />
+      <LineId Id="1191" Count="0" />
+      <LineId Id="989" Count="10" />
+      <LineId Id="1055" Count="1" />
+      <LineId Id="1054" Count="0" />
+      <LineId Id="975" Count="0" />
+      <LineId Id="1251" Count="0" />
+      <LineId Id="1253" Count="27" />
+      <LineId Id="1157" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

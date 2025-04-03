@@ -1,0 +1,469 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="S_PDVSafeCtr" Id="{9b7ffe69-89c0-4ff3-bb4c-286c38678585}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM S_PDVSafeCtr
+VAR_INPUT
+	bInit				:BOOL:=FALSE;// 初始化状态 busy/done/errDone
+	bTrig				:BOOL:=FALSE;// 执行触发 信号
+	bReset				:BOOL:=FALSE;// 报错 复位
+	bPause				:BOOL:=FALSE;// 暂停 运行
+	bStop				:BOOL:=FALSE;// 停止 运行
+	bAbort				:BOOL:=FALSE;// 中止 运行
+	
+END_VAR
+VAR_OUTPUT
+	busy				:BOOL;
+	done				:BOOL;
+	errDone				:BOOL;
+	stopDone			:BOOL;
+END_VAR
+VAR
+	actStep				:ActStepBase;
+END_VAR
+VAR
+	i: INT;
+	t1:ton;
+	t2:ton;
+	t3:ton;
+	openErrorDelayTon:TON;
+	notchoose:BOOL;
+	timeOutTime:TIME:= T#60S;
+	ventTime:TIME:=T#15S;
+	chamberVaccum:REAL;
+	TBVaccum:REAL;
+	vaccumAbs:REAL:=500;
+	ATMVaccum:REAL:=200000;
+	forlineOpen:BOOL;
+	roughtOpen:BOOL;
+	rtrig:R_TRIG;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[busy:=actStep.isBusy();
+done:=actStep.isDone();
+errDone:=actStep.isError();
+actStep.Act_Pause(pause:=bPause);
+rtrig(CLK:=gPDVOpencondition);
+IF bTrig OR rtrig.Q THEN
+	bTrig:=FALSE;
+	Act_init_status();
+	IF NOT busy THEN
+		actStep.Act_ex();
+	END_IF
+END_IF
+
+//状态复位
+IF bInit THEN
+	bInit:=FALSE;
+	Act_init_status();
+END_IF
+
+IF bAbort OR bStop THEN
+	bAbort:=FALSE;
+	bStop:=FALSE;
+	Act_init_status();
+	actStep.toZeroStep();
+	IF gPDVOpencondition THEN
+		gPDVOpencondition:=FALSE;
+		gICP.PDV.Act_Retract();
+		IF NOT forlineOpen THEN
+			gICP.ForlinLineValve.Act_Retract();
+		END_IF
+		IF forlineOpen THEN
+			gICP.ForlinLineValve.Act_Extend();
+		END_IF
+		IF NOT roughtOpen THEN
+			gICP.RoughValve.Act_Retract();
+		END_IF
+		IF roughtOpen THEN
+			gICP.RoughValve.Act_Extend();
+		END_IF
+	END_IF
+END_IF
+ActionRun(tempActStep:=actStep);]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{03ba91d7-5a5e-4cfb-8fb0-33218f00733a}" />
+    <Method Name="Act_Ex" Id="{96a5c472-fdb6-429b-b8f6-1d8cb6fda7f0}">
+      <Declaration><![CDATA[(*
+---Trigger action
+*)
+METHOD Act_Ex : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT busy THEN
+	actStep.Act_ex();
+	Act_Ex:=TRUE;
+ELSE
+	Act_Ex:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Init_Status" Id="{76f9ed08-1bcf-4856-beb1-334b775db34a}">
+      <Declaration><![CDATA[(*
+---功能: 状态复位 busy/done/errDone;
+*)
+METHOD Act_Init_Status
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[actStep.Act_Init();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ActionRun" Id="{86c59172-785c-46f8-ac6c-d3150c49a3ca}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE ActionRun
+VAR_INPUT
+	tempActStep:ITFActStep;
+END_VAR
+VAR_STAT//此处定义静态变量, 保证每次进入该函数时能够在线监控当前值
+	tempStep:DINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[tempStep:=tempActStep.getStep();
+CASE tempStep OF
+0:
+	IF tempActStep.isEx() THEN
+		tempActStep.setBusyFlag();
+		tempActStep.toBeginStep();
+	END_IF
+	t1(IN:= FALSE );
+	t2(IN:= FALSE );
+	t3(IN:= FALSE );
+10:
+	IF (gICP.TruboPumOpen AND gICP.TruboPumNormal) OR (NOT gICP.TruboPumOpen AND gICP.TruboPumNoRotation) THEN
+		IF gICP.ForlinLineValveExtRelay THEN
+			forlineOpen:=TRUE;
+		ELSE
+			forlineOpen:=FALSE;
+		END_IF
+		IF gICP.RoughValveExtRelay THEN
+			roughtOpen:=TRUE;
+		ELSE
+			roughtOpen:=FALSE;
+		END_IF
+		IF gPDVOpencondition THEN
+			gRunningLog.append(CONCAT('PDV Open Safety Check:',DINT_TO_STRING(tempStep)));
+			gRunningLog.append('PDV Open Safety Check:Differential Pressure Check');
+			tempActStep.addStep(10,FALSE);
+		END_IF
+	ELSE
+		error_Trigger(103);
+		tempActStep.toErrDoneStep();
+	END_IF
+20:
+	IF gICP.RoughValve.Act_Retract() AND gICP.ForlinLineValve.Act_Retract() AND gICP.FastPummingValve.Act_Retract() AND gICP.SlowPummingValve.Act_Retract() THEN
+		gRunningLog.append(CONCAT('PDV Open Safety Check:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('PDV Open Safety Check:RoughValve | ForeLineValve | FastPuming | SlowPuming Close');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+30:
+	t1(IN:= TRUE,PT:=T#1S );
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(10,FALSE);
+	END_IF
+40:
+	IF gICP.RoughValve.Get_Done_Ret() AND gICP.ForlinLineValve.Get_Done_Ret() AND gICP.FastPummingValve.Get_Done_Ret() AND gICP.SlowPummingValve.Get_Done_Ret() THEN
+		gRunningLog.append(CONCAT('PDV Open Safety Check:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('PDV Open Safety Check:RoughValve | ForeLineValve | FastPuming | SlowPuming Close Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+50:
+	t2(IN:= TRUE,PT:=T#1S );
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(10,FALSE);
+	END_IF
+60:
+	IF gICP.RoughValve.Act_Extend() THEN
+		gRunningLog.append(CONCAT('PDV Open Safety Check:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('PDV Open Safety Check:RoughValve Open');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+70:
+	t3(IN:= TRUE,PT:=T#1S );
+	IF t3.Q AND gICP.RoughValve.Get_Done_Ext() THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(10,FALSE);
+		gRunningLog.append(CONCAT('PDV Open Safety Check:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('PDV Open Safety Check:RoughValve Open');
+		chamberVaccum:=gICP.ForeLineGauge.outputValue;
+		gICP.RoughValve.Act_Retract();
+	END_IF
+80:
+	IF gICP.RoughValve.Get_Done_Ret() THEN
+		gRunningLog.append(CONCAT('PDV Open Safety Check:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('PDV Open Safety Check:RoughValve Open Done');
+		tempActStep.addStep(5,FALSE);
+	END_IF
+85:
+	t3(IN:= TRUE,PT:=T#10S );
+	IF t3.Q AND gICP.RoughValve.Get_Done_Ret() AND gICP.ForeLineGauge.outputValue<gRoughtPumVaccum THEN
+		gRunningLog.append(CONCAT('PDV Open Safety Check:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append(CONCAT('PDV Open Safety Check:ForeLine Gauge Pressure Arrive: ',REAL_TO_STRING(gICP.ForeLineGauge.outputValue)));
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(2,FALSE);
+	END_IF
+87:
+	t2(IN:= TRUE,PT:=T#3S );
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(3,FALSE);
+	END_IF
+90:
+	IF gICP.ForlinLineValve.Act_Extend() THEN
+		gRunningLog.append(CONCAT('PDV Open Safety Check:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('PDV Open Safety Check:ForLineValve Open');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+100:
+	t3(IN:= TRUE,PT:=T#1S );
+	IF t3.Q AND gICP.ForlinLineValve.Get_Done_Ext() THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(5,FALSE);
+		gRunningLog.append(CONCAT('PDV Open Safety Check:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('PDV Open Safety Check:ForLineValve Open Done and Remain Foreline Gauge Pressure');
+		TBVaccum:=gICP.ForeLineGauge.outputValue;
+	END_IF
+105:
+	IF gICP.ForlinLineValve.Act_Retract() THEN
+		gRunningLog.append(CONCAT('PDV Open Safety Check:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('PDV Open Safety Check:ForLineValve Close');
+	END_IF
+110:
+	IF gICP.ForlinLineValve.Get_Done_Ret() THEN
+		gRunningLog.append(CONCAT('PDV Open Safety Check:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('PDV Open Safety Check:ForLineValve Close Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+120:
+	IF ( TBVaccum>ATMVaccum AND chamberVaccum>ATMVaccum ) OR ABS(TBVaccum-chamberVaccum)<vaccumAbs THEN
+		tempActStep.addStep(10,FALSE);
+		gPDVOpencondition:=FALSE;
+		gRunningLog.append(CONCAT('PDV Open Safety Check:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('PDV Open Safety Check:PDV Open');
+	ELSE
+		error_Trigger(104);
+		tempActStep.toErrDoneStep();
+	END_IF
+130:
+	IF (gICP.PDV.Get_Done_Ext() OR gICP.PDVOpenSensor) THEN
+		IF forlineOpen AND NOT roughtOpen THEN
+			tempActStep.addStep(10,FALSE);
+			RETURN;
+		END_IF
+		IF NOT forlineOpen AND roughtOpen THEN
+			tempActStep.addStep(160,FALSE);
+			RETURN;
+		END_IF
+		IF NOT forlineOpen AND NOT roughtOpen THEN
+			tempActStep.toStep(1000,FALSE);
+			RETURN;
+		END_IF
+	END_IF
+140:
+	IF gICP.ForlinLineValve.Act_Extend() THEN
+		gRunningLog.append(CONCAT('PDV Open Safety Check:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('PDV Open Safety Check:ForLineValve Open');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+150:
+	IF gICP.ForlinLineValve.Get_Done_Ext() THEN
+		gRunningLog.append(CONCAT('PDV Open Safety Check:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('PDV Open Safety Check:ForLineValve Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+160:
+	tempActStep.toStep(1000,FALSE);
+200:
+	IF gICP.RoughValve.Act_Extend() THEN
+		gRunningLog.append(CONCAT('PDV Open Safety Check:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('PDV Open Safety Check:RoughValve Open');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+210:
+	IF gICP.RoughValve.Get_Done_Ext() THEN
+		gRunningLog.append(CONCAT('PDV Open Safety Check:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('PDV Open Safety Check:RoughValve Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+220:
+	gRunningLog.append('PDV Open Safety Check:Differential Pressure Check Done');
+	tempActStep.toStep(1000,FALSE);
+1000:
+	tempActStep.toDoneStep();
+60000://Done
+	tempActStep.setDoneFlag();
+	tempActStep.toZeroStep();
+65000://Error
+	tempActStep.setErrDoneFlag();
+	tempActStep.toZeroStep();
+	gICP.PDV.Act_Retract();
+	gPDVOpencondition:=FALSE;
+	gICP.RoughValve.Act_Retract();
+	gICP.ForlinLineValve.Act_Retract();
+	gICP.FastPummingValve.Act_Retract();
+	gICP.SlowPummingValve.Act_Retract();
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="S_PDVSafeCtr">
+      <LineId Id="49" Count="0" />
+      <LineId Id="385" Count="2" />
+      <LineId Id="406" Count="2" />
+      <LineId Id="750" Count="0" />
+      <LineId Id="409" Count="9" />
+      <LineId Id="422" Count="0" />
+      <LineId Id="530" Count="1" />
+      <LineId Id="489" Count="0" />
+      <LineId Id="510" Count="0" />
+      <LineId Id="509" Count="0" />
+      <LineId Id="692" Count="1" />
+      <LineId Id="705" Count="0" />
+      <LineId Id="695" Count="2" />
+      <LineId Id="709" Count="1" />
+      <LineId Id="708" Count="0" />
+      <LineId Id="698" Count="2" />
+      <LineId Id="712" Count="1" />
+      <LineId Id="711" Count="0" />
+      <LineId Id="694" Count="0" />
+      <LineId Id="395" Count="0" />
+      <LineId Id="446" Count="0" />
+    </LineIds>
+    <LineIds Name="S_PDVSafeCtr.Act_Ex">
+      <LineId Id="14" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="17" Count="0" />
+    </LineIds>
+    <LineIds Name="S_PDVSafeCtr.Act_Init_Status">
+      <LineId Id="15" Count="0" />
+    </LineIds>
+    <LineIds Name="S_PDVSafeCtr.ActionRun">
+      <LineId Id="1302" Count="10" />
+      <LineId Id="2159" Count="0" />
+      <LineId Id="2255" Count="1" />
+      <LineId Id="2258" Count="1" />
+      <LineId Id="2257" Count="0" />
+      <LineId Id="2261" Count="3" />
+      <LineId Id="2260" Count="0" />
+      <LineId Id="2162" Count="0" />
+      <LineId Id="2330" Count="0" />
+      <LineId Id="2296" Count="0" />
+      <LineId Id="2163" Count="0" />
+      <LineId Id="2160" Count="0" />
+      <LineId Id="2164" Count="0" />
+      <LineId Id="2166" Count="0" />
+      <LineId Id="2165" Count="0" />
+      <LineId Id="2161" Count="0" />
+      <LineId Id="2167" Count="2" />
+      <LineId Id="2332" Count="0" />
+      <LineId Id="2331" Count="0" />
+      <LineId Id="2170" Count="1" />
+      <LineId Id="2173" Count="4" />
+      <LineId Id="2190" Count="0" />
+      <LineId Id="2172" Count="0" />
+      <LineId Id="2178" Count="0" />
+      <LineId Id="2180" Count="0" />
+      <LineId Id="2333" Count="1" />
+      <LineId Id="2181" Count="0" />
+      <LineId Id="2179" Count="0" />
+      <LineId Id="2182" Count="0" />
+      <LineId Id="2185" Count="4" />
+      <LineId Id="2191" Count="0" />
+      <LineId Id="2183" Count="0" />
+      <LineId Id="2147" Count="1" />
+      <LineId Id="2335" Count="1" />
+      <LineId Id="2149" Count="4" />
+      <LineId Id="2156" Count="1" />
+      <LineId Id="2154" Count="0" />
+      <LineId Id="2192" Count="0" />
+      <LineId Id="2337" Count="1" />
+      <LineId Id="2158" Count="0" />
+      <LineId Id="2195" Count="0" />
+      <LineId Id="2155" Count="0" />
+      <LineId Id="2193" Count="1" />
+      <LineId Id="2339" Count="1" />
+      <LineId Id="2203" Count="1" />
+      <LineId Id="2305" Count="0" />
+      <LineId Id="2307" Count="1" />
+      <LineId Id="2341" Count="1" />
+      <LineId Id="2309" Count="3" />
+      <LineId Id="2306" Count="0" />
+      <LineId Id="2329" Count="0" />
+      <LineId Id="2321" Count="4" />
+      <LineId Id="2328" Count="0" />
+      <LineId Id="2320" Count="0" />
+      <LineId Id="2202" Count="0" />
+      <LineId Id="2206" Count="0" />
+      <LineId Id="2343" Count="1" />
+      <LineId Id="2207" Count="8" />
+      <LineId Id="2345" Count="0" />
+      <LineId Id="2353" Count="0" />
+      <LineId Id="2216" Count="0" />
+      <LineId Id="2218" Count="0" />
+      <LineId Id="2349" Count="2" />
+      <LineId Id="2354" Count="0" />
+      <LineId Id="2352" Count="0" />
+      <LineId Id="2219" Count="1" />
+      <LineId Id="2347" Count="0" />
+      <LineId Id="2355" Count="0" />
+      <LineId Id="2221" Count="0" />
+      <LineId Id="2205" Count="0" />
+      <LineId Id="2222" Count="2" />
+      <LineId Id="2242" Count="0" />
+      <LineId Id="2358" Count="1" />
+      <LineId Id="2226" Count="2" />
+      <LineId Id="2225" Count="0" />
+      <LineId Id="2240" Count="1" />
+      <LineId Id="2265" Count="1" />
+      <LineId Id="2284" Count="0" />
+      <LineId Id="2267" Count="0" />
+      <LineId Id="2269" Count="1" />
+      <LineId Id="2285" Count="0" />
+      <LineId Id="2268" Count="0" />
+      <LineId Id="2282" Count="1" />
+      <LineId Id="2286" Count="0" />
+      <LineId Id="2281" Count="0" />
+      <LineId Id="2244" Count="2" />
+      <LineId Id="2356" Count="1" />
+      <LineId Id="2247" Count="3" />
+      <LineId Id="2360" Count="1" />
+      <LineId Id="2251" Count="3" />
+      <LineId Id="2271" Count="0" />
+      <LineId Id="2273" Count="0" />
+      <LineId Id="2362" Count="1" />
+      <LineId Id="2274" Count="3" />
+      <LineId Id="2364" Count="1" />
+      <LineId Id="2278" Count="2" />
+      <LineId Id="2297" Count="0" />
+      <LineId Id="2272" Count="0" />
+      <LineId Id="1668" Count="1" />
+      <LineId Id="1671" Count="1" />
+      <LineId Id="2232" Count="0" />
+      <LineId Id="1675" Count="1" />
+      <LineId Id="2126" Count="0" />
+      <LineId Id="2237" Count="0" />
+      <LineId Id="2288" Count="0" />
+      <LineId Id="2234" Count="2" />
+      <LineId Id="2233" Count="0" />
+      <LineId Id="1092" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

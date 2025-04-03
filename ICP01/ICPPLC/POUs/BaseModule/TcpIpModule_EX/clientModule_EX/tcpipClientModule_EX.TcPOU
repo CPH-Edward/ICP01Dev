@@ -1,0 +1,392 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="tcpipClientModule_EX" Id="{2483ecb3-f6d5-4b92-8bfb-e14569e6cc83}" SpecialFunc="None">
+    <Declaration><![CDATA[//可实现TCPIP Client 数据的收发
+FUNCTION_BLOCK tcpipClientModule_EX
+VAR_INPUT
+//Connect
+	sSrvNetId			:T_AmsNetId:='';
+	sRemoteHost			:STRING(20):='127.0.0.1';//服务器的IP地址
+	nRemotePort			:UDINT:=6000;//服务器的端口号
+	bStartConnect		:BOOL:=TRUE;//可实现外部控制客户端的打开和关闭
+//Send
+	tcpipSDataLen		:UDINT;//待发送数据长度--外部传递进来
+	tcpipSData			:POINTER TO BYTE;//待发送数据源----外部以指针的形式传递进来
+	bSend				:BOOL:=FALSE;//数据发送触发信号
+//Receive
+	tcpipRecDataLen		:UDINT;//已接收数据长度--外部传递进来
+	tcpipRecData		:POINTER TO BYTE;//已接收数据源--外部以指针的形式传递进来(ADR函数)
+END_VAR
+
+VAR_OUTPUT
+//Connect
+	bConnected			:BOOL:=FALSE;//表示连接状态
+//Send
+	bSendBusy			:BOOL:=FALSE;//数据发送中
+//Receive
+	bRecData			:BOOL:=FALSE;//数据接收有效信号, 上升沿有效
+END_VAR
+
+VAR
+//Connect
+	conStep				:UINT:=0;
+	connectFB			:FB_SocketConnect;
+	hSocket				:T_HSOCKET;
+	conDelayTime		:TIME:=T#500MS;
+	conDelayTon			:TON;
+	conCheckTime		:TIME:=T#500MS;
+	conCheckTon			:TON;
+//Close
+	closeFB				:FB_SocketClose;
+//Receive
+	recStep				:UINT:=0;
+	receiveFB			:FB_SocketReceive;
+	recDelayTime		:TIME:=T#1S;
+	recDelayTon			:TON;
+//Send
+	sendStep			:UINT:=0;
+	sendFB				:FB_SocketSend;
+	sendDataTempLen		:UDINT;//待发送数据缓存 长度
+	sendDataTemp		:POINTER TO BYTE;//待发送数据缓存
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[connect();
+receive();
+send();
+closeFB(
+	sSrvNetId:=sSrvNetId,
+	hSocket:=,
+	bExecute:=FALSE);]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{21301545-0e6e-432b-849f-0a4a605698fa}" />
+    <Folder Name="Public" Id="{7e8fda4e-026e-4d37-86e7-59c6fe89dc7a}" />
+    <Method Name="ascii2String" Id="{c2b1f3d9-2665-4397-acb9-d9eebb4d25b1}" FolderPath="Public\">
+      <Declaration><![CDATA[METHOD ascii2String : STRING(g_nMaxByte_Client)
+VAR_INPUT
+	byteArr:ARRAY [1..g_nMaxByte_Client] OF BYTE;
+END_VAR
+VAR
+	i:UINT;
+	strTemp:STRING(g_nMaxByte_Client);
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[FOR i:=1 TO g_nMaxByte_Client DO
+	strTemp:=concat(strTemp,F_ToCHR(c:=byteArr[i]));
+END_FOR
+ascii2String:=strTemp;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="close" Id="{76645fa1-636d-4746-bbe6-b2f1549134c5}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE close : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//关闭hSocket这个端口的连接
+closeFB(
+	sSrvNetId:=sSrvNetId,
+	hSocket:=hSocket, 
+	bExecute:=TRUE, 			//TCP/IP端口关闭的执行位
+	tTimeout:=,
+	bBusy=>,
+	bError=>,
+	nErrId=>);
+closeFB(
+	sSrvNetId:=sSrvNetId,
+	hSocket:=,
+	bExecute:=FALSE);
+hSocket.handle:=0;
+bConnected:=FALSE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="connect" Id="{148fd21b-9e30-4f55-b5eb-6ea3ee72e099}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE connect : BOOL
+VAR_INPUT
+END_VAR
+
+VAR
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE conStep OF
+0:
+	IF bStartConnect THEN
+		IF bConnected THEN
+			RETURN;
+		END_IF
+		close();
+		connectFB(sSrvNetId:=sSrvNetId,bExecute:= FALSE,hSocket=> hSocket);
+		conStep:=conStep+1;
+	ELSE
+		conStep:=3;
+	END_IF
+
+1:
+	connectFB(
+		sSrvNetId:=sSrvNetId,
+		sRemoteHost:=sRemoteHost,
+		nRemotePort:=nRemotePort,
+		bExecute:=TRUE,
+		hSocket=>hSocket,
+		nErrId=>);
+	IF NOT connectFB.bBusy THEN
+		IF connectFB.bError OR hSocket.handle=0 THEN
+			close();
+			conStep:=conStep+1;
+		ELSE
+			connectFB(sSrvNetId:=sSrvNetId,bExecute:= FALSE);
+			conStep:=50;						
+		END_IF
+	END_IF
+	conDelayTon(IN:=FALSE);
+
+2://delay
+	conDelayTon(IN:=NOT conDelayTon.Q ,PT:=conDelayTime);
+	IF conDelayTon.Q THEN
+		conDelayTon(in:=FALSE);
+		conStep:=conStep+1;
+	END_IF
+
+3://close socket
+	close();
+	conStep:=conStep+1;
+
+4:
+	IF hSocket.handle<>0 THEN
+		//conStep:=conStep-1;
+		conStep:=conStep+1;
+	ELSE
+		conStep:=conStep+1;
+	END_IF
+	
+5://try again
+	conStep:=0;
+
+50:
+	conDelayTon(IN:=NOT conDelayTon.Q ,PT:=T#1500MS);
+	IF conDelayTon.Q THEN
+		conDelayTon(in:=FALSE);
+		bConnected:=TRUE;
+		conStep:=100;
+	END_IF
+	conCheckTon(in:=FALSE);
+	
+100://check connect status//done do nothing
+	conCheckTon(IN:=NOT bConnected OR NOT bStartConnect,PT:=conCheckTime);//NOT conCheckTon.Q
+	IF conCheckTon.Q THEN			
+		conStep:=0;
+		conCheckTon(in:=FALSE);
+	END_IF
+
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="receive" Id="{390da92c-f1b4-4846-898f-ef2f3d205a01}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE receive : BOOL
+VAR_INPUT
+END_VAR
+VAR
+	recDataClear		:POINTER TO BYTE;//已接收数据源--外部以指针的形式传递进来(ADR函数)
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[	
+CASE recStep OF
+0:
+	IF hSocket.handle>0 THEN
+		recStep:=10;
+	END_IF
+10:
+	bRecData:=FALSE;
+	receiveFB(
+		sSrvNetId:=sSrvNetId,
+		hSocket:=hSocket,
+		cbLen:= tcpipRecDataLen,
+		pDest:= tcpipRecData,
+		bExecute:= TRUE,
+		tTimeout:=T#1S,
+		bBusy=>,
+		bError=>,
+		nErrId=>,
+		nRecBytes=>);
+	
+	IF (NOT receiveFB.bBusy) THEN
+		recStep:=20;
+	END_IF
+20:
+	receiveFB(sSrvNetId:=sSrvNetId,hSocket:=hSocket,bExecute :=FALSE);
+	IF (NOT receiveFB.bBusy) THEN
+		IF (receiveFB.bError) THEN
+			close();
+			recStep:=110;
+		ELSE
+			IF ReceiveFB.nRecBytes>0 THEN
+				tcpipRecData:=recDataClear;//清空缓存数据
+				
+				bRecData:=TRUE;
+			END_IF
+			recStep:=10;//Re-Receive
+		END_IF
+	END_IF
+
+110:
+	recDelayTon(IN:=FALSE);
+	recStep:=recStep+10;
+120:
+	recDelayTon(IN:=NOT recDelayTon.Q ,PT:=recDelayTime);
+	IF recDelayTon.Q THEN
+		recDelayTon(IN:=FALSE);
+		recStep:=recStep+10;
+	END_IF
+130:
+	recStep:=0;
+END_CASE
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="send" Id="{b85df739-29dd-469f-97e8-ad73771ca840}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE send : BOOL
+VAR_INPUT
+END_VAR
+VAR
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE sendStep OF
+0:
+	IF bConnected THEN
+		bSendBusy:=FALSE;
+		sendFB(sSrvNetId:=sSrvNetId,hSocket:=hSocket,bExecute:=FALSE);
+		IF bSend THEN
+			sendStep:=10;
+			sendDataTempLen:=tcpipSDataLen;
+			sendDataTemp:=tcpipSData;
+			bSendBusy:=TRUE;
+			bSend:=FALSE;
+		END_IF
+	END_IF
+10:
+	sendFB(
+		sSrvNetId:=sSrvNetId,
+		hSocket:=hSocket,
+		cbLen:= sendDataTempLen,
+		pSrc:= sendDataTemp,
+		bExecute:= TRUE,
+		tTimeout:=T#1S,
+		bBusy=>,
+		bError=>,
+		nErrId=>);
+	
+	IF NOT sendFB.bBusy THEN
+		sendStep:=sendStep+10;
+	END_IF
+20:
+	sendStep:=sendStep+10;
+30:
+	bSendBusy:=FALSE;
+	bSend:=FALSE;
+	sendStep:=0;
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="string2ASCII" Id="{49dc4341-3c19-4319-a6c6-27c39fc2721f}" FolderPath="Public\">
+      <Declaration><![CDATA[METHOD string2ASCII : ARRAY [1..g_nMaxByte_Client] OF BYTE
+VAR_INPUT
+	str:STRING(g_nMaxByte_Client);
+END_VAR
+VAR
+	i:DINT;
+	byteTemp:ARRAY [1..g_nMaxByte_Client] OF BYTE;
+	strB:STRING(1);
+	strTemp:STRING(g_nMaxByte_Client);
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[strTemp:=str;
+FOR i:=1 TO g_nMaxByte_Client DO
+	strB:=LEFT(strTemp,1);
+	strTemp:=DELETE(strTemp,1,1);
+	byteTemp[i]:=F_ToASC(str:=strB);
+END_FOR
+string2ASCII:=byteTemp;]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="VersionLog" Id="{1fd558f5-fb9d-4f35-8a97-eb6f0955282c}">
+      <Implementation>
+        <ST><![CDATA[(*
+版本: V1.0.0.0
+说明:
+	1. 首个版本
+(**************************************************)
+版本: V1.0.0.1
+说明:
+	1. 更新close函数，关闭连接后清零连接句柄
+(**************************************************)
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="tcpipClientModule_EX">
+      <LineId Id="49" Count="1" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="102" Count="2" />
+      <LineId Id="101" Count="0" />
+    </LineIds>
+    <LineIds Name="tcpipClientModule_EX.ascii2String">
+      <LineId Id="3" Count="2" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="tcpipClientModule_EX.close">
+      <LineId Id="3" Count="12" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="tcpipClientModule_EX.connect">
+      <LineId Id="3" Count="2" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="6" Count="5" />
+      <LineId Id="93" Count="2" />
+      <LineId Id="12" Count="33" />
+      <LineId Id="96" Count="0" />
+      <LineId Id="46" Count="17" />
+      <LineId Id="81" Count="0" />
+      <LineId Id="83" Count="3" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="tcpipClientModule_EX.receive">
+      <LineId Id="3" Count="5" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="156" Count="9" />
+      <LineId Id="36" Count="4" />
+      <LineId Id="42" Count="7" />
+      <LineId Id="56" Count="8" />
+      <LineId Id="167" Count="0" />
+      <LineId Id="65" Count="8" />
+      <LineId Id="155" Count="0" />
+      <LineId Id="170" Count="0" />
+    </LineIds>
+    <LineIds Name="tcpipClientModule_EX.send">
+      <LineId Id="3" Count="7" />
+      <LineId Id="67" Count="0" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="13" Count="3" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="58" Count="8" />
+      <LineId Id="41" Count="4" />
+      <LineId Id="47" Count="5" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="tcpipClientModule_EX.string2ASCII">
+      <LineId Id="3" Count="5" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="tcpipClientModule_EX.VersionLog">
+      <LineId Id="2" Count="1" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="42" Count="4" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

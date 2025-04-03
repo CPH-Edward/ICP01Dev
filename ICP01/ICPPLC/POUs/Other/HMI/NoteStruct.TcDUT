@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="NoteStruct" Id="{d1565ee3-ea1e-44f8-b667-4ea1593a0bf3}">
+    <Declaration><![CDATA[TYPE NoteStruct :
+STRUCT
+	showText		:STRING:='********';// 提示内容
+	showFlag		:BOOL;// 提示显示			
+	bOK				:BOOL;
+	bNO				:BOOL;
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -1,0 +1,98 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <Itf Name="ITFUserAction" Id="{d368b40d-6bc9-4810-ba5c-8dc5e88daf65}">
+    <Declaration><![CDATA[INTERFACE ITFUserAction
+]]></Declaration>
+    <Method Name="Act_Abort" Id="{1ed11423-b762-44ce-8695-236665c30c3c}">
+      <Declaration><![CDATA[(*
+---Abort action
+*)
+METHOD Act_Abort : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="Act_Continue" Id="{0539fd82-e3a5-470c-b585-4d2fa25ee586}">
+      <Declaration><![CDATA[(*
+---Continue action
+*)
+METHOD Act_Continue : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="Act_Ex" Id="{bf2b7462-2555-4d72-8d0d-31f604f77958}">
+      <Declaration><![CDATA[(*
+---Trigger action
+*)
+METHOD Act_Ex : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="Act_Init" Id="{2004dd8e-8970-4045-a3e1-ef3cee70c67a}">
+      <Declaration><![CDATA[(*
+---Init all status
+*)
+METHOD Act_Init : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="Act_Pause" Id="{b0bbc13a-c53f-44bb-8779-758c85ec5d9e}">
+      <Declaration><![CDATA[(*
+---Pause action
+*)
+METHOD Act_Pause : BOOL
+VAR_INPUT
+	pause:BOOL;
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="Act_Reset" Id="{b3edcf3b-f795-4818-a73a-05d6a4133966}">
+      <Declaration><![CDATA[(*
+---Reset Action
+*)
+METHOD Act_Reset : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="Act_Stop" Id="{9a42e502-93b2-4565-8db4-404e56241e79}">
+      <Declaration><![CDATA[(*
+---Stop action
+*)
+METHOD Act_Stop : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="Get_Busy" Id="{3ba30d0d-7b20-473c-b03c-579a6827fa84}">
+      <Declaration><![CDATA[(*
+---Get busy signal
+*)
+METHOD Get_Busy : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="Get_Done" Id="{ad2932ae-ae40-4440-b06f-9e86f10b6f50}">
+      <Declaration><![CDATA[(*
+---Get done signal
+*)
+METHOD Get_Done : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="Get_Error" Id="{8b9bcb0f-1076-46d7-86f9-54cc8d725585}">
+      <Declaration><![CDATA[(*
+---Get error signal
+*)
+METHOD Get_Error : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+  </Itf>
+</TcPlcObject>

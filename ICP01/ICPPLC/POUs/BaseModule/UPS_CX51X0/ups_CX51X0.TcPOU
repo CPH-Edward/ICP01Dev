@@ -1,0 +1,99 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="ups_CX51X0" Id="{4f96daf2-9a58-4919-b377-4ed8dbb71b97}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM ups_CX51X0
+VAR_INPUT
+	bWrtie					: BOOL;//触发保存
+END_VAR
+VAR
+	//fbUPS					: FB_S_UPS;
+	fbUPS					: FB_S_UPS_CX51x0;
+	fbGetCurTaskIndex		: GetCurTaskIndex;
+	fbWritePersistentData	: FB_WritePersistentData;
+	nTaskNo					: INT;
+	wrtieR_TRIG				: R_TRIG;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(* 需要在变量改变之后, PLC断电之前触发bWrtie *)
+wrtieR_TRIG(CLK:=bWrtie);
+
+fbGetCurTaskIndex(index=>nTaskNo);
+fbWritePersistentData(
+	NETID:= , 
+	PORT:= 851, 
+	START:= wrtieR_TRIG.Q OR TwinCAT_SystemInfoVarList._TaskInfo[nTaskNo].FirstCycle, 
+	TMOUT:= , 
+	MODE:= , 
+	BUSY=> , 
+	ERR=> , 
+	ERRID=> );
+
+IF wrtieR_TRIG.Q THEN
+	bWrtie:=FALSE;
+END_IF
+
+(* 以下仅用于带1s UPS的CX51x0 PLC *)
+fbUPS(
+	sNetID:= , 
+	iPLCPort:= 851, 
+	iUPSPort:= , 
+	tTimeout:= , 
+	eUpsMode:= , 
+	ePersistentMode:= , 
+	tRecoverTime:= , 
+	bPowerFailDetect=> , 
+	eState=> );]]></ST>
+    </Implementation>
+    <Method Name="Act_Wrtie" Id="{2e2e1f6e-2e73-4aef-85ef-84f729a57cac}">
+      <Declaration><![CDATA[METHOD Act_Wrtie
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[bWrtie:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="VersionLog" Id="{d788d662-c585-4bd2-9e14-df91bb62f382}">
+      <Implementation>
+        <ST><![CDATA[(*
+版本: V1.0.0.0
+说明:
+	1. 首个版本
+(**************************************************)
+版本: V1.0.0.1
+说明:
+	1. 修正断电保持失效功能
+(**************************************************)
+版本: V1.0.0.2
+说明:
+	1. 怎么函数Act_Wrtie()，方便外部调用
+(**************************************************)
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="ups_CX51X0">
+      <LineId Id="61" Count="0" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="49" Count="9" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="76" Count="0" />
+      <LineId Id="75" Count="0" />
+      <LineId Id="77" Count="1" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="11" Count="8" />
+      <LineId Id="29" Count="0" />
+    </LineIds>
+    <LineIds Name="ups_CX51X0.Act_Wrtie">
+      <LineId Id="5" Count="1" />
+    </LineIds>
+    <LineIds Name="ups_CX51X0.VersionLog">
+      <LineId Id="2" Count="1" />
+      <LineId Id="38" Count="9" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

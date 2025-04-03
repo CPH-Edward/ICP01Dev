@@ -1,0 +1,1674 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="RecipeSaveModule_EX" Id="{c0700dfe-2d7e-418a-a2ac-72229c61a6a2}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK RecipeSaveModule_EX
+VAR_INPUT
+	sFileName						:T_MaxString:='C:\IASaveData.csv';//'Hard Disk\IASaveData.csv'  数据文件存储路径
+	readB							:BOOL:=FALSE;//读取触发
+	saveB							:BOOL:=FALSE;//保存触发
+	saveAct							:BOOL:=FALSE;//保存触发
+	deleteB							:BOOL:=FALSE;// 删除触发
+	recipeStepDelete				:BOOL:=FALSE;// 删除触发
+	dataString						:ARRAY[0..gRecipeMAX_CSV_ROWS, 0..gRecipeMAX_CSV_COLUMNS ] OF STRING(30);//BOOL数据源
+	pDatabaseHMI					:ARRAY[1..gRecipeMAX_CSV_ROWS+1] OF RecipePar;(* Target PLC database *)
+	pDatabase						:ARRAY[0..gRecipeMAX_CSV_ROWS, 0..gRecipeMAX_CSV_COLUMNS ] OF STRING(30);(* Target PLC database *)
+	dataStringLength				:UDINT:=gRecipeMAX_CSV_ROWS;
+	dataStringLengthRead			:UDINT:=gRecipeMAX_CSV_ROWS;
+END_VAR
+VAR_OUTPUT
+	busy							:BOOL:=FALSE;
+	rDone							:BOOL:=FALSE;
+	sDone							:BOOL:=FALSE;
+	error							:BOOL:=FALSE;
+	errID							:UDINT:=0;
+	errTxt							:STRING(255):='';
+	outData							:ARRAY [1..gRecipeMAX_String_NUM] OF RecipePar; 
+	checkFileExistError				:BOOL;
+END_VAR
+VAR_IN_OUT
+	
+END_VAR
+VAR	
+	saveActStep						:INT;//保存触发步数
+	csv_rows						:UDINT:=gRecipeMAX_CSV_ROWS;
+	csv_columns						:UDINT:=gRecipeMAX_CSV_COLUMNS;
+	startUpB						:BOOL:=FALSE;
+	writeTxt						:P_TextModeWrite_Recipe;
+	readTxt							:P_TextModeRead_Recipe;
+	deleteTxt						:P_TextModeDelete_1;
+	fbFileOpen						:FB_FileOpen;//检查文件是否存在
+	fbFileClose						:FB_FileClose;(* Closes file *)
+	hFile							:UINT:=0;(* File handle of the source file *)
+	initB							:BOOL:=FALSE;
+	saveStep						:UINT:=0;
+	deleteStep						:UINT:=0;
+	readStep						:UINT:=0;
+	sFileNameOld					:T_MaxString;//旧文件名
+//获取系统时间
+	ntGetTime				: NT_GetTime;
+	systemTimeStruct		: TIMESTRUCT;
+	getSystemTimeStep		: UINT:=0;
+	systemTIMEStr			: STRING:='';//系统时间，格式YYYY-MM-DD hh:mm:ss_zzz
+	systemTIMEStr2			: STRING:='';//系统时间，格式YYYYMMDDhhmmss
+	sysTIMEStrYY			: STRING:='';//系统时间，年
+	sysTIMEStrMM			: STRING:='';//系统时间，月
+	sysTIMEStrDD			: STRING:='';//系统时间，日
+	sysTIMEStr_HH			: STRING:='';//系统时间，时
+	sysTIMEStr_mm			: STRING:='';//系统时间，分
+	sysTIMEStr_ss			: STRING:='';//系统时间，秒
+	itemp:INT;
+	ton1:TON;
+	remainber:INT;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+csv_rows:=dataStringLength + 1;
+IF dataStringLength>gRecipeMAX_String_NUM THEN
+	dataStringLength:=gRecipeMAX_String_NUM;
+END_IF
+IF csv_rows>gRecipeMAX_CSV_ROWS THEN
+	csv_rows:=gRecipeMAX_CSV_ROWS;
+END_IF
+
+//judge length
+IF gRecipeMAX_CSV_ROWS<(dataStringLength+1) THEN
+	error:=TRUE;
+	errTxt:='dataBase$'s length too short';
+	RETURN;
+END_IF
+IF csv_rows<(dataStringLength+1) THEN
+	error:=TRUE;
+	errTxt:='dataBase$'s length too short';
+	RETURN;
+END_IF
+
+init();
+IF initB THEN
+	saveActRun();
+	readMethod();
+	saveMethod();
+	deleteMethod();
+	DeleteRecipeStep();
+END_IF
+getSystemTime();
+]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{6de39bbe-4af2-4863-b85c-adba11716339}" />
+    <Folder Name="Public" Id="{b6a7ad5c-4c7d-4f6c-89b9-889fed5c14b8}" />
+    <Method Name="addRecipeStep" Id="{776885ed-9513-45da-a286-d46aad8d55a9}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD addRecipeStep : BOOL
+VAR_INPUT
+	index:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[pDatabase[index,0]:=INT_TO_STRING(gShowNum);//num
+pDatabase[index,1]:='1';//data type
+pDatabase[index,2]:=gRecipeShowNameNow;;//name
+pDatabase[index,3]:=INT_TO_STRING(gShowNum);// Step
+pDatabase[index,4]:='0';//par1
+pDatabase[index,5]:='0';//par2
+pDatabase[index,6]:='0';//par3
+pDatabase[index,7]:='0';//par4
+pDatabase[index,8]:='0';//par5
+pDatabase[index,9]:='0';//par6
+pDatabase[index,10]:='0';//par7
+pDatabase[index,11]:='0';//par8
+pDatabase[index,12]:='0';//par9
+pDatabase[index,13]:='0';//par10
+pDatabase[index,14]:='0';//par11
+pDatabase[index,15]:='0';//par12
+pDatabase[index,16]:='0';//par13
+pDatabase[index,17]:='0';//par14
+pDatabase[index,18]:='0';//par15
+
+gRecipeViewData[index].NUM:=INT_TO_STRING(gShowNum);
+gRecipeViewData[index].etchTime:='0';
+gRecipeViewData[index].rfPoint_Source:='0';
+gRecipeViewData[index].pdvPoint:='0';
+gRecipeViewData[index].mfc1:='0';
+gRecipeViewData[index].mfc2:='0';
+gRecipeViewData[index].mfc3:='0';
+gRecipeViewData[index].mfc4:='0';
+gRecipeViewData[index].mfc5:='0';
+gRecipeViewData[index].mfc6:='0';
+gRecipeViewData[index].mfc7:='0';
+gRecipeViewData[index].mfc8:='0';
+gRecipeViewData[index].mfc9:='0';
+gRecipeViewData[index].rfPoint_Power:='0';
+gRecipeViewData[index].par_2:='0';
+gRecipeViewData[index].par_3:='0';
+
+gRecipeEditorData[index].NUM:=INT_TO_STRING(gShowNum);
+gRecipeEditorData[index].etchTime:='0';
+gRecipeEditorData[index].rfPoint_Source:='0';
+gRecipeEditorData[index].pdvPoint:='0';
+gRecipeEditorData[index].mfc1:='0';
+gRecipeEditorData[index].mfc2:='0';
+gRecipeEditorData[index].mfc3:='0';
+gRecipeEditorData[index].mfc4:='0';
+gRecipeEditorData[index].mfc5:='0';
+gRecipeEditorData[index].mfc6:='0';
+gRecipeEditorData[index].mfc7:='0';
+gRecipeEditorData[index].mfc8:='0';
+gRecipeEditorData[index].mfc9:='0';
+gRecipeEditorData[index].rfPoint_Power:='0';
+gRecipeEditorData[index].par_2:='0';
+gRecipeEditorData[index].par_3:='0';
+
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="addSlector" Id="{72307d10-1240-42f2-be0a-a1cc2344ab38}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD addSlector : BOOL
+
+VAR_INPUT
+	newName							:STRING;
+END_VAR
+VAR_OUTPUT
+	error:BOOL;
+END_VAR
+VAR_IN_OUT
+	outrecipeSelect					:ARRAY [1..gRecipeNameMAX_String_NUM+1] OF RecipeShowStr;
+	outrecipeSelectShow				:ARRAY [1..10] OF RecipeShowStr;
+END_VAR
+VAR
+	itemp:INT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF (len(newName)>0) THEN
+	FOR itemp:=UDINT_TO_INT(gRecipeNameMAX_String_NUM)+1 TO gRecipeSelctMaxIndex+2 BY 1 DO
+		outrecipeSelect[itemp].Name:=outrecipeSelect[itemp-1].Name;
+	END_FOR
+	outrecipeSelect[gRecipeSelctMaxIndex+1].Name:=newName;
+	
+	FOR itemp:=UDINT_TO_INT(gRecipeNameMAX_String_NUM)+1 TO gRecipeSelctMaxIndex+1 BY 1 DO
+		outrecipeSelectShow[itemp].Name:=outrecipeSelectShow[itemp-1].Name;
+	END_FOR
+	outrecipeSelectShow[gRecipeSelctMaxIndex].Name:=newName;
+	
+	gRecipeSelctMaxIndex:=gRecipeSelctMaxIndex+1;
+	
+	gRecipeSelectIndex1:=gRecipeSelctMaxIndex;
+	
+	error:=FALSE;
+ELSE
+	error:=TRUE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="createDir" Id="{b65bfbe1-720c-453e-ad3a-1f277a0248fc}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE createDir : BOOL
+VAR
+	sPathNameTemp	: T_MaxString := 'C:\TwinCAT\Data.txt';
+	sDriveTemp		: STRING(3);
+	sDirTemp		: T_MaxString;
+	sFileNameTemp	: T_MaxString;
+	sExtTemp		: T_MaxString;
+	bSuccess		: BOOL;
+	fbCreateDir		: FB_CreateDir;
+	fbCreateDir2	: FB_CreateDir;
+	sFileDirTemp	: T_MaxString;
+	sFileDirTemp2	: T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sPathNameTemp:=sFileName;
+bSuccess := F_SplitPathName( sPathName := sPathNameTemp,
+	sDrive := sDriveTemp,
+	sDir := sDirTemp,
+	sFileName := sFileNameTemp,
+	sExt := sExtTemp );
+IF bSuccess THEN
+	bSuccess:=FALSE;
+	IF LEFT(sDirTemp,LEN(sDirTemp)-1) <> '' THEN
+		//sFileDirTemp:=CONCAT(STR1:=sDriveTemp,STR2:=LEFT(sDirTemp,LEN(sDirTemp)-1));
+		//sFileNameOld:=CONCAT(STR1:=sFileDirTemp,STR2:=CONCAT('\',CONCAT(sFileNameTemp,'_Old.csv')));//用于重命名参数文件
+		sFileDirTemp:='';
+		sFileDirTemp:=CONCAT(sFileDirTemp,sDriveTemp);
+		sFileDirTemp:=CONCAT(sFileDirTemp,LEFT(sDirTemp,LEN(sDirTemp)-1));
+		sFileDirTemp2:='';
+		sFileDirTemp2:=CONCAT(sFileDirTemp2,sFileDirTemp);
+		sFileDirTemp2:=CONCAT(sFileDirTemp2,'\Old');
+		
+		sFileNameOld:='';
+		sFileNameOld:=CONCAT(sFileNameOld,sFileDirTemp);
+		sFileNameOld:=CONCAT(sFileNameOld,'\Old\');//'\'
+		sFileNameOld:=CONCAT(sFileNameOld,sFileNameTemp);
+		sFileNameOld:=CONCAT(sFileNameOld,'_Old_');
+		sFileNameOld:=CONCAT(sFileNameOld,systemTIMEStr2);
+		sFileNameOld:=CONCAT(sFileNameOld,'.csv');
+		
+		fbCreateDir(
+			sNetId:= , 
+			sPathName:= sFileDirTemp, 
+			ePath:= PATH_GENERIC, 
+			bExecute:= TRUE, 
+			tTimeout:= , 
+			bBusy=> , 
+			bError=> , 
+			nErrId=> );
+		fbCreateDir2(
+			sNetId:= , 
+			sPathName:= sFileDirTemp2, 
+			ePath:= PATH_GENERIC, 
+			bExecute:= TRUE, 
+			tTimeout:= , 
+			bBusy=> , 
+			bError=> , 
+			nErrId=> );
+	END_IF
+END_IF
+fbCreateDir(
+	sNetId:= , 
+	sPathName:= , 
+	ePath:= , 
+	bExecute:= FALSE, 
+	tTimeout:= , 
+	bBusy=> , 
+	bError=> , 
+	nErrId=> );
+fbCreateDir2(
+	sNetId:= , 
+	sPathName:= , 
+	ePath:= , 
+	bExecute:= FALSE, 
+	tTimeout:= , 
+	bBusy=> , 
+	bError=> , 
+	nErrId=> );]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="data2String" Id="{ff6a4c89-1b82-4dbe-b4d3-764f3069e9b0}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE data2String : BOOL
+VAR_INPUT
+END_VAR
+VAR
+	i:UDINT:=0;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//judge length
+IF gRecipeMAX_CSV_ROWS<(gRecipeMAX_String_NUM+1) THEN
+	error:=TRUE;
+	errTxt:='dataBase$'s length too short';
+	RETURN;
+END_IF
+IF csv_rows<(dataStringLength+1) THEN
+	error:=TRUE;
+	errTxt:='dataBase$'s length too short';
+	RETURN;
+END_IF
+
+//bool
+FOR i:=0 TO gShowNum DO
+	//////////1
+	pDatabase[i+1,2]:=gRecipeShowNameNow;
+	IF LEN(gRecipeEditorData[i+1].etchTime)>0 THEN
+		IF IsAllDigits(gRecipeEditorData[i+1].etchTime) THEN
+			pDatabase[i+1,4]:=gRecipeEditorData[i+1].etchTime;//Par1
+		ELSE
+			error_Trigger(10);
+		END_IF
+	ELSE
+		pDatabase[i+1,4]:='0';
+	END_IF
+	///////////////2
+	IF LEN(gRecipeEditorData[i+1].rfPoint_Source)>0 THEN
+		IF IsAllDigits(gRecipeEditorData[i+1].rfPoint_Source) THEN
+			pDatabase[i+1,5]:=gRecipeEditorData[i+1].rfPoint_Source;//Par2
+		ELSE
+			error_Trigger(11);
+		END_IF
+	ELSE
+		pDatabase[i+1,5]:='0';
+	END_IF
+	///////////////////////3
+	
+	IF LEN(gRecipeEditorData[i+1].pdvPoint)>0 THEN
+		IF IsAllDigits(gRecipeEditorData[i+1].pdvPoint) THEN
+			pDatabase[i+1,6]:=gRecipeEditorData[i+1].pdvPoint;//Par3
+		ELSE
+			error_Trigger(12);
+		END_IF
+	ELSE
+		pDatabase[i+1,6]:='0';
+	END_IF
+	/////////////////
+	
+	IF LEN(gRecipeEditorData[i+1].mfc1)>0 THEN
+		IF IsAllDigits(gRecipeEditorData[i+1].mfc1) THEN
+			pDatabase[i+1,7]:=gRecipeEditorData[i+1].mfc1;//Par4
+		ELSE
+			error_Trigger(13);
+		END_IF
+		
+	ELSE
+		pDatabase[i+1,7]:='0';
+	END_IF
+	//////////////////
+	
+	IF LEN(gRecipeEditorData[i+1].mfc2)>0 THEN
+		IF IsAllDigits(gRecipeEditorData[i+1].mfc2) THEN
+			pDatabase[i+1,8]:=gRecipeEditorData[i+1].mfc2;//Par5
+		ELSE
+			error_Trigger(14);
+		END_IF
+		
+	ELSE
+		pDatabase[i+1,8]:='0';
+	END_IF
+	/////////////////
+	
+	IF LEN(gRecipeEditorData[i+1].mfc3)>0 THEN
+		IF IsAllDigits(gRecipeEditorData[i+1].mfc3) THEN
+			pDatabase[i+1,9]:=gRecipeEditorData[i+1].mfc3;//Par6
+		ELSE
+			error_Trigger(15);
+		END_IF
+		
+	ELSE
+		pDatabase[i+1,9]:='0';
+	END_IF
+	////////////////
+	
+	IF LEN(gRecipeEditorData[i+1].mfc4)>0 THEN
+		IF IsAllDigits(gRecipeEditorData[i+1].mfc4) THEN
+			pDatabase[i+1,10]:=gRecipeEditorData[i+1].mfc4;//Par7
+		ELSE
+			error_Trigger(16);
+		END_IF
+		
+	ELSE
+		pDatabase[i+1,10]:='0';
+	END_IF
+	//////////////////////
+	
+	IF LEN(gRecipeEditorData[i+1].mfc5)>0 THEN
+		IF IsAllDigits(gRecipeEditorData[i+1].mfc5) THEN
+			pDatabase[i+1,11]:=gRecipeEditorData[i+1].mfc5;//Par8
+		ELSE
+			error_Trigger(17);
+		END_IF
+		
+	ELSE
+		pDatabase[i+1,11]:='0';
+	END_IF
+	//////////////////
+	
+	IF LEN(gRecipeEditorData[i+1].mfc6)>0 THEN
+		IF IsAllDigits(gRecipeEditorData[i+1].mfc6) THEN
+			pDatabase[i+1,12]:=gRecipeEditorData[i+1].mfc6;//Par9
+		ELSE
+			error_Trigger(18);
+		END_IF
+		
+	ELSE
+		pDatabase[i+1,12]:='0';
+	END_IF
+	///////////////////
+	
+	IF LEN(gRecipeEditorData[i+1].mfc7)>0 THEN
+		IF IsAllDigits(gRecipeEditorData[i+1].mfc7) THEN
+			pDatabase[i+1,13]:=gRecipeEditorData[i+1].mfc7;//Par10
+		ELSE
+			error_Trigger(19);
+		END_IF
+		
+	ELSE
+		pDatabase[i+1,13]:='0';
+	END_IF
+	//////////////////
+	
+	IF LEN(gRecipeEditorData[i+1].mfc8)>0 THEN
+		IF IsAllDigits(gRecipeEditorData[i+1].mfc8) THEN
+			pDatabase[i+1,14]:=gRecipeEditorData[i+1].mfc8;//Par11
+		ELSE
+			error_Trigger(20);
+		END_IF
+		
+	ELSE
+		pDatabase[i+1,14]:='0';
+	END_IF
+	///////////////////
+	
+	IF LEN(gRecipeEditorData[i+1].mfc9)>0 THEN
+		IF IsAllDigits(gRecipeEditorData[i+1].mfc9) THEN
+			pDatabase[i+1,15]:=gRecipeEditorData[i+1].mfc9;//Par12
+		ELSE
+			error_Trigger(21);
+		END_IF
+		
+	ELSE
+		pDatabase[i+1,15]:='0';
+	END_IF
+	////////////////////
+	
+	IF LEN(gRecipeEditorData[i+1].rfPoint_Power)>0 THEN
+		IF IsAllDigits(gRecipeEditorData[i+1].rfPoint_Power) THEN
+			pDatabase[i+1,16]:=gRecipeEditorData[i+1].rfPoint_Power;//Par13
+		ELSE
+			error_Trigger(22);
+		END_IF
+		
+	ELSE
+		pDatabase[i+1,16]:='0';
+	END_IF
+	/////////////////////
+	
+	IF LEN(gRecipeEditorData[i+1].par_2)>0 THEN
+		IF IsAllDigits(gRecipeEditorData[i+1].par_2) THEN
+			pDatabase[i+1,17]:=gRecipeEditorData[i+1].par_2;//Par14
+		ELSE
+			error_Trigger(23);
+		END_IF
+		
+	ELSE
+		pDatabase[i+1,17]:='0';
+	END_IF
+	////////////////////
+	
+	IF LEN(gRecipeEditorData[i+1].par_3)>0 THEN
+		IF IsAllDigits(gRecipeEditorData[i+1].par_3) THEN
+			pDatabase[i+1,18]:=gRecipeEditorData[i+1].par_3;//Par15
+		ELSE
+			error_Trigger(24);
+		END_IF
+		
+	ELSE
+		pDatabase[i+1,18]:='0';
+	END_IF
+	
+END_FOR
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="deleteMethod" Id="{d338a27a-04f2-4d2d-86b5-31b4bddf9356}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE deleteMethod : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[CASE deleteStep OF
+0:
+	IF deleteB AND (NOT busy) THEN
+		deleteStep:=1;
+		deleteB:=FALSE;
+		busy:=TRUE;
+		sDone:=FALSE;
+		error:=FALSE;
+		errID:=0;
+		errTxt:='';
+	END_IF
+
+1:
+	deleteStep:=2;
+
+2:
+	deleteTxt(
+	bDelete:=TRUE , 
+	sFileName:=sFileName , 
+	sFileNameOld:= , 
+	bBusy=> , 
+	error=> , 
+	nErrId=> );	
+	deleteStep:=3;
+
+3:
+	deleteTxt.bDelete:=FALSE;
+	
+	IF error THEN
+		deleteStep:=110;
+		RETURN;
+	END_IF
+
+	IF NOT writeTxt.bBusy THEN
+		deleteStep:=100;
+	END_IF
+
+100:
+	busy:=FALSE;
+	sDone:=TRUE;
+	error:=error;
+	errID:=errID;
+	errTxt:=errTxt;
+
+	IF NOT deleteB THEN
+		deleteStep:=0;
+	END_IF
+
+110:
+	busy:=FALSE;
+	sDone:=FALSE;
+	error:=TRUE;
+	errID:=errID;
+	errTxt:='save data fail';
+
+	IF NOT deleteB THEN
+		deleteStep:=0;
+	END_IF
+END_CASE
+deleteTxt(
+	bDelete:= , 
+	sFileName:=sFileName , 
+	sFileNameOld:= , 
+	bBusy=> , 
+	error=> , 
+	nErrId=> );]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="DeleteRecipeStep" Id="{8ef09ba6-ea83-4204-b773-0599c7231700}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[IF recipeStepDelete THEN
+	IF gselectRow>0 AND gselectRow<=UDINT_TO_INT(gRecipeMAX_String_NUM) THEN
+		FOR itemp:=gselectRow TO UDINT_TO_INT(gRecipeMAX_String_NUM-1) BY 1 DO
+			gRecipeEditorData[itemp].NUM:=gRecipeEditorData[itemp+1].NUM;
+			gRecipeEditorData[itemp].etchTime:=gRecipeEditorData[itemp+1].etchTime;
+			gRecipeEditorData[itemp].rfPoint_Source:=gRecipeEditorData[itemp+1].rfPoint_Source;
+			gRecipeEditorData[itemp].pdvPoint:=gRecipeEditorData[itemp+1].pdvPoint;
+			gRecipeEditorData[itemp].mfc1:=gRecipeEditorData[itemp+1].mfc1;
+			gRecipeEditorData[itemp].mfc2:=gRecipeEditorData[itemp+1].mfc2;
+			gRecipeEditorData[itemp].mfc3:=gRecipeEditorData[itemp+1].mfc3;
+			gRecipeEditorData[itemp].mfc4:=gRecipeEditorData[itemp+1].mfc4;
+			gRecipeEditorData[itemp].mfc5:=gRecipeEditorData[itemp+1].mfc5;
+			gRecipeEditorData[itemp].mfc6:=gRecipeEditorData[itemp+1].mfc6;
+			gRecipeEditorData[itemp].mfc7:=gRecipeEditorData[itemp+1].mfc7;
+			gRecipeEditorData[itemp].mfc8:=gRecipeEditorData[itemp+1].mfc8;
+			gRecipeEditorData[itemp].mfc9:=gRecipeEditorData[itemp+1].mfc9;
+			gRecipeEditorData[itemp].rfPoint_Power:=gRecipeEditorData[itemp+1].rfPoint_Power;
+			gRecipeEditorData[itemp].par_2:=gRecipeEditorData[itemp+1].par_2;
+			gRecipeEditorData[itemp].par_3:=gRecipeEditorData[itemp+1].par_3;
+			gRecipeEditorData[itemp].par_4:=gRecipeEditorData[itemp+1].par_4;
+		END_FOR
+		gRecipeEditorData[gShowNum].NUM:='';
+		gRecipeEditorData[gShowNum].etchTime:='';
+		gRecipeEditorData[gShowNum].rfPoint_Source:='';
+		gRecipeEditorData[gShowNum].pdvPoint:='';
+		gRecipeEditorData[gShowNum].mfc1:='';
+		gRecipeEditorData[gShowNum].mfc2:='';
+		gRecipeEditorData[gShowNum].mfc3:='';
+		gRecipeEditorData[gShowNum].mfc4:='';
+		gRecipeEditorData[gShowNum].mfc5:='';
+		gRecipeEditorData[gShowNum].mfc6:='';
+		gRecipeEditorData[gShowNum].mfc7:='';
+		gRecipeEditorData[gShowNum].mfc8:='';
+		gRecipeEditorData[gShowNum].mfc9:='';
+		gRecipeEditorData[gShowNum].rfPoint_Power:='';
+		gRecipeEditorData[gShowNum].par_2:='';
+		gRecipeEditorData[gShowNum].par_3:='';
+		gRecipeEditorData[gShowNum].par_4:='';
+		pDatabase[gShowNum,0]:='';
+		pDatabase[gShowNum,1]:='';
+		pDatabase[gShowNum,2]:='';
+		pDatabase[gShowNum,3]:='';
+		pDatabase[gShowNum,5]:='';
+		pDatabase[gShowNum,6]:='';
+		pDatabase[gShowNum,7]:='';
+		pDatabase[gShowNum,8]:='';
+		pDatabase[gShowNum,9]:='';
+		pDatabase[gShowNum,10]:='';
+		pDatabase[gShowNum,11]:='';
+		pDatabase[gShowNum,12]:='';
+		pDatabase[gShowNum,13]:='';
+		pDatabase[gShowNum,14]:='';
+		pDatabase[gShowNum,15]:='';
+		pDatabase[gShowNum,16]:='';
+		pDatabase[gShowNum,17]:='';
+		pDatabase[gShowNum,18]:='';
+		pDatabase[gShowNum,19]:='';
+
+	gShowNum:=gShowNum-1;
+	IF gShowNum<0 THEN
+		gShowNum:=0;
+		error_Trigger(30);
+	END_IF
+	gRecipeViewData:=gRecipeEditorData;
+		
+	END_IF
+	recipeStepDelete:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="deleteSlector" Id="{ada545eb-44fe-4087-a80f-3f1f57502fc2}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD deleteSlector : BOOL
+
+VAR_INPUT
+	recipeSelect					:ARRAY [1..gRecipeNameMAX_String_NUM+1] OF RecipeShowStr;
+	recipeSelectShow				:ARRAY [1..10] OF RecipeShowStr;
+	inidex							:INT;
+END_VAR
+VAR_OUTPUT
+	error:BOOL;
+	outrecipeSelect					:ARRAY [1..gRecipeNameMAX_String_NUM+1] OF RecipeShowStr;
+	outrecipeSelectShow				:ARRAY [1..10] OF RecipeShowStr;
+END_VAR
+VAR
+	itemp:INT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[outrecipeSelect:=recipeSelect;
+outrecipeSelectShow:=recipeSelectShow;
+IF inidex>0 AND inidex<=gRecipeSelctMaxIndex THEN
+	FOR itemp:=inidex TO UDINT_TO_INT(gRecipeNameMAX_String_NUM) BY 1 DO
+		outrecipeSelect[itemp].Name:=outrecipeSelect[itemp+1].Name;
+	END_FOR
+	outrecipeSelect[gRecipeNameMAX_String_NUM+1].Name:='';
+	
+	FOR itemp:=inidex TO gRecipeSelctMaxIndex-1 BY 1 DO
+		outrecipeSelectShow[itemp].Name:=outrecipeSelectShow[itemp+1].Name;
+	END_FOR
+	outrecipeSelectShow[gRecipeSelctMaxIndex].Name:='';
+	
+	gRecipeSelctMaxIndex:=gRecipeSelctMaxIndex-1;
+	
+	gRecipeSelectIndex1:=1;
+	
+	error:=FALSE;
+ELSE
+	error:=TRUE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getSystemTime" Id="{3810d627-e62b-4d40-bb4b-2ecf71e601b2}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE getSystemTime : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//获取本地系统时间--输出到变量 systemTIMEStr
+CASE getSystemTimeStep OF
+0:
+	ntGetTime(
+		NETID:= , 
+		START:= FALSE, 
+		TMOUT:= , 
+		BUSY=> , 
+		ERR=> , 
+		ERRID=> , 
+		TIMESTR=> systemTimeStruct);
+	IF NOT ntGetTime.BUSY AND NOT ntGetTime.ERR THEN
+		getSystemTimeStep:=getSystemTimeStep+1;
+	END_IF
+1:
+	ntGetTime(
+		NETID:= , 
+		START:= TRUE, 
+		TMOUT:= , 
+		BUSY=> , 
+		ERR=> , 
+		ERRID=> , 
+		TIMESTR=> systemTimeStruct);
+	IF NOT ntGetTime.BUSY AND NOT ntGetTime.ERR THEN
+		systemTIMEStr:=SYSTEMTIME_TO_STRING(systemTimeStruct);//系统时间转成字符串格式
+		
+		sysTIMEStrYY:=WORD_TO_DECSTR(in:=systemTimeStruct.wYear,iPrecision:=4);
+		sysTIMEStrMM:=WORD_TO_DECSTR(in:=systemTimeStruct.wMonth,iPrecision:=2);
+		sysTIMEStrDD:=WORD_TO_DECSTR(in:=systemTimeStruct.wDay,iPrecision:=2);
+		sysTIMEStr_HH:=WORD_TO_DECSTR(in:=systemTimeStruct.wHour,iPrecision:=2);
+		sysTIMEStr_mm:=WORD_TO_DECSTR(in:=systemTimeStruct.wMinute,iPrecision:=2);
+		sysTIMEStr_ss:=WORD_TO_DECSTR(in:=systemTimeStruct.wSecond,iPrecision:=2);
+		
+		systemTIMEStr2:='';
+		systemTIMEStr2:=CONCAT(systemTIMEStr2,sysTIMEStrYY);
+		systemTIMEStr2:=CONCAT(systemTIMEStr2,sysTIMEStrMM);
+		systemTIMEStr2:=CONCAT(systemTIMEStr2,sysTIMEStrDD);
+		systemTIMEStr2:=CONCAT(systemTIMEStr2,sysTIMEStr_HH);
+		systemTIMEStr2:=CONCAT(systemTIMEStr2,sysTIMEStr_mm);
+		systemTIMEStr2:=CONCAT(systemTIMEStr2,sysTIMEStr_ss);
+		
+		getSystemTimeStep:=0;
+	ELSIF ntGetTime.ERR THEN
+		systemTIMEStr:='';
+		getSystemTimeStep:=0;
+	END_IF	
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getValue" Id="{ee70a273-e962-42d6-86c8-f5125219dfcf}" FolderPath="Public\">
+      <Declaration><![CDATA[METHOD getValue : BOOL
+VAR_IN_OUT
+	value:STRING;
+END_VAR
+VAR_INPUT
+	cnum:UDINT;
+	rnum:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF 0<=rnum AND rnum<=dataStringLength
+	AND 0<=cnum AND cnum<=gRecipeMAX_CSV_COLUMNS THEN
+	value:=pDatabase[rnum,cnum];
+	getValue:=TRUE;
+ELSE
+	value:='';
+	getValue:=FALSE;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="init" Id="{26d6dd3b-ba9d-4119-963e-dc112a3754e5}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE init : BOOL
+VAR_INPUT
+END_VAR
+VAR
+	i:UDINT:=0;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//创建生成初始表格
+//judge length
+IF gRecipeMAX_CSV_ROWS<(gRecipeMAX_String_NUM+1) THEN
+	error:=TRUE;
+	errTxt:='dataBase$'s length too short';
+	RETURN;
+END_IF
+IF csv_rows<(dataStringLength+1) THEN
+	error:=TRUE;
+	errTxt:='dataBase$'s length too short';
+	RETURN;
+END_IF
+
+
+IF initB AND (NOT busy) THEN
+	RETURN;
+END_IF
+initB:=TRUE;
+
+//header
+	pDatabase[0,0]:='NUM';//NUM
+	pDatabase[0,1]:='RecipeID';//data type
+	pDatabase[0,2]:='RecipeNAME';//name
+	pDatabase[0,3]:='StepID';//value
+	pDatabase[0,4]:='etchTime';//set
+	pDatabase[0,5]:='rfPoint_source';//set
+	pDatabase[0,6]:='pdvPoint';//set
+	pDatabase[0,7]:='mfc1';//set
+	pDatabase[0,8]:='mfc2';//set
+	pDatabase[0,9]:='mfc3';//set
+	pDatabase[0,10]:='mfc4';//set
+	pDatabase[0,11]:='mfc5';//set
+	pDatabase[0,12]:='mfc6';//set
+	pDatabase[0,13]:='mfc7';//set
+	pDatabase[0,14]:='mfc8';//set
+	pDatabase[0,15]:='mfc9';//set
+	pDatabase[0,16]:='rfPoint_Power';//set
+	pDatabase[0,17]:='par_2';//set
+	pDatabase[0,18]:='par_3';//set
+	pDatabase[0,19]:='par_4';//set
+	
+(*--- 不在此处填充，转移到保存数据时填充
+//bool
+FOR i:=1 TO (dataBoolLength+1) DO
+	//pDatabase[i,0]:=UDINT_TO_STRING(i-1);//NUM  --- 不在此处填充
+	//pDatabase[i,1]:='BOOL';//data type --- 不在此处填充
+	//pDatabase[i,2]:='';//name
+	//pDatabase[i,3]:=BOOL_TO_STRING(FALSE);//value
+	//pDatabase[i,4]:='';//no use
+END_FOR
+
+//dint
+FOR i:=(dataBoolLength+2) TO (dataBoolLength+2+dataDintLength) DO
+	//pDatabase[i,0]:=UDINT_TO_STRING(i-(dataBoolLength+2));//NUM  --- 不在此处填充
+	//pDatabase[i,1]:='DINT';//data type --- 不在此处填充
+	//pDatabase[i,2]:='';//name
+	//pDatabase[i,3]:=DINT_TO_STRING(0);//value
+	//pDatabase[i,4]:='';//no use
+END_FOR
+
+//lreal
+FOR i:=(dataBoolLength+dataDintLength+3) TO (dataBoolLength+dataDintLength+dataLrealLength+3) DO
+	//pDatabase[i,0]:=UDINT_TO_STRING(i-(dataBoolLength+dataDintLength+3));//NUM  --- 不在此处填充
+	//pDatabase[i,1]:='LREAL';//data type --- 不在此处填充
+	//pDatabase[i,2]:='';//name
+	//pDatabase[i,3]:=DINT_TO_STRING(0);//value
+	//pDatabase[i,4]:='';//no use
+END_FOR
+*)]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="IsAllDigits" Id="{e15a56b8-f405-4078-8d2f-3f6e0c777ed2}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD IsAllDigits  : BOOL
+VAR_INPUT
+    str : STRING(255); // 假设字符串最大长度为255
+END_VAR
+VAR
+    i : INT;
+    ch : BYTE;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IsAllDigits := TRUE; // 初始假设字符串全为数字
+
+FOR i := 0 TO LEN(str)-1 DO
+    ch := (str[i]);
+    IF (ch < 48) OR (ch > 57) THEN
+        IsAllDigits := FALSE; 
+		EXIT;
+    END_IF
+END_FOR]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="readMethod" Id="{2d89a148-de99-44ba-8923-be3183f80348}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE readMethod : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[CASE readStep OF
+0:
+	IF (readB OR (NOT startUPb)) AND (NOT busy) THEN
+		readStep:=1;
+		startUPb:=TRUE;//for first time, 
+		readB:=FALSE;
+		rDone:=FALSE;
+		busy:=TRUE;
+		error:=FALSE;
+		errID:=0;
+		errTxt:='';
+		fbFileOpen(bExecute:= FALSE);
+		checkFileExistError:=FALSE;
+//		pDatabase:=pClearDatabase;
+		//gShowNum:=0;
+	END_IF
+	
+1:
+	fbFileOpen(
+		sNetId:= , 
+		sPathName:= sFileName, 
+		nMode:= FOPEN_MODEREAD, 
+		ePath:= PATH_GENERIC, 
+		bExecute:= TRUE, 
+		tTimeout:= , 
+		bBusy=> , 
+		bError=> , 
+		nErrId=> , 
+		hFile=> hFile);
+	IF NOT fbFileOpen.bBusy THEN
+		IF fbFileOpen.bError THEN
+			checkFileExistError:=TRUE;
+		END_IF
+		fbFileOpen(bExecute:= FALSE);
+		readStep:=2;
+	END_IF
+	fbFileClose(bExecute:= FALSE);
+2:
+	fbFileClose(
+		sNetId:= , 
+		hFile:= hFile, 
+		bExecute:= TRUE, 
+		tTimeout:= , 
+		bBusy=> , 
+		bError=> , 
+		nErrId=> );
+	IF NOT fbFileClose.bBusy THEN
+		IF checkFileExistError THEN
+			readStep:=110;
+		ELSE
+			readStep:=11;
+		END_IF
+		fbFileClose(bExecute:= FALSE);
+	END_IF
+
+11:
+	//read txt to Database
+	readTxt(
+		database:= pDatabase, 
+		csv_rows:= csv_rows, 
+		csv_columns:= csv_columns, 
+		bRead:= TRUE, 
+		sFileName:= sFileName);
+	readStep:=12;
+
+12:
+	readTxt(
+		database:= pDatabase, 
+		csv_rows:= csv_rows, 
+		csv_columns:= csv_columns, 
+		bRead:= FALSE, 
+		sFileName:= sFileName,
+		Error=>error,
+		nErrId=>errID);
+		
+	IF error THEN
+		readStep:=110;
+		RETURN;
+	END_IF
+	
+	IF NOT readTxt.bBusy THEN
+		readStep:=13;
+	END_IF
+	
+13:
+	string2Data();
+	readStep:=100;
+	
+100:
+	rDone:=TRUE;
+	busy:=FALSE;
+	error:=error;
+	errID:=errID;
+	errTxt:=errTxt;
+	IF NOT readB THEN
+		readStep:=0;
+	END_IF	
+
+
+110:
+	rDone:=FALSE;
+	busy:=FALSE;
+	error:=TRUE;
+	errID:=errID;
+	errTxt:='read data fail';	
+	IF NOT readB THEN
+		readStep:=0;
+	END_IF		
+	
+END_CASE
+
+
+
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="RecipeChange" Id="{e85a5fa6-3ac2-4c8b-a324-402e0ec7c017}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[IF NOT (gRecipeShowNameOld=gRecipeNameSelect[gRecipeSelectIndex1].Name) AND NOT busy AND saveActStep<10 THEN
+	gRecipeShowNameNow:=gRecipeNameSelect[gRecipeSelectIndex1].Name;
+	readB:=TRUE;
+END_IF
+gRecipeShowNameOld:=gRecipeNameSelect[gRecipeSelectIndex1].Name;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="saveActRun" Id="{bb941f17-73e3-4d9e-9611-95fc34c82cfb}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[IF saveAct THEN
+	saveAct:=FALSE;
+	IF saveActStep<10 THEN
+		saveActStep:=10;
+	END_IF
+END_IF
+CASE saveActStep OF
+	0:
+		ton1(IN:=FALSE);;	
+	10:
+		gRecipeNameSelect[gRecipeSelectIndex1].Name:=gRecipeShowNameNow;
+		saveActStep:=saveActStep+10;
+	20:
+		ton1(IN:= NOT ton1.Q, PT:=T#0.1S);
+		IF ton1.Q THEN
+			ton1(IN:=FALSE);
+			saveActStep:=saveActStep+10;
+		END_IF
+	30:
+		IF NOT DataSave.fbDataSaveModule_EX_recipename.busy THEN
+			DataSave.fbDataSaveModule_EX_recipename.saveB:=TRUE;
+			saveActStep:=saveActStep+10;	
+		END_IF
+		ton1(IN:=FALSE);
+	40:
+		ton1(IN:= NOT ton1.Q, PT:=T#0.1S);
+		IF ton1.Q THEN
+			ton1(IN:=FALSE);
+			saveActStep:=saveActStep+10;
+		END_IF
+	50:
+		IF NOT DataSave.fbDataSaveModule_EX_recipename.busy THEN
+			DataSave.fbDataSaveModule_EX_recipename.readB:=TRUE;
+			saveActStep:=saveActStep+10;	
+		END_IF
+		ton1(IN:=FALSE);
+	60:
+		IF NOT DataSave.fbDataSaveModule_EX_recipe.busy THEN
+			DataSave.fbDataSaveModule_EX_recipe.saveB:=TRUE;
+			saveActStep:=saveActStep+10;
+		END_IF
+		ton1(IN:=FALSE);
+	70:
+		ton1(IN:= NOT ton1.Q, PT:=T#0.1S);
+		IF ton1.Q THEN
+			ton1(IN:=FALSE);
+			saveActStep:=saveActStep+10;
+		END_IF
+	80:
+		IF NOT DataSave.fbDataSaveModule_EX_recipe.busy THEN
+			DataSave.fbDataSaveModule_EX_recipe.readB:=TRUE;
+			saveActStep:=saveActStep+10;
+		END_IF
+	90:
+		saveActStep:=0;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="saveMethod" Id="{adb4b36b-6f02-454a-bc5f-6bf97baf77f2}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE saveMethod : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[CASE saveStep OF
+0:
+	IF saveB AND (NOT busy) THEN
+		saveStep:=1;
+		saveB:=FALSE;
+		busy:=TRUE;
+		sDone:=FALSE;
+		error:=FALSE;
+		errID:=0;
+		errTxt:='';
+	END_IF
+
+1:
+	createDir();
+	data2String();
+	saveStep:=2;
+	
+2:
+	csv_rows:=INT_TO_UDINT(gShowNum);
+	writeTxt(
+		database:= pDatabase, 
+		csv_rows:= csv_rows, 
+		csv_columns:= csv_columns, 
+		bWrite:= TRUE, 
+		sFileName:= sFileName,
+		sFileNameOld:= sFileNameOld);	
+	saveStep:=3;
+
+3:
+	csv_rows:=INT_TO_UDINT(gShowNum);
+	writeTxt(
+		database:= pDatabase, 
+		csv_rows:= csv_rows, 
+		csv_columns:= csv_columns, 
+		bWrite:= FALSE, 
+		sFileName:= sFileName,
+		sFileNameOld:= sFileNameOld,
+		Error=>error,
+		nErrID=>errID);	
+	
+	IF error THEN
+		saveStep:=110;
+		RETURN;
+	END_IF
+
+	IF NOT writeTxt.bBusy THEN
+		saveStep:=100;
+	END_IF
+
+100:
+	busy:=FALSE;
+	sDone:=TRUE;
+	error:=error;
+	errID:=errID;
+	errTxt:=errTxt;
+
+	IF NOT saveB THEN
+		saveStep:=0;
+	END_IF
+
+110:
+	busy:=FALSE;
+	sDone:=FALSE;
+	error:=TRUE;
+	errID:=errID;
+	errTxt:='save data fail';
+
+	IF NOT saveB THEN
+		saveStep:=0;
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="setValue" Id="{b598fc27-f84f-4e8b-946c-c7d9c1610454}" FolderPath="Public\">
+      <Declaration><![CDATA[METHOD setValue : BOOL
+VAR_INPUT
+	value:STRING;
+END_VAR
+VAR_INPUT
+	rnum:UDINT;
+	cnum:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF 0<=rnum AND rnum<=dataStringLength
+	AND 0<=cnum AND cnum<=gRecipeMAX_CSV_COLUMNS THEN
+	pDatabase[rnum,cnum]:=value;
+	setValue:=TRUE;
+ELSE
+	setValue:=FALSE;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="string2Data" Id="{ee6c0924-5a9b-4b30-9591-c925a189d6cc}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE string2Data : BOOL
+VAR_INPUT
+END_VAR
+VAR
+	i:INT:=0;
+	index_temp:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//judge length
+IF gRecipeMAX_CSV_ROWS<(gRecipeMAX_String_NUM+1) THEN
+	error:=TRUE;
+	errTxt:='dataBase$'s length too short';
+	RETURN;
+END_IF
+IF csv_rows<(dataStringLength+1) THEN
+	error:=TRUE;
+	errTxt:='dataBase$'s length too short';
+	RETURN;
+END_IF
+
+(*
+//bool
+FOR i:=0 TO dataBoolLength DO
+	dataBool[i]:=STRING_TO_BOOL(pDatabase[i+1,3]);//value
+END_FOR
+
+//dint
+FOR i:=(dataBoolLength+1) TO (dataBoolLength+1+dataDintLength) DO
+	dataDint[i-(dataBoolLength+1)]:=STRING_TO_DINT(pDatabase[i+1,3]);//value
+END_FOR
+
+//lreal
+FOR i:=(dataBoolLength+dataDintLength+2) TO (dataBoolLength+dataDintLength+dataLrealLength+2) DO
+	dataLreal[i-(dataBoolLength+dataDintLength+2)]:=STRING_TO_LREAL(pDatabase[i+1,3]);//value
+END_FOR
+*)
+FOR i:=0 TO UDINT_TO_INT(gRecipeMAX_CSV_ROWS) DO
+	dataString[i,0]:=(pDatabase[i,0]);
+	dataString[i,1]:=(pDatabase[i,1]);
+	dataString[i,2]:=(pDatabase[i,2]);
+	dataString[i,3]:=(pDatabase[i,3]);
+	dataString[i,4]:=(pDatabase[i,4]);
+	dataString[i,5]:=(pDatabase[i,5]);
+	dataString[i,6]:=(pDatabase[i,6]);
+	dataString[i,7]:=(pDatabase[i,7]);
+	dataString[i,8]:=(pDatabase[i,8]);
+	dataString[i,9]:=(pDatabase[i,9]);
+	dataString[i,10]:=(pDatabase[i,10]);
+	dataString[i,11]:=(pDatabase[i,11]);
+	dataString[i,12]:=(pDatabase[i,12]);
+	dataString[i,13]:=(pDatabase[i,13]);
+	dataString[i,14]:=(pDatabase[i,14]);
+	dataString[i,15]:=(pDatabase[i,15]);
+	dataString[i,16]:=(pDatabase[i,16]);
+	dataString[i,17]:=(pDatabase[i,17]);
+	dataString[i,18]:=(pDatabase[i,18]);
+	dataString[i,19]:=(pDatabase[i,19]);
+	
+	IF (pDatabase[i+1,2]=gRecipeShowNameNow) AND NOT (pDatabase[i+1,4]='') AND NOT (pDatabase[i+1,5]='') AND NOT (pDatabase[i+1,6]='') AND
+	NOT (pDatabase[i+1,7]='') AND NOT (pDatabase[i+1,8]='') AND NOT (pDatabase[i+1,9]='') AND NOT (pDatabase[i+1,10]='') AND
+	NOT (pDatabase[i+1,11]='') AND NOT (pDatabase[i+1,12]='') AND NOT (pDatabase[i+1,13]='') AND NOT (pDatabase[i+1,14]='') AND
+	NOT (pDatabase[i+1,15]='') AND NOT (pDatabase[i+1,16]='') AND NOT (pDatabase[i+1,17]='') AND NOT (pDatabase[i+1,18]='') THEN
+		gRecipeEditorData[i+1].NUM:=(pDatabase[i+1,0]);
+		gRecipeEditorData[i+1].etchTime:=(pDatabase[i+1,4]);
+		gRecipeEditorData[i+1].rfPoint_source:=(pDatabase[i+1,5]);
+		gRecipeEditorData[i+1].pdvPoint:=(pDatabase[i+1,6]);
+		gRecipeEditorData[i+1].mfc1:=(pDatabase[i+1,7]);
+		gRecipeEditorData[i+1].mfc2:=(pDatabase[i+1,8]);
+		gRecipeEditorData[i+1].mfc3:=(pDatabase[i+1,9]);
+		gRecipeEditorData[i+1].mfc4:=(pDatabase[i+1,10]);
+		gRecipeEditorData[i+1].mfc5:=(pDatabase[i+1,11]);
+		gRecipeEditorData[i+1].mfc6:=(pDatabase[i+1,12]);
+		gRecipeEditorData[i+1].mfc7:=(pDatabase[i+1,13]);
+		gRecipeEditorData[i+1].mfc8:=(pDatabase[i+1,14]);
+		gRecipeEditorData[i+1].mfc9:=(pDatabase[i+1,15]);
+		gRecipeEditorData[i+1].rfPoint_Power:=(pDatabase[i+1,16]);
+		gRecipeEditorData[i+1].par_2:=(pDatabase[i+1,17]);
+		gRecipeEditorData[i+1].par_3:=(pDatabase[i+1,18]);
+		gRecipeEditorData[i+1].par_4:=(pDatabase[i+1,19]);
+		IF LEN(gRecipeEditorData[i+1].NUM)=0 AND (i+1<>UDINT_TO_INT(gRecipeMAX_CSV_ROWS)) THEN
+			gShowNum:=i;
+			gRecipeViewData:=gRecipeEditorData;
+			RETURN;
+		END_IF
+	ELSE
+		gShowNum:=i;
+		gRecipeViewData:=gRecipeEditorData;
+		RETURN;
+	END_IF
+	
+	
+	
+END_FOR]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="VersionLog" Id="{c9f18c4a-35c0-430f-aede-7e18004491c0}">
+      <Implementation>
+        <ST><![CDATA[(*
+版本: V1.0.0.0 20241012  CPH
+说明:
+	1. 首个版本
+(**************************************************)
+版本: V1.0.0.1
+说明:
+	1. 增加参数备份文件，文件名以原文件名+时间命名
+(**************************************************)
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="RecipeSaveModule_EX">
+      <LineId Id="306" Count="0" />
+      <LineId Id="296" Count="0" />
+      <LineId Id="50" Count="1" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="45" Count="2" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="112" Count="13" />
+      <LineId Id="373" Count="0" />
+      <LineId Id="126" Count="1" />
+      <LineId Id="234" Count="0" />
+      <LineId Id="363" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="180" Count="1" />
+    </LineIds>
+    <LineIds Name="RecipeSaveModule_EX.addRecipeStep">
+      <LineId Id="6" Count="0" />
+      <LineId Id="22" Count="2" />
+      <LineId Id="40" Count="1" />
+      <LineId Id="39" Count="0" />
+      <LineId Id="34" Count="0" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="42" Count="1" />
+      <LineId Id="45" Count="16" />
+      <LineId Id="65" Count="0" />
+      <LineId Id="85" Count="0" />
+      <LineId Id="87" Count="13" />
+      <LineId Id="64" Count="0" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="44" Count="0" />
+    </LineIds>
+    <LineIds Name="RecipeSaveModule_EX.addSlector">
+      <LineId Id="5" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="19" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="87" Count="2" />
+      <LineId Id="83" Count="0" />
+      <LineId Id="94" Count="1" />
+      <LineId Id="97" Count="1" />
+      <LineId Id="96" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="15" Count="1" />
+      <LineId Id="13" Count="0" />
+    </LineIds>
+    <LineIds Name="RecipeSaveModule_EX.createDir">
+      <LineId Id="56" Count="0" />
+      <LineId Id="58" Count="3" />
+      <LineId Id="22" Count="2" />
+      <LineId Id="87" Count="0" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="88" Count="2" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="102" Count="2" />
+      <LineId Id="99" Count="0" />
+      <LineId Id="91" Count="0" />
+      <LineId Id="93" Count="5" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="48" Count="7" />
+      <LineId Id="115" Count="8" />
+      <LineId Id="45" Count="1" />
+      <LineId Id="35" Count="8" />
+      <LineId Id="106" Count="8" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="RecipeSaveModule_EX.data2String">
+      <LineId Id="3" Count="4" />
+      <LineId Id="29" Count="5" />
+      <LineId Id="9" Count="1" />
+      <LineId Id="100" Count="0" />
+      <LineId Id="217" Count="0" />
+      <LineId Id="409" Count="0" />
+      <LineId Id="190" Count="0" />
+      <LineId Id="327" Count="1" />
+      <LineId Id="330" Count="1" />
+      <LineId Id="329" Count="0" />
+      <LineId Id="192" Count="1" />
+      <LineId Id="188" Count="0" />
+      <LineId Id="196" Count="0" />
+      <LineId Id="203" Count="0" />
+      <LineId Id="332" Count="1" />
+      <LineId Id="335" Count="1" />
+      <LineId Id="334" Count="0" />
+      <LineId Id="205" Count="1" />
+      <LineId Id="200" Count="0" />
+      <LineId Id="207" Count="0" />
+      <LineId Id="402" Count="0" />
+      <LineId Id="213" Count="0" />
+      <LineId Id="337" Count="1" />
+      <LineId Id="340" Count="1" />
+      <LineId Id="339" Count="0" />
+      <LineId Id="215" Count="1" />
+      <LineId Id="210" Count="0" />
+      <LineId Id="75" Count="0" />
+      <LineId Id="218" Count="0" />
+      <LineId Id="223" Count="0" />
+      <LineId Id="342" Count="1" />
+      <LineId Id="345" Count="1" />
+      <LineId Id="344" Count="0" />
+      <LineId Id="224" Count="2" />
+      <LineId Id="220" Count="0" />
+      <LineId Id="235" Count="0" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="347" Count="0" />
+      <LineId Id="351" Count="0" />
+      <LineId Id="348" Count="0" />
+      <LineId Id="350" Count="0" />
+      <LineId Id="349" Count="0" />
+      <LineId Id="232" Count="2" />
+      <LineId Id="228" Count="0" />
+      <LineId Id="126" Count="0" />
+      <LineId Id="236" Count="0" />
+      <LineId Id="241" Count="0" />
+      <LineId Id="352" Count="1" />
+      <LineId Id="355" Count="1" />
+      <LineId Id="354" Count="0" />
+      <LineId Id="242" Count="2" />
+      <LineId Id="238" Count="0" />
+      <LineId Id="131" Count="0" />
+      <LineId Id="245" Count="0" />
+      <LineId Id="250" Count="0" />
+      <LineId Id="357" Count="1" />
+      <LineId Id="360" Count="1" />
+      <LineId Id="359" Count="0" />
+      <LineId Id="251" Count="2" />
+      <LineId Id="247" Count="0" />
+      <LineId Id="136" Count="0" />
+      <LineId Id="254" Count="0" />
+      <LineId Id="259" Count="0" />
+      <LineId Id="362" Count="1" />
+      <LineId Id="365" Count="1" />
+      <LineId Id="364" Count="0" />
+      <LineId Id="260" Count="2" />
+      <LineId Id="256" Count="0" />
+      <LineId Id="141" Count="0" />
+      <LineId Id="263" Count="0" />
+      <LineId Id="268" Count="0" />
+      <LineId Id="367" Count="1" />
+      <LineId Id="370" Count="1" />
+      <LineId Id="369" Count="0" />
+      <LineId Id="269" Count="2" />
+      <LineId Id="265" Count="0" />
+      <LineId Id="272" Count="0" />
+      <LineId Id="146" Count="0" />
+      <LineId Id="277" Count="0" />
+      <LineId Id="372" Count="1" />
+      <LineId Id="375" Count="1" />
+      <LineId Id="374" Count="0" />
+      <LineId Id="278" Count="2" />
+      <LineId Id="274" Count="0" />
+      <LineId Id="151" Count="0" />
+      <LineId Id="281" Count="0" />
+      <LineId Id="286" Count="0" />
+      <LineId Id="377" Count="1" />
+      <LineId Id="380" Count="1" />
+      <LineId Id="379" Count="0" />
+      <LineId Id="287" Count="2" />
+      <LineId Id="283" Count="0" />
+      <LineId Id="156" Count="0" />
+      <LineId Id="294" Count="0" />
+      <LineId Id="296" Count="0" />
+      <LineId Id="382" Count="1" />
+      <LineId Id="385" Count="1" />
+      <LineId Id="384" Count="0" />
+      <LineId Id="297" Count="2" />
+      <LineId Id="292" Count="0" />
+      <LineId Id="161" Count="0" />
+      <LineId Id="300" Count="0" />
+      <LineId Id="305" Count="0" />
+      <LineId Id="387" Count="1" />
+      <LineId Id="390" Count="1" />
+      <LineId Id="389" Count="0" />
+      <LineId Id="306" Count="2" />
+      <LineId Id="302" Count="0" />
+      <LineId Id="166" Count="0" />
+      <LineId Id="309" Count="0" />
+      <LineId Id="314" Count="0" />
+      <LineId Id="392" Count="0" />
+      <LineId Id="396" Count="0" />
+      <LineId Id="393" Count="0" />
+      <LineId Id="395" Count="0" />
+      <LineId Id="394" Count="0" />
+      <LineId Id="315" Count="2" />
+      <LineId Id="311" Count="0" />
+      <LineId Id="318" Count="0" />
+      <LineId Id="171" Count="0" />
+      <LineId Id="323" Count="0" />
+      <LineId Id="397" Count="1" />
+      <LineId Id="400" Count="1" />
+      <LineId Id="399" Count="0" />
+      <LineId Id="324" Count="2" />
+      <LineId Id="320" Count="0" />
+      <LineId Id="176" Count="0" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="RecipeSaveModule_EX.deleteMethod">
+      <LineId Id="3" Count="11" />
+      <LineId Id="16" Count="3" />
+      <LineId Id="87" Count="5" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="24" Count="2" />
+      <LineId Id="32" Count="31" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="100" Count="5" />
+      <LineId Id="99" Count="0" />
+    </LineIds>
+    <LineIds Name="RecipeSaveModule_EX.DeleteRecipeStep">
+      <LineId Id="48" Count="1" />
+      <LineId Id="95" Count="0" />
+      <LineId Id="51" Count="34" />
+      <LineId Id="105" Count="2" />
+      <LineId Id="86" Count="0" />
+      <LineId Id="109" Count="2" />
+      <LineId Id="108" Count="0" />
+      <LineId Id="113" Count="2" />
+      <LineId Id="112" Count="0" />
+      <LineId Id="117" Count="2" />
+      <LineId Id="116" Count="0" />
+      <LineId Id="121" Count="2" />
+      <LineId Id="104" Count="0" />
+      <LineId Id="103" Count="0" />
+      <LineId Id="88" Count="0" />
+      <LineId Id="126" Count="1" />
+      <LineId Id="125" Count="0" />
+      <LineId Id="89" Count="2" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="RecipeSaveModule_EX.deleteSlector">
+      <LineId Id="23" Count="0" />
+      <LineId Id="52" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="19" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="40" Count="2" />
+      <LineId Id="39" Count="0" />
+      <LineId Id="67" Count="0" />
+      <LineId Id="69" Count="2" />
+      <LineId Id="68" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="15" Count="1" />
+      <LineId Id="13" Count="0" />
+    </LineIds>
+    <LineIds Name="RecipeSaveModule_EX.getSystemTime">
+      <LineId Id="3" Count="24" />
+      <LineId Id="29" Count="3" />
+      <LineId Id="45" Count="2" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="73" Count="6" />
+      <LineId Id="35" Count="5" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="RecipeSaveModule_EX.getValue">
+      <LineId Id="31" Count="0" />
+      <LineId Id="39" Count="0" />
+      <LineId Id="32" Count="5" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="RecipeSaveModule_EX.init">
+      <LineId Id="3" Count="5" />
+      <LineId Id="54" Count="5" />
+      <LineId Id="9" Count="12" />
+      <LineId Id="73" Count="5" />
+      <LineId Id="80" Count="8" />
+      <LineId Id="79" Count="0" />
+      <LineId Id="22" Count="25" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="66" Count="0" />
+    </LineIds>
+    <LineIds Name="RecipeSaveModule_EX.IsAllDigits">
+      <LineId Id="12" Count="5" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="RecipeSaveModule_EX.readMethod">
+      <LineId Id="3" Count="10" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="94" Count="0" />
+      <LineId Id="126" Count="1" />
+      <LineId Id="14" Count="1" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="75" Count="9" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="85" Count="1" />
+      <LineId Id="88" Count="1" />
+      <LineId Id="95" Count="1" />
+      <LineId Id="87" Count="0" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="97" Count="0" />
+      <LineId Id="100" Count="6" />
+      <LineId Id="99" Count="0" />
+      <LineId Id="108" Count="1" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="113" Count="1" />
+      <LineId Id="112" Count="0" />
+      <LineId Id="115" Count="0" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="98" Count="0" />
+      <LineId Id="16" Count="2" />
+      <LineId Id="121" Count="1" />
+      <LineId Id="19" Count="7" />
+      <LineId Id="119" Count="1" />
+      <LineId Id="27" Count="42" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="RecipeSaveModule_EX.RecipeChange">
+      <LineId Id="2" Count="1" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="RecipeSaveModule_EX.saveActRun">
+      <LineId Id="1" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="3" Count="0" />
+      <LineId Id="9" Count="1" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="13" Count="1" />
+      <LineId Id="118" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="57" Count="3" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="65" Count="1" />
+      <LineId Id="85" Count="0" />
+      <LineId Id="67" Count="0" />
+      <LineId Id="70" Count="0" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="74" Count="3" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="80" Count="1" />
+      <LineId Id="87" Count="0" />
+      <LineId Id="82" Count="1" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="89" Count="2" />
+      <LineId Id="88" Count="0" />
+      <LineId Id="108" Count="0" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="95" Count="3" />
+      <LineId Id="94" Count="0" />
+      <LineId Id="100" Count="0" />
+      <LineId Id="102" Count="2" />
+      <LineId Id="101" Count="0" />
+      <LineId Id="105" Count="0" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="11" Count="0" />
+    </LineIds>
+    <LineIds Name="RecipeSaveModule_EX.saveMethod">
+      <LineId Id="3" Count="12" />
+      <LineId Id="67" Count="0" />
+      <LineId Id="16" Count="3" />
+      <LineId Id="83" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="76" Count="1" />
+      <LineId Id="21" Count="2" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="24" Count="2" />
+      <LineId Id="84" Count="0" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="78" Count="1" />
+      <LineId Id="28" Count="2" />
+      <LineId Id="72" Count="0" />
+      <LineId Id="31" Count="32" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="RecipeSaveModule_EX.setValue">
+      <LineId Id="38" Count="0" />
+      <LineId Id="31" Count="5" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="RecipeSaveModule_EX.string2Data">
+      <LineId Id="3" Count="4" />
+      <LineId Id="30" Count="5" />
+      <LineId Id="8" Count="15" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="86" Count="18" />
+      <LineId Id="198" Count="0" />
+      <LineId Id="168" Count="0" />
+      <LineId Id="212" Count="0" />
+      <LineId Id="243" Count="0" />
+      <LineId Id="241" Count="1" />
+      <LineId Id="215" Count="15" />
+      <LineId Id="213" Count="0" />
+      <LineId Id="232" Count="3" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="236" Count="0" />
+      <LineId Id="238" Count="1" />
+      <LineId Id="237" Count="0" />
+      <LineId Id="214" Count="0" />
+      <LineId Id="130" Count="0" />
+      <LineId Id="199" Count="1" />
+      <LineId Id="117" Count="0" />
+    </LineIds>
+    <LineIds Name="RecipeSaveModule_EX.VersionLog">
+      <LineId Id="2" Count="1" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="42" Count="4" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

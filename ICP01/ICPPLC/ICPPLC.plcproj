@@ -1,0 +1,949 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <PropertyGroup>
+    <FileVersion>1.0.0.0</FileVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <ProjectGuid>{ec71331b-acc1-42e3-93f6-d553e17de4bf}</ProjectGuid>
+    <SubObjectsSortedByName>True</SubObjectsSortedByName>
+    <DownloadApplicationInfo>true</DownloadApplicationInfo>
+    <WriteProductVersion>true</WriteProductVersion>
+    <GenerateTpy>false</GenerateTpy>
+    <Name>ICPPLC</Name>
+    <ProgramVersion>3.1.4023.0</ProgramVersion>
+    <Application>{e7b97151-fae0-403f-ac87-b8283f90643e}</Application>
+    <TypeSystem>{68b06379-1c08-4f28-9576-74c6516d6c76}</TypeSystem>
+    <Implicit_Task_Info>{44f458b7-b99f-4b28-8b54-0292cae9645c}</Implicit_Task_Info>
+    <Implicit_KindOfTask>{09c22c93-c377-402c-9c39-286b4fc13d10}</Implicit_KindOfTask>
+    <Implicit_Jitter_Distribution>{2f2c83a3-67c6-48d8-92a6-65972f86557b}</Implicit_Jitter_Distribution>
+    <LibraryReferences>{3e6d6189-0def-4e0b-a547-52d429e6b7a9}</LibraryReferences>
+    <CompilerDefines>VISU_USEWSTRING</CompilerDefines>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="ComTask.TcTTO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="DataSave_1.TcTTO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="DUTs\ST_A2BData.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="DUTs\ST_B2AData.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="GlobalTextList.TcGTLO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="GVLs\GVL_AllCONSTANT.TcGVL">
+      <SubType>Code</SubType>
+      <LinkAlways>true</LinkAlways>
+    </Compile>
+    <Compile Include="GVLs\GVL_AllGLOBAL.TcGVL">
+      <SubType>Code</SubType>
+      <LinkAlways>true</LinkAlways>
+    </Compile>
+    <Compile Include="GVLs\GVL_AllPERSISTENT.TcGVL">
+      <SubType>Code</SubType>
+      <LinkAlways>true</LinkAlways>
+    </Compile>
+    <Compile Include="GVLs\GVL_Datasave.TcGVL">
+      <SubType>Code</SubType>
+      <LinkAlways>true</LinkAlways>
+    </Compile>
+    <Compile Include="IOTask.TcTTO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="PlcTask.TcTTO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\ARMModule\ARMModule.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\ARMModule\enum\ARMType.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\ARMModule\struct\ARMModuleHMI.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\cylinderModule\CylinderModule.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\cylinderModule\enum\CylinderType.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\cylinderModule\struct\cylinderModuleHMI.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\cylinderModule\visu\cylinderModuleVisu.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\cylinderModule\visu\cylinderModuleVisu_1.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\chillerModule\ChillerModule_1.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\chillerModule\enum\chillerType.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\chillerModule\struct\chillerModuleHMI.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\enum\ControlMode.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\GVL_ActionModule.TcGVL">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\HEATModule\enum\HEATType.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\HEATModule\HeatModule.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\HEATModule\struct\HEATModuleHMI.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\HEATModule\visu\HeatModuleVisu.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\MFCModule\enum\MFCType.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\MFCModule\MFCModule.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\MFCModule\struct\MFCStruct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\motorModule\enum\MotorHomeMode.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\motorModule\enum\MotorType.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\motorModule\FB_MotorMovements.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\motorModule\MotionModule.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\motorModule\struct\motionModuleDataHMI.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\motorModule\struct\ST_MotorOutput.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\motorModule\visu\motionModuleP1.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\motorModule\visu\motionModuleP2.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\motorModule\visu\motionModuleP3.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\OtherModule\ChillerModule.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\OtherModule\GaugeViewModule.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\OtherModule\ChamberGaugeViewModule.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\PendulumValveModule\enum\PVControlMOD.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\PendulumValveModule\enum\PVType.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\PendulumValveModule\PVModule.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\PendulumValveModule\struct\PVModuleHMI.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\RFModule\enum\RFType.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\RFModule\RFModule.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\RFModule\struct\RFHMIStruts.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\RFModule_Source\RFModule_Source.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\TMPModule\enum\TMPType.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\TMPModule\struct\TMPHMIStruts.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\TMPModule\TMPModule.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\TMPModule\visu\TMPModuleVisu.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\VPEModule\enum\VPEType.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\VPEModule\struct\VPEHMIStruts.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\VPEModule\struct\VPETestStruts530.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\VPEModule\struct\VPETestStruts540.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\VPEModule\visu\VPEModuleVis.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="POUs\BaseModule\ActionModule\VPEModule\VPEModule.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\COE\EcCoeSdo_ForTest.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\COE\FB_ECCOE_READ_WRITE.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\Communication\FuncModule_RS232_Byte.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\Communication\FuncModule_RS232_SRF.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\Communication\FuncModule_RS232_ARM.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\Communication\FuncModule_RS485_MFC.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\Communication\FuncModule_RS232_TBP.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\Communication\FuncModule_TCPIP_Binary_POU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\Communication\FuncModule_TCPIP_String_POU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\Communication\struct\struct_byte_1.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\Communication\struct\struct_Tester.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\Communication\struct\struct_byte.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\DataSaveModule_EX\csvReadWriteInTextMode\P_TextModeDelete_1.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\DataSaveModule_EX\csvReadWriteInTextMode\P_TextModeRead.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\DataSaveModule_EX\csvReadWriteInTextMode\P_TextModeRead_Recipe.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\DataSaveModule_EX\csvReadWriteInTextMode\P_TextModeRead_RecipeName.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\DataSaveModule_EX\csvReadWriteInTextMode\P_TextModeWrite.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\DataSaveModule_EX\csvReadWriteInTextMode\P_TextModeWrite_Recipe.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\DataSaveModule_EX\csvReadWriteInTextMode\P_TextModeWrite_RecipeName.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\DataSaveModule_EX\csvReadWriteInTextMode\StringModel_256000_EX.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\DataSaveModule_EX\DataSaveModule_EX.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\DataSaveModule_EX\GVL_DataSave_EX.TcGVL">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\DataSaveModule_EX\RecipeNameModule_EX.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\DataSaveModule_EX\RecipeSaveModule_EX.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\DataSaveModule_EX\Struct\RecipeNamePar.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\DataSaveModule_EX\Struct\RecipePar.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\DataSaveModule_EX\Struct\RecipeShowStr.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\EL2252_2262Control\FlipperModule_EL2252.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\EL2252_2262Control\FlipperModule_EL2262.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\EL2252_2262Control\FlipperModule_EL2262_old.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\EL2252_2262Control\SquareWaveOut\FB_SquareWaveOut_EL2262.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\EL2252_2262Control\SquareWaveOut\SquareWaveOut_EL2262_TEST.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\EL2252_2262Control\struct\ST_CamSwitch.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\EL2252_2262Control\struct\ST_CamSwitch_EL2262.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\EL2252_2262Control\struct\ST_EL2262OutData.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\Error\enum\Error_Level.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\Error\ErrCodeProcess.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\Error\errorMonitor.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\Error\error_Printf.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\Error\error_Trigger.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\Error\GVL_Error.TcGVL">
+      <SubType>Code</SubType>
+      <LinkAlways>true</LinkAlways>
+    </Compile>
+    <Compile Include="POUs\BaseModule\Error\struct\ST_Error.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\IO\FB_IOBase_Input_New.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\IO\FB_IOBase_Output_New.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\IO\ReadWriteCSV\FB_IOFileReadWrite.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\IO\ReadWriteCSV\POU_Test.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\IO\ReadWriteCSV\ST_DataFmtBase.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\IO\struct\ST_INPUT_IO.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\IO\struct\ST_IOBase_Show_HMI.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\IO\struct\ST_OUTPUT_IO.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\IO\visu\IOBase_Show_New.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="POUs\BaseModule\MainFrame\MainFram.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\MainFrame\MainFrame.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="POUs\BaseModule\PrintLogModule_EX\GVL_PrintLogModule_EX.TcGVL">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\PrintLogModule_EX\printLogModule_EX.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\PrintLogModule_EX\struct\printLogModule_EX_DataHMI.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\PrintLogModule_EX\struct\printLogModule_EX_DataST.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\PrintLogModule_EX\struct\ST_DeleteFile.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\PrintLogModule_EX\visu\showInfo_Auto.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="POUs\BaseModule\PrintLogModule_EX\visu\showInfo.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="POUs\BaseModule\SystemTimeModule\GVL_SystemTimeModule.TcGVL">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\SystemTimeModule\systemTimeModule.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\TcpIpModule_EX\ALCData2String.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\TcpIpModule_EX\clientModule_EX\tcpipClientModule_EX.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\TcpIpModule_EX\CloseAllSocket.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\TcpIpModule_EX\dataStruct_EX\ST_TCPIP_DATA_STRUCT_ALC.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\TcpIpModule_EX\GVL_TcpIpModule_EX.TcGVL">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\TcpIpModule_EX\serverModule_EX\tcpipServerModule_EX.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\BaseModule\UPS_CX51X0\ups_CX51X0.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Communication\Communication_Error.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Communication\Communica_ALC\enum_CommandNumber.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Communication\Communica_ALC\E_Sta1_CMD.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Communication\PLC_Chiller.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Communication\PLC_AMX_AI.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Communication\PLC_FreeByte.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Communication\PLC_PDV.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Communication\PLC_HeliumPressure.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Communication\PLC_SourceRF.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Communication\PLC_PowerRF.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Communication\PRG_ADS_Comm_ByName_A2B.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Communication\RS232_485_ALLEL.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Communication\PLC_String.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Communication\PLC_SW1.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Communication\ServicesRefreshPOU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Data\DataSave.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Data\DownTimeRecordPOU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Data\FB_SavePar.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Data\FB_WStringSave.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Data\Test_FilePOU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Instance\instance.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Instance\InstanceUtility.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\IO\TesterIO.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\MachinePOU\SemiAutomatic\S_BackOfHeliumClear.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\MachinePOU\State\otherMachineState.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\MachinePOU\MainPOU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\MachinePOU\SemiAutomatic\S_CO_ControlRF.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\MachinePOU\SemiAutomatic\S_PDVSafeCtr.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\MachinePOU\SemiAutomatic\S_MachineVent.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\MachinePOU\SemiAutomatic\S_Etching.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\MachinePOU\SemiAutomatic\S_LoadLockPumping.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\MachinePOU\SemiAutomatic\S_LoadLockVent.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\MachinePOU\SemiAutomatic\S_ChamberLLVent.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\MachinePOU\SemiAutomatic\S_MachinePumping.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\MachinePOU\SemiAutomatic\S_UnLoadWafer.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\MachinePOU\SemiAutomatic\S_WaferCheckPOU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\MachinePOU\SemiAutomatic\S_RoughPumping.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\MachinePOU\SemiAutomatic\S_ActuatorRecoveryPOU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\MachinePOU\SemiAutomatic\S_LoadWafer.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\MAIN.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\ActBase\ActStepBase.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\ActBase\ITF\ITFActStep.TcIO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\ActBase\ITF\ITFUserAction.TcIO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\ActBase\ITF\struct\ST_ActStep_State.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\HMI\Note.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="POUs\Other\HMI\WARMStruct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\HMI\WARM.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="POUs\Other\HMI\NoteStruct.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\MachineState\enum\RunningStatus.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\MachineState\FB_MachineState.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\MachineState\GVL_MachineState.TcGVL">
+      <SubType>Code</SubType>
+      <LinkAlways>true</LinkAlways>
+    </Compile>
+    <Compile Include="POUs\Other\MachineState\MachineStatePOU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\MachineState\MainParComfer_HMI.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\MachineState\ST_DownTimeRecord.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\MachineState\ST_MachineState.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\MainRunPOU.TcPOU">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\Struct\ActPos\ST_DOEActPos.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\Struct\StationBuild\ST_ICP.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\Struct\ST_HaveDUTState.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\Struct\ST_MachineUtility.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\Struct\ST_POUCommunication.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="POUs\Other\Struct\ST_StationConfigBase.TcDUT">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="VISUs\Editor\Manual.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="VISUs\Editor\Overview.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="VISUs\Config\Config.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="VISUs\Config\Config_Base.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="VISUs\Editor\Overview_Total.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="VISUs\Editor\ViewPar.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="VISUs\Editor\ViewPar_1.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="VISUs\ImagePool1.TcIPO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="VISUs\IO\IO.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="VISUs\IO\IO_Input.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="VISUs\IO\IO_Output.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="VISUs\Loadding.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="VISUs\Log\LogInf.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="VISUs\Main.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="VISUs\Operator\Operator.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="VISUs\Recipe\Recipe.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="VISUs\Recipe\Recipe_Operator.TcVIS">
+      <SubType>Code</SubType>
+      <DependentUpon>视图管理器.TcVMO</DependentUpon>
+    </Compile>
+    <Compile Include="VISUs\TextList\CtrlModeTextList.TcTLO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="VISUs\TextList\MachineStateTextList.TcTLO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="VISUs\TextList\PDVConfigMode.TcTLO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="VISUs\TextList\RunModeTypeTexList.TcTLO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="VISU_TASK.TcTTO">
+      <SubType>Code</SubType>
+    </Compile>
+    <Compile Include="视图管理器.TcVMO">
+      <SubType>Code</SubType>
+    </Compile>
+  </ItemGroup>
+  <ItemGroup>
+    <Folder Include="DUTs" />
+    <Folder Include="GVLs" />
+    <Folder Include="POUs\BaseModule" />
+    <Folder Include="POUs\BaseModule\ActionModule" />
+    <Folder Include="POUs\BaseModule\ActionModule\ARMModule" />
+    <Folder Include="POUs\BaseModule\ActionModule\ARMModule\enum" />
+    <Folder Include="POUs\BaseModule\ActionModule\ARMModule\struct" />
+    <Folder Include="POUs\BaseModule\ActionModule\cylinderModule" />
+    <Folder Include="POUs\BaseModule\ActionModule\cylinderModule\enum" />
+    <Folder Include="POUs\BaseModule\ActionModule\cylinderModule\struct" />
+    <Folder Include="POUs\BaseModule\ActionModule\cylinderModule\visu" />
+    <Folder Include="POUs\BaseModule\ActionModule\chillerModule" />
+    <Folder Include="POUs\BaseModule\ActionModule\chillerModule\enum" />
+    <Folder Include="POUs\BaseModule\ActionModule\chillerModule\struct" />
+    <Folder Include="POUs\BaseModule\ActionModule\enum" />
+    <Folder Include="POUs\BaseModule\ActionModule\HEATModule" />
+    <Folder Include="POUs\BaseModule\ActionModule\HEATModule\enum" />
+    <Folder Include="POUs\BaseModule\ActionModule\HEATModule\struct" />
+    <Folder Include="POUs\BaseModule\ActionModule\HEATModule\visu" />
+    <Folder Include="POUs\BaseModule\ActionModule\MFCModule" />
+    <Folder Include="POUs\BaseModule\ActionModule\MFCModule\enum" />
+    <Folder Include="POUs\BaseModule\ActionModule\MFCModule\struct" />
+    <Folder Include="POUs\BaseModule\ActionModule\motorModule" />
+    <Folder Include="POUs\BaseModule\ActionModule\motorModule\enum" />
+    <Folder Include="POUs\BaseModule\ActionModule\motorModule\struct" />
+    <Folder Include="POUs\BaseModule\ActionModule\motorModule\visu" />
+    <Folder Include="POUs\BaseModule\ActionModule\OtherModule" />
+    <Folder Include="POUs\BaseModule\ActionModule\PendulumValveModule" />
+    <Folder Include="POUs\BaseModule\ActionModule\PendulumValveModule\enum" />
+    <Folder Include="POUs\BaseModule\ActionModule\PendulumValveModule\struct" />
+    <Folder Include="POUs\BaseModule\ActionModule\RFModule" />
+    <Folder Include="POUs\BaseModule\ActionModule\RFModule\enum" />
+    <Folder Include="POUs\BaseModule\ActionModule\RFModule\struct" />
+    <Folder Include="POUs\BaseModule\ActionModule\RFModule_Source" />
+    <Folder Include="POUs\BaseModule\ActionModule\TMPModule" />
+    <Folder Include="POUs\BaseModule\ActionModule\TMPModule\enum" />
+    <Folder Include="POUs\BaseModule\ActionModule\TMPModule\struct" />
+    <Folder Include="POUs\BaseModule\ActionModule\TMPModule\visu" />
+    <Folder Include="POUs\BaseModule\ActionModule\VPEModule" />
+    <Folder Include="POUs\BaseModule\ActionModule\VPEModule\enum" />
+    <Folder Include="POUs\BaseModule\ActionModule\VPEModule\struct" />
+    <Folder Include="POUs\BaseModule\ActionModule\VPEModule\visu" />
+    <Folder Include="POUs\BaseModule\COE" />
+    <Folder Include="POUs\BaseModule\Communication" />
+    <Folder Include="POUs\BaseModule\Communication\struct" />
+    <Folder Include="POUs\BaseModule\DataSaveModule_EX" />
+    <Folder Include="POUs\BaseModule\DataSaveModule_EX\csvReadWriteInTextMode" />
+    <Folder Include="POUs\BaseModule\DataSaveModule_EX\Struct" />
+    <Folder Include="POUs\BaseModule\EL2252_2262Control" />
+    <Folder Include="POUs\BaseModule\EL2252_2262Control\SquareWaveOut" />
+    <Folder Include="POUs\BaseModule\EL2252_2262Control\struct" />
+    <Folder Include="POUs\BaseModule\Error" />
+    <Folder Include="POUs\BaseModule\Error\enum" />
+    <Folder Include="POUs\BaseModule\Error\struct" />
+    <Folder Include="POUs\BaseModule\IO" />
+    <Folder Include="POUs\BaseModule\IO\ReadWriteCSV" />
+    <Folder Include="POUs\BaseModule\IO\struct" />
+    <Folder Include="POUs\BaseModule\IO\visu" />
+    <Folder Include="POUs\BaseModule\MainFrame" />
+    <Folder Include="POUs\BaseModule\PrintLogModule_EX" />
+    <Folder Include="POUs\BaseModule\PrintLogModule_EX\struct" />
+    <Folder Include="POUs\BaseModule\PrintLogModule_EX\visu" />
+    <Folder Include="POUs\BaseModule\SystemTimeModule" />
+    <Folder Include="POUs\BaseModule\TcpIpModule_EX" />
+    <Folder Include="POUs\BaseModule\TcpIpModule_EX\clientModule_EX" />
+    <Folder Include="POUs\BaseModule\TcpIpModule_EX\dataStruct_EX" />
+    <Folder Include="POUs\BaseModule\TcpIpModule_EX\serverModule_EX" />
+    <Folder Include="POUs\BaseModule\UPS_CX51X0" />
+    <Folder Include="POUs\Communication" />
+    <Folder Include="POUs\Communication\Communica_ALC" />
+    <Folder Include="POUs\Data" />
+    <Folder Include="POUs\Instance" />
+    <Folder Include="POUs\IO" />
+    <Folder Include="POUs\MachinePOU" />
+    <Folder Include="POUs\MachinePOU\State" />
+    <Folder Include="POUs\MachinePOU\SemiAutomatic" />
+    <Folder Include="POUs\Other" />
+    <Folder Include="POUs\Other\ActBase" />
+    <Folder Include="POUs\Other\ActBase\ITF" />
+    <Folder Include="POUs\Other\ActBase\ITF\struct" />
+    <Folder Include="POUs\Other\MachineState" />
+    <Folder Include="POUs\Other\MachineState\enum" />
+    <Folder Include="POUs\Other\HMI" />
+    <Folder Include="POUs\Other\Struct" />
+    <Folder Include="POUs\Other\Struct\ActPos" />
+    <Folder Include="POUs\Other\Struct\StationBuild" />
+    <Folder Include="VISUs" />
+    <Folder Include="POUs" />
+    <Folder Include="VISUs\Editor" />
+    <Folder Include="VISUs\Config" />
+    <Folder Include="VISUs\IO" />
+    <Folder Include="VISUs\Log" />
+    <Folder Include="VISUs\Operator" />
+    <Folder Include="VISUs\Recipe" />
+    <Folder Include="VISUs\TextList" />
+  </ItemGroup>
+  <ItemGroup>
+    <PlaceholderReference Include="System_VisuElemMeter">
+      <DefaultResolution>VisuElemMeter, 3.5.13.0 (System)</DefaultResolution>
+      <Namespace>VisuElemMeter</Namespace>
+      <SystemLibrary>true</SystemLibrary>
+      <ResolverGuid>2717eb6a-dd07-4c66-8d8d-cacebd7b18ae</ResolverGuid>
+    </PlaceholderReference>
+    <PlaceholderReference Include="System_VisuElems">
+      <DefaultResolution>VisuElems, 3.5.13.40 (System)</DefaultResolution>
+      <Namespace>VisuElems</Namespace>
+      <SystemLibrary>true</SystemLibrary>
+      <ResolverGuid>2717eb6a-dd07-4c66-8d8d-cacebd7b18ae</ResolverGuid>
+    </PlaceholderReference>
+    <PlaceholderReference Include="System_VisuElemsSpecialControls">
+      <DefaultResolution>VisuElemsSpecialControls, 3.5.13.0 (System)</DefaultResolution>
+      <Namespace>VisuElemsSpecialControls</Namespace>
+      <SystemLibrary>true</SystemLibrary>
+      <ResolverGuid>2717eb6a-dd07-4c66-8d8d-cacebd7b18ae</ResolverGuid>
+    </PlaceholderReference>
+    <PlaceholderReference Include="System_VisuElemsWinControls">
+      <DefaultResolution>VisuElemsWinControls, 3.5.13.20 (System)</DefaultResolution>
+      <Namespace>VisuElemsWinControls</Namespace>
+      <SystemLibrary>true</SystemLibrary>
+      <ResolverGuid>2717eb6a-dd07-4c66-8d8d-cacebd7b18ae</ResolverGuid>
+    </PlaceholderReference>
+    <PlaceholderReference Include="System_VisuElemTextEditor">
+      <DefaultResolution>VisuElemTextEditor, 3.5.13.0 (System)</DefaultResolution>
+      <Namespace>VisuElemTextEditor</Namespace>
+      <SystemLibrary>true</SystemLibrary>
+      <ResolverGuid>2717eb6a-dd07-4c66-8d8d-cacebd7b18ae</ResolverGuid>
+    </PlaceholderReference>
+    <PlaceholderReference Include="system_visuinputs">
+      <DefaultResolution>visuinputs, 3.5.13.0 (system)</DefaultResolution>
+      <Namespace>visuinputs</Namespace>
+      <SystemLibrary>true</SystemLibrary>
+      <ResolverGuid>2717eb6a-dd07-4c66-8d8d-cacebd7b18ae</ResolverGuid>
+    </PlaceholderReference>
+    <PlaceholderReference Include="System_VisuNativeControl">
+      <DefaultResolution>VisuNativeControl, 3.5.13.0 (System)</DefaultResolution>
+      <Namespace>VisuNativeControl</Namespace>
+      <SystemLibrary>true</SystemLibrary>
+      <ResolverGuid>2717eb6a-dd07-4c66-8d8d-cacebd7b18ae</ResolverGuid>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc2_Math">
+      <DefaultResolution>Tc2_Math, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc2_Math</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc2_MC2">
+      <DefaultResolution>Tc2_MC2, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc2_MC2</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc2_SerialCom">
+      <DefaultResolution>Tc2_SerialCom, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc2_SerialCom</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc2_Standard">
+      <DefaultResolution>Tc2_Standard, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc2_Standard</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc2_SUPS">
+      <DefaultResolution>Tc2_SUPS, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc2_SUPS</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc2_System">
+      <DefaultResolution>Tc2_System, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc2_System</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc2_TcpIp">
+      <DefaultResolution>Tc2_TcpIp, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc2_TcpIp</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc2_Utilities">
+      <DefaultResolution>Tc2_Utilities, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc2_Utilities</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="Tc3_Module">
+      <DefaultResolution>Tc3_Module, * (Beckhoff Automation GmbH)</DefaultResolution>
+      <Namespace>Tc3_Module</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="VisuDialogs">
+      <DefaultResolution>VisuDialogs, * (System)</DefaultResolution>
+      <Namespace>VisuDialogs</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="VisuSymbols">
+      <DefaultResolution>VisuSymbols, * (System)</DefaultResolution>
+      <Namespace>VisuSymbols</Namespace>
+    </PlaceholderReference>
+    <PlaceholderReference Include="VisuUserManagement">
+      <DefaultResolution>VisuUserMgmt, * (System)</DefaultResolution>
+      <Namespace>VisuUserManagement</Namespace>
+      <SystemLibrary>true</SystemLibrary>
+    </PlaceholderReference>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="ICPPLC.tmc">
+      <SubType>Content</SubType>
+    </None>
+  </ItemGroup>
+  <ProjectExtensions>
+    <PlcProjectOptions>
+      <XmlArchive>
+        <Data>
+          <o xml:space="preserve" t="OptionKey">
+      <v n="Name">"&lt;ProjectRoot&gt;"</v>
+      <d n="SubKeys" t="Hashtable" ckt="String" cvt="OptionKey">
+        <v>{192FAD59-8248-4824-A8DE-9177C94C195A}</v>
+        <o>
+          <v n="Name">"{192FAD59-8248-4824-A8DE-9177C94C195A}"</v>
+          <d n="SubKeys" t="Hashtable" />
+          <d n="Values" t="Hashtable" />
+        </o>
+        <v>{246001F4-279D-43AC-B241-948EB31120E1}</v>
+        <o>
+          <v n="Name">"{246001F4-279D-43AC-B241-948EB31120E1}"</v>
+          <d n="SubKeys" t="Hashtable" />
+          <d n="Values" t="Hashtable" ckt="String" cvt="Boolean">
+            <v>UnicodeStrings</v>
+            <v>True</v>
+          </d>
+        </o>
+        <v>{8F99A816-E488-41E4-9FA3-846536012284}</v>
+        <o>
+          <v n="Name">"{8F99A816-E488-41E4-9FA3-846536012284}"</v>
+          <d n="SubKeys" t="Hashtable" />
+          <d n="Values" t="Hashtable" />
+        </o>
+        <v>{40450F57-0AA3-4216-96F3-5444ECB29763}</v>
+        <o>
+          <v n="Name">"{40450F57-0AA3-4216-96F3-5444ECB29763}"</v>
+          <d n="SubKeys" t="Hashtable" />
+          <d n="Values" t="Hashtable" ckt="String" cvt="String">
+            <v>ActiveVisuProfile</v>
+            <v>IR0whWr8bwfwBwAAiD2qpQAAAABVAgAA37x72QAAAAABAAAAAAAAAAEaUwB5AHMAdABlAG0ALgBTAHQAcgBpAG4AZwACTHsAZgA5ADUAYgBiADQAMgA2AC0ANQA1ADIANAAtADQAYgA0ADUALQA5ADQAMAAwAC0AZgBiADAAZgAyAGUANwA3AGUANQAxAGIAfQADCE4AYQBtAGUABDBUAHcAaQBuAEMAQQBUACAAMwAuADEAIABCAHUAaQBsAGQAIAA0ADAAMgA0AC4ANwAFFlAAcgBvAGYAaQBsAGUARABhAHQAYQAGTHsAMQA2AGUANQA1AGIANgAwAC0ANwAwADQAMwAtADQAYQA2ADMALQBiADYANQBiAC0ANgAxADQANwAxADMAOAA3ADgAZAA0ADIAfQAHEkwAaQBiAHIAYQByAGkAZQBzAAhMewAzAGIAZgBkADUANAA1ADkALQBiADAANwBmAC0ANABkADYAZQAtAGEAZQAxAGEALQBhADgAMwAzADUANgBhADUANQAxADQAMgB9AAlMewA5AGMAOQA1ADgAOQA2ADgALQAyAGMAOAA1AC0ANAAxAGIAYgAtADgAOAA3ADEALQA4ADkANQBmAGYAMQBmAGUAZABlADEAYQB9AAoOVgBlAHIAcwBpAG8AbgALBmkAbgB0AAwKVQBzAGEAZwBlAA0KVABpAHQAbABlAA4aVgBpAHMAdQBFAGwAZQBtAE0AZQB0AGUAcgAPDkMAbwBtAHAAYQBuAHkAEAxTAHkAcwB0AGUAbQARElYAaQBzAHUARQBsAGUAbQBzABIwVgBpAHMAdQBFAGwAZQBtAHMAUwBwAGUAYwBpAGEAbABDAG8AbgB0AHIAbwBsAHMAEyhWAGkAcwB1AEUAbABlAG0AcwBXAGkAbgBDAG8AbgB0AHIAbwBsAHMAFCRWAGkAcwB1AEUAbABlAG0AVABlAHgAdABFAGQAaQB0AG8AcgAVIlYAaQBzAHUATgBhAHQAaQB2AGUAQwBvAG4AdAByAG8AbAAWFHYAaQBzAHUAaQBuAHAAdQB0AHMAFwxzAHkAcwB0AGUAbQAYGFYAaQBzAHUARQBsAGUAbQBCAGEAcwBlABkmRABlAHYAUABsAGEAYwBlAGgAbwBsAGQAZQByAHMAVQBzAGUAZAAaCGIAbwBvAGwAGyJQAGwAdQBnAGkAbgBDAG8AbgBzAHQAcgBhAGkAbgB0AHMAHEx7ADQAMwBkADUAMgBiAGMAZQAtADkANAAyAGMALQA0ADQAZAA3AC0AOQBlADkANAAtADEAYgBmAGQAZgAzADEAMABlADYAMwBjAH0AHRxBAHQATABlAGEAcwB0AFYAZQByAHMAaQBvAG4AHhRQAGwAdQBnAGkAbgBHAHUAaQBkAB8WUwB5AHMAdABlAG0ALgBHAHUAaQBkACBIYQBmAGMAZAA1ADQANAA2AC0ANAA5ADEANAAtADQAZgBlADcALQBiAGIANwA4AC0AOQBiAGYAZgBlAGIANwAwAGYAZAAxADcAIRRVAHAAZABhAHQAZQBJAG4AZgBvACJMewBiADAAMwAzADYANgBhADgALQBiADUAYwAwAC0ANABiADkAYQAtAGEAMAAwAGUALQBlAGIAOAA2ADAAMQAxADEAMAA0AGMAMwB9ACMOVQBwAGQAYQB0AGUAcwAkTHsAMQA4ADYAOABmAGYAYwA5AC0AZQA0AGYAYwAtADQANQAzADIALQBhAGMAMAA2AC0AMQBlADMAOQBiAGIANQA1ADcAYgA2ADkAfQAlTHsAYQA1AGIAZAA0ADgAYwAzAC0AMABkADEANwAtADQAMQBiADUALQBiADEANgA0AC0ANQBmAGMANgBhAGQAMgBiADkANgBiADcAfQAmFk8AYgBqAGUAYwB0AHMAVAB5AHAAZQAnVFUAcABkAGEAdABlAEwAYQBuAGcAdQBhAGcAZQBNAG8AZABlAGwARgBvAHIAQwBvAG4AdgBlAHIAdABpAGIAbABlAEwAaQBiAHIAYQByAGkAZQBzACgQTABpAGIAVABpAHQAbABlACkUTABpAGIAQwBvAG0AcABhAG4AeQAqHlUAcABkAGEAdABlAFAAcgBvAHYAaQBkAGUAcgBzACs4UwB5AHMAdABlAG0ALgBDAG8AbABsAGUAYwB0AGkAbwBuAHMALgBIAGEAcwBoAHQAYQBiAGwAZQAsEnYAaQBzAHUAZQBsAGUAbQBzAC1INgBjAGIAMQBjAGQAZQAxAC0AZAA1AGQAYwAtADQAYQAzAGIALQA5ADAANQA0AC0AMgAxAGYAYQA3ADUANgBhADMAZgBhADQALihJAG4AdABlAHIAZgBhAGMAZQBWAGUAcgBzAGkAbwBuAEkAbgBmAG8AL0x7AGMANgAxADEAZQA0ADAAMAAtADcAZgBiADkALQA0AGMAMwA1AC0AYgA5AGEAYwAtADQAZQAzADEANABiADUAOQA5ADYANAAzAH0AMBhNAGEAagBvAHIAVgBlAHIAcwBpAG8AbgAxGE0AaQBuAG8AcgBWAGUAcgBzAGkAbwBuADIMTABlAGcAYQBjAHkAMzBMAGEAbgBnAHUAYQBnAGUATQBvAGQAZQBsAFYAZQByAHMAaQBvAG4ASQBuAGYAbwA0MEwAbwBhAGQATABpAGIAcgBhAHIAaQBlAHMASQBuAHQAbwBQAHIAbwBqAGUAYwB0ADUaQwBvAG0AcABhAHQAaQBiAGkAbABpAHQAeQDQAAIaA9ADAS0E0AUGGgfQBwgaAUUHCQjQAAkaBEUKCwQDAAAABQAAAA0AAAAAAAAA0AwLrQIAAADQDQEtDtAPAS0Q0AAJGgRFCgsEAwAAAAUAAAANAAAAKAAAANAMC60BAAAA0A0BLRHQDwEtENAACRoERQoLBAMAAAAFAAAADQAAAAAAAADQDAutAgAAANANAS0S0A8BLRDQAAkaBEUKCwQDAAAABQAAAA0AAAAUAAAA0AwLrQIAAADQDQEtE9APAS0Q0AAJGgRFCgsEAwAAAAUAAAANAAAAAAAAANAMC60CAAAA0A0BLRTQDwEtENAACRoERQoLBAMAAAAFAAAADQAAAAAAAADQDAutAgAAANANAS0V0A8BLRDQAAkaBEUKCwQDAAAABQAAAA0AAAAAAAAA0AwLrQIAAADQDQEtFtAPAS0X0AAJGgRFCgsEAwAAAAUAAAANAAAAKAAAANAMC60EAAAA0A0BLRjQDwEtENAZGq0BRRscAdAAHBoCRR0LBAMAAAAFAAAADQAAAAAAAADQHh8tINAhIhoCRSMkAtAAJRoFRQoLBAMAAAADAAAAAAAAAAoAAADQJgutAAAAANADAS0n0CgBLRHQKQEtENAAJRoFRQoLBAMAAAADAAAAAAAAAAoAAADQJgutAQAAANADAS0n0CgBLRHQKQEtEJoqKwFFAAEC0AABLSzQAAEtF9AAHy0t0C4vGgPQMAutAQAAANAxC60XAAAA0DIarQDQMy8aA9AwC60CAAAA0DELrQMAAADQMhqtANA0Gq0A0DUarQA=</v>
+          </d>
+        </o>
+      </d>
+      <d n="Values" t="Hashtable" />
+    </o>
+        </Data>
+        <TypeList>
+          <Type n="Boolean">System.Boolean</Type>
+          <Type n="Hashtable">System.Collections.Hashtable</Type>
+          <Type n="OptionKey">{54dd0eac-a6d8-46f2-8c27-2f43c7e49861}</Type>
+          <Type n="String">System.String</Type>
+        </TypeList>
+      </XmlArchive>
+    </PlcProjectOptions>
+  </ProjectExtensions>
+</Project>

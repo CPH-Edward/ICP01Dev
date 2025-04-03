@@ -1,0 +1,4924 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="MotionModule" Id="{8ff5e426-9e5e-4337-838a-5a6ac500ce22}" SpecialFunc="None">
+    <Declaration><![CDATA[(*
+--报错编号0: 无报错
+--报错编号1: E_Stop!!!
+--报错编号2: Soft Limit Error
+--报错编号3: PLimit Switch Error
+--报错编号4: NLimit Switch Error
+--报错编号5: Origin sensor cannot be searched
+--报错编号6: Go Home Failed
+--报错编号7: Absolute Move Error
+--报错编号8: JOG Move Error
+--报错编号9: Modulo Move Error
+--报错编号10: Relative Move Error
+--报错编号11: Set Position Error
+--报错编号12: Axis Stop Error
+--报错编号13: Velocity Move Error
+--报错编号14: mcPower Error
+--报错编号15: mcReset Error
+--报错编号16: axis_Status_Error
+*)
+FUNCTION_BLOCK MotionModule
+VAR_IN_OUT
+	axis							:AXIS_REF;//链接到实际的轴
+END_VAR
+VAR_INPUT
+	HMIItf							:motionModuleDataHMI;//for manual and IO control//用于生成一个轴对象手动界面
+	PLimitSwitch					:BOOL:=TRUE;//MC轴正限位感应信号
+	NLimitSwitch					:BOOL:=TRUE;//MC轴负限位感应信号
+	DOGPointSwitch					:BOOL:=FALSE;//MC轴原点感应信号
+	bP_Pos							:LREAL:=0.777;	 //正向位置(开门）
+	bN_Pos							:LREAL:=0.777;	 //负向位置(关门）
+
+	motorType						:MotorType:=MotorType_Default;//设置电机的类型
+	moduloMode						:BOOL:=FALSE;// modulo Mode, 旋转模式
+	errorID							:UDINT:=0;//电机错误报警分配的起始ID
+	nameTXT							:STRING(255):='';//电机名字
+
+	axisEnable						:BOOL:=TRUE;//轴触摸屏是否启用
+	bE_Stop							:BOOL:=TRUE;//急停信号
+	axisOverride					:LREAL:=100.0;//轴运动的速度比
+	//ctrlMode						:ControlMode:=ControlMode.eManualCtrMode;//eManualCtrMode or eAutoCtrMode
+	hmiEN							:BOOL:=TRUE;//HMI 启用条件
+	torqueEN						:BOOL:=FALSE;// 启用条件
+	torqueAlmValue					:LREAL;// 报警扭力值
+//POWER
+	powerEnable						:BOOL:=TRUE;//轴使能触发
+	powerEnable_Positive			:BOOL:=TRUE;//轴允许正转
+	powerEnable_Negative			:BOOL:=TRUE;//轴允许反转
+//Soft limit
+	enableSoftLimit					:BOOL:=FALSE;//轴软限位 启用信号
+	softPLimitPos					:LREAL:=9999999;//轴软限位 正向软限位
+	softNLimitPos					:LREAL:=-9999999;//轴软限位 负向软限位
+//STOP
+	axisStopFlag					:BOOL:=FALSE;//轴是否停止
+//RESET
+	resetExecute					:BOOL:=TRUE;
+	resetExecute2					:BOOL:=TRUE;//轴Reset的触发信号
+//PAUSE
+	pauseExecute					:BOOL:=FALSE;//轴Pause的触发信号
+//JOG
+	jogExecute						:BOOL:=FALSE;//轴JOG的触发信号
+	jogConditionOuter				:BOOL:=TRUE;//轴JOG运动启停条件Outer
+	jogDirection					:BOOL:=TRUE;//轴JOG运动方向信号, TRUE--正向，FALSE--反向
+	jogVelocity						:LREAL:=10;//轴JOG运动运行速率值
+	jogAcceleration					:LREAL:=0;//轴JOG运动加速度值
+	jogDeceleration					:LREAL:=0;//轴JOG运动减速度值
+	jogJerk							:LREAL:=0;//轴JOG运动 加加速度
+//STOP
+	stopExecute						:BOOL:=FALSE;//轴STOP的触发信号
+	//20211029新增---by CPH 目的是仅有原点信号进行回零时，Stopexcute或者ACT——Stop动作无法似的该轴停止
+	stoptemp						:BOOL:=FALSE;//轴STOP中转变量，主要传递给HMI界面的Stop指令
+	stopDeceleration				:LREAL:=0;//轴STOP运动减速度值
+	stopJerk						:LREAL:=0;//轴STOP运动 加加速度
+//MoveAbsolute
+	absExecute						:BOOL:=FALSE;//轴绝对运动的启停信号
+	absMixedMovement				:BOOL:=FALSE;//轴绝对运动的混合变速运动 启用
+	absConditionOuter				:BOOL:=TRUE;//轴绝对运动启停条件Outer
+	absPosition						:LREAL:=0;//轴绝对运动 目标位置
+	absVelocity						:LREAL:=0; //轴绝对运动 运行速率值
+	absMixedPositionArray			:ARRAY [1..50] OF LREAL;//轴绝对运动 混合目标位置 变速触发位置数组 最大50个 数组最后一个位置为终点目标位置
+	absMixedVelocityArray			:ARRAY [1..50] OF LREAL;//轴绝对运动 混合目标位置 变速触发位置数组 最大50个
+	absMixedArrayLength				:UDINT:=0;//轴绝对运动 混合变速触发位置数组 长度 最大50个
+	absAcceleration					:LREAL:=0;//轴绝对运动 加速度值
+	absDeceleration					:LREAL:=0;//轴绝对运动 减速度值
+	absJerk							:LREAL:=0;//轴绝对运动 加加速度
+//Relative
+	relExecute						:BOOL:=FALSE;//轴相对运动的启停信号
+	relConditionOuter				:BOOL:=TRUE;//轴相对运动启停条件Outer
+	relDistance						:LREAL:=0; //轴相对运动目标位置
+	relVelocity						:LREAL:=0; //轴相对运动运行速率值
+	relAcceleration					:LREAL:=0;//轴相对运动加速度值
+	relDeceleration					:LREAL:=0;//轴相对运动减速度值
+	relJerk							:LREAL:=0;//轴相对运动 加加速度
+//Velocity
+	velExecute						:BOOL:=FALSE;//轴速度模式运动的启停信号
+	velConditionOuter				:BOOL:=TRUE;//轴速度模式启停条件Outer
+	velDirection					:BOOL:=TRUE;//方向信号，TRUE--MC_Positive_Direction, FALSE--MC_Negative_Direction
+	velVelocity						:LREAL:=10; //轴速度模式运行速率值
+	velAcceleration					:LREAL:=0;//轴速度模式加速度值
+	velDeceleration					:LREAL:=0;//轴速度模式减速度值
+	velJerk							:LREAL:=0;//轴速度模式 加加速度
+//Home
+	homeExecute						:BOOL:=FALSE;//轴go home的启停信号
+	homeConditionOuter				:BOOL:=TRUE;//轴go home的启停条件Outer
+	homeDirection					:BOOL:=TRUE;//轴go home方向 TRUE--正方向，FALSE--负方向
+	homeMode						:MotorHomeMode:=MotorHomeMode.MotorHomeMode_Default;//轴go home 模式
+	homeLimitSwitch_To_DOGDistance	:LREAL:=5;//电机Home模式为 MotorHomeMode_PLimitSwitch_To_DOG/MotorHomeMode_NLimitSwitch_To_DOG 时, 脱离限位为原点的距离值
+	homeOnlyDOGDistance				:LREAL:=5;//电机Home模式为 MotorHomeMode_OnlyDOGPointSwitch 时, 执行往复搜寻动作的幅度
+	homeOnlyDOGMaxDistance			:LREAL:=360;//电机Home模式为 MotorHomeMode_OnlyDOGPointSwitch 时, 执行往复搜寻动作幅度的最大值
+	homePosition					:LREAL:=0;
+	homeCheckRange					:LREAL:=0.01;//轴go home执行完后当前位置判断值
+	homeVel							:LREAL:=10;//轴go home 查找限位的速率
+	homeVelSlow						:LREAL:=5;//轴go home 查找限位的爬行速率
+//SetPositon
+	setPosExecute					:BOOL:=FALSE;//轴当前位置设定启停信号
+	setConditionOuter				:BOOL:=TRUE;//轴当前位置设定启停条件Outer
+	setPosPosition					:LREAL:=0; //轴当前位置设定值
+	setPosOptions					:ST_SetPositionOptions;//:=ST_SetPositionOptions.ClearPositionLag;
+//MC_MoveModulo
+	moveModuloExecute				:BOOL:=FALSE;//轴模运动的启停信号
+	moveModuloConditionOuter		:BOOL:=TRUE;//轴模运动启停条件Outer
+	moveModuloPosition				:LREAL:=0;//轴模运动目标位置
+	moveModuloVelocity				:LREAL:=100; //轴模运动运行速率值
+	moveModuloAcceleration			:LREAL:=0;//轴模运动加速度值
+	moveModuloDeceleration			:LREAL:=0;//轴模运动减速度值
+	moveModuloJerk					:LREAL:=0;//轴模运动 加加速度
+	moveModuloDirection				:MC_Direction:=MC_Direction.MC_Shortest_Way;//MC_Shortest_Way; MC_Positive_Direction; MC_Negative_Direction
+	noteWTXT_jog					:WSTRING(255):="";// 轴点动动作NoteTXT 中文
+	noteWTXT_abs					:WSTRING(255):="";// 轴绝对定位动作NoteTXT 中文
+	noteWTXT_rel					:WSTRING(255):="";// 轴相对定位动作NoteTXT 中文
+	noteWTXT_vel					:WSTRING(255):="";// 轴速度运动动作NoteTXT 中文
+END_VAR
+VAR_OUTPUT
+	axisActualPos					:LREAL:=0;//轴的实际位置
+	axisActualVel					:LREAL:=0;//轴的实际速率
+	axisActualtorque				:LREAL:=0;//轴的实际扭力
+	axisPause						:BOOL;//轴的Pause状态
+	axisBusy						:BOOL;//轴的Busy状态
+	axisDone						:BOOL;//轴的Done状态
+	axisError						:BOOL;//轴的Error状态
+	axisErrId						:UDINT;//轴的Error Id值
+	axisErrTxt						:STRING(255);//轴的报错文本信息
+	axisErrWTxt						:WSTRING(255);//轴的报错文本信息 中文
+	axisHomeState					:BOOL:=FALSE;//轴的原点状态
+	pAxis	  						:POINTER TO AXIS_REF;
+	
+	note_jog						:BOOL:=FALSE;// 点动条件不满足
+	jogCondition					:BOOL;//轴JOG运动启动条件
+	note_abs						:BOOL:=FALSE;// 绝对定位条件不满足
+	absCondition					:BOOL;//轴绝对运动启动条件
+	note_rel						:BOOL:=FALSE;// 相对定位条件不满足
+	relCondition					:BOOL;//轴相对运动启动条件
+	note_vel						:BOOL:=FALSE;// 速度条件不满足
+	velCondition					:BOOL;//轴速度模式启动条件
+	note_home						:BOOL:=FALSE;// 回原条件不满足
+	homeCondition					:BOOL;//轴go home的启动条件
+	setCondition					:BOOL;//轴当前位置设定启动条件
+	moveModuloCondition				:BOOL;//轴模运动启动条件
+END_VAR
+VAR
+	//axis							:AXIS_REF;//链接到实际的轴
+
+	op_mode 				AT%Q*	:SINT:=8;//RxPDO1的Modes of operation---只用于横川DD马达(高创驱动器)
+	mode_display 			AT%I*	:SINT;//TxPDO1的Modes of operation display---只用于横川DD马达(高创驱动器)
+	maxProfileVelocity  	AT%Q*	:UDINT:=838860800 ; //链接到伺服的Maxprofilevelocity
+	statusWord 				AT%I*	:UINT; //链接到伺服的Statusword
+	
+	torqueAlmErr					:BOOL;// 报警扭力
+	torqueErr_Rtrig					:R_TRIG;
+	bInit							:BOOL:=FALSE;
+	mcBusy							:BOOL;
+	mcError							:BOOL;
+	mcPower							:MC_Power;
+	mcReset							:MC_Reset;
+	mcStop							:MC_Stop;
+//	mcHalt							:MC_Halt;
+	mcJog							:MC_Jog;
+	mcABSMove						:MC_MoveAbsolute;
+	mcABSMove2						:MC_MoveAbsolute;
+	mcABSMove3						:MC_MoveAbsolute;
+	mcABSMove4						:MC_MoveAbsolute;
+	absBufferMode					:MC_BufferMode:=MC_BufferMode.MC_Aborting;
+	mcRel							:MC_MoveRelative;
+	mcVel							:MC_MoveVelocity;
+	mcHome							:MC_Home;
+	mcSetPos						:MC_SetPosition;
+	mcMoveModulo					:MC_MoveModulo;
+//STOP
+	stopBusy						:BOOL;
+	stopDone						:BOOL;
+	stopErrorDone					:BOOL;
+	stopTrigR1						:R_Trig;//上升沿触发
+	stopStep						:UINT:=0;
+	stopTimeout						:TON;
+//Jog
+	jogBusy							:BOOL;
+	jogDone							:BOOL;
+	jogErrorDone					:BOOL;
+	jogForward						:BOOL:=FALSE;//轴JOG运动正向启停信号
+	jogBackwards					:BOOL:=FALSE;//轴JOG运动反向启停信号
+	jogTrigR1						:R_Trig;//上升沿触发
+	jogTrigF1						:F_Trig;//上升沿触发
+	jogTrigR1_NAiko					:R_Trig;//上升沿触发
+	jogTrigF1_NAiko					:F_Trig;//上升沿触发
+	jogTrigR1_PAiko					:R_Trig;//上升沿触发
+	jogTrigF1_PAiko					:F_Trig;//上升沿触发
+	
+	jogStep							:UINT:=0;
+//Absolute
+	absBusy							:BOOL;
+	absDone							:BOOL;
+	absErrorDone					:BOOL;
+	absTrigR1						:R_Trig;//上升沿触发
+	absT1							:TON;//长按计时
+	absRP							:R_TRIG;// 短按执行去开门位置
+	absRN							:R_TRIG;// 短按执行去关门位置
+	absStep							:UINT:=0;
+	absMixedCount					:UDINT:=0;
+//Relative
+	relBusy							:BOOL;
+	relDone							:BOOL;
+	relErrorDone					:BOOL;
+	relTrigR1						:R_Trig;//上升沿触发
+	relT1							:TON;//长按计时
+	relStep							:UINT:=0;
+//Velocity 
+	velBusy							:BOOL;
+	velDone							:BOOL;
+	velErrorDone					:BOOL;
+	velTrigR1						:R_Trig;//上升沿触发
+	velStep							:UINT:=0;
+	velChangeVel					:BOOL:=FALSE;//轴速度模式运动 速度改变触发
+	
+	velTrigR1_NAiko					:R_Trig;//上升沿触发
+	velTrigF1_NAiko					:F_Trig;//上升沿触发
+	velTrigR1_PAiko					:R_Trig;//上升沿触发
+	velTrigF1_PAiko					:F_Trig;//上升沿触发
+//Home
+	goHomeTrigR1					:R_Trig;//上升沿触发
+	goHomeTrigF1					:F_Trig;//下降沿检测
+	goHomeDelayTon					:Ton;
+	goHomeDelayTime					:TIME:=T#100MS;
+	goHomeRelDistance				:LREAL:=0; //Home 轴相对运动目标位置
+	goHomeRelVelocity				:LREAL:=0; //Home 轴相对运动运行速率值
+
+	homeDone						:BOOL;
+	homeErrorDone					:BOOL;
+	homeBusy						:BOOL;
+	homeStep						:UINT:=0;
+//SetPositon
+	setPosBusy						:BOOL;
+	setPosDone						:BOOL;
+	setPosErrorDone					:BOOL;
+	setPosTrigR1					:R_Trig;//上升沿触发
+	setPosStep						:UINT:=0;
+//MC_MoveModulo
+	moveModuloBusy					:BOOL;
+	moveModuloDone					:BOOL;
+	moveModuloErrorDone				:BOOL;
+	moveModuloStep					:UINT:=0;
+//power
+	powerTrigF1						:F_Trig;//下降沿触发
+	powerEnable_Inner				:BOOL:=TRUE;//轴使能触发 内部的
+	powerReady						:BOOL;
+//reset
+	resetBusy						:BOOL;
+	resetDone						:BOOL;
+	resetErrorDone					:BOOL;
+	resetTrigR1						:R_Trig;//上升沿触发
+	resetTrigR2						:R_Trig;//上升沿触发
+	resetStep						:UINT:=0;
+//pause
+	pause_Manual_F_Trig				:F_Trig;//HMI暂停 上升沿触发
+	pauseR_Trig						:R_Trig;//暂停 上升沿触发
+	pauseF_Trig						:F_Trig;//暂停 下降沿触发
+//Loop
+	loopRelGoTrigR1					:R_Trig;//上升沿触发
+	loopAbsGoTrigR1					:R_Trig;//上升沿触发
+	loopRelGoT1						:TON;//长按计时
+	loopAbsGoT1						:TON;//长按计时
+	loopStepHome					:UINT:=0;
+	loopStep						:UINT:=0;
+	loopRelGo						:BOOL:=FALSE;//loop 相对运动启动
+	loopGoHome						:BOOL:=FALSE;//loop 相对运动启动 回原方式
+	loopAbsGo						:BOOL:=FALSE;//loop 绝对运动启动
+	loopFirstPoint					:LREAL:=0;//loop 第1个点
+	loopSecondPoint					:LREAL:=0;//loop 第2个点
+	loopGoVel						:LREAL:=10;//loop 运动速率
+	loopCycle						:UINT:=0;//loop 循环次数 一次往复才算一次
+	loopCycleMax					:UINT:=0;//loop 循环次数 一次往复才算一次
+	loopWatingTime					:UINT:=1000;//loop 停留时间（单位ms）
+	loopCycleTimes					:UINT:=0;//loop 循环次数 一次往复才算一次
+	loopCycleTimesHome				:UINT:=0;//loop 循环次数 一次往复才算一次
+	loopWatingTON					:TON;
+//Other
+	bPLimitSwitch					:BOOL:=TRUE;//MC轴正限位感应信号
+	bNLimitSwitch					:BOOL:=TRUE;//MC轴负限位感应信号
+	bSoftPLimit						:BOOL:=TRUE;//
+	bSoftNLimit						:BOOL:=TRUE;//
+	
+	overrideSet						:LREAL:=100.0;//轴运动的速度比 设置
+	overrideTemp					:LREAL:=100.0;//轴运动的速度比 缓存
+	stopTon							:TON;
+	manualStep						:UINT:=0;
+	busy							:BOOL:=FALSE;
+	busyR_Trig						:R_Trig;
+	doneR_Trig						:R_Trig;
+	motorError						:BOOL:=FALSE;
+	PTPErrID						:UDINT;
+	errorStep						:UINT:=0;
+	
+	//OnlyDOG Go home TON
+	t1Temp							:TON;
+	//Home Delay
+	tHomeTemp						:TON;
+	loopHomeToPosGoT1				:TON;//长按计时
+	loopHomeToPosTrigR1				:R_Trig;//上升沿触发
+	noteTON_P:tON;            // 操作提示标志位延时继电器
+	noteTON_N:tON;            // 操作提示标志位延时继电器
+	noteRTrig_P:R_TRIG;          // 操作提示
+	noteRTrig_N:R_TRIG;          // 操作提示
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(*
+Please refer to the VersionLog file for version records
+*)
+axis.ReadStatus();
+IF moduloMode THEN
+	axisActualPos:=axis.NcToPlc.ModuloActPos;//获取轴的实际位置, modulo Mode
+ELSE
+	axisActualPos:=axis.NcToPlc.ActPos;//获取轴的实际位置
+END_IF
+axisActualtorque:=axis.NcToPlc.ActTorque;
+IF torqueEN THEN// 扭力报警监控
+	IF ABS(axisActualtorque)>torqueAlmValue THEN
+		torqueAlmErr:=TRUE;
+	ELSE
+		torqueAlmErr:=FALSE;
+	END_IF
+ELSE
+	torqueAlmErr:=FALSE;
+END_IF
+torqueErr_Rtrig(CLK:=torqueAlmErr);
+IF torqueErr_Rtrig.Q THEN
+	errorStep:=17;
+END_IF
+axisActualVel:=axis.NcToPlc.ActVelo;//获取轴的实际速率
+pAxis:=ADR(axis);
+powerReady:=mcPower.Status;
+
+IF NOT bE_Stop THEN
+	axisStopFlag:=TRUE;
+	axisHomeState:=FALSE;
+	homeBusy:=FALSE;
+	errorStep:=1;
+END_IF
+bPLimitSwitch:=PLimitSwitch;
+bNLimitSwitch:=NLimitSwitch;
+bSoftPLimit:=(NOT enableSoftLimit OR ((enableSoftLimit AND axisActualPos<softPLimitPos) OR homeBusy));
+bSoftNLimit:=(NOT enableSoftLimit OR ((enableSoftLimit AND axisActualPos>softNLimitPos) OR homeBusy));
+
+busy:=stopBusy OR jogBusy OR absBusy OR relBusy OR velBusy (*OR homeBusy*) OR 0<>loopStep;
+mcBusy:=mcStop.Busy OR mcJog.Busy OR mcABSMove.Busy OR mcABSMove2.Busy 
+			OR mcABSMove3.Busy OR mcABSMove4.Busy OR mcRel.Busy 
+			OR mcVel.Busy OR mcHome.Busy OR mcSetPos.Busy OR mcMoveModulo.Busy;
+axisBusy:=(mcBusy OR busy OR homeBusy OR (0<>axis.NcToPlc.AxisState));
+busyR_Trig(CLK:=axisBusy);
+IF busyR_Trig.Q THEN
+	jogDone:=FALSE;
+	absDone:=FALSE;
+	relDone:=FALSE;
+	velDone:=FALSE;
+	homeDone:=FALSE;
+	setPosDone:=FALSE;
+	stopDone:=FALSE;
+	moveModuloDone:=FALSE;
+	
+	axisDone:=FALSE;
+END_IF
+
+doneR_Trig(CLK:=(jogDone OR absDone OR relDone OR velDone OR homeDone OR setPosDone (*OR stopDone*) OR moveModuloDone) AND NOT axisBusy);
+IF doneR_Trig.Q THEN
+	axisDone:=TRUE;
+	
+	jogDone:=FALSE;
+	absDone:=FALSE;
+	relDone:=FALSE;
+	velDone:=FALSE;
+	homeDone:=FALSE;
+	setPosDone:=FALSE;
+	stopDone:=FALSE;
+	moveModuloDone:=FALSE;
+END_IF
+
+IF axis.Status.Error OR 0<>axis.NcToPlc.ErrorCode THEN
+	errorStep:=16;
+END_IF
+Error_ACT();
+mcError:=mcPower.Error OR mcReset.Error OR mcStop.Error OR mcJog.Error OR mcABSMove.Error 
+			OR mcABSMove2.Error OR mcABSMove3.Error OR mcABSMove4.Error 
+			 OR mcRel.Error OR mcVel.Error OR mcHome.Error OR mcSetPos.Error
+			 OR mcMoveModulo.Error;
+axisError:=(mcError OR axis.Status.Error OR 0<>axis.NcToPlc.ErrorCode OR NOT bE_Stop OR motorError OR torqueAlmErr);
+Error_ACT();
+
+IF NOT axisError THEN
+	errorStep:=0;
+END_IF
+
+Power_ACT();
+Reset_ACT();
+ResetEx_ACT();
+SetPause_ACT();
+InitHMI_ACT();
+ManualCtr_ACT();
+
+Stop_ACT();
+JogMove_ACT();
+VelMove_ACT();
+GoHome_ACT();
+RelMove_ACT();
+AbsMove_ACT();
+MoveModulo_ACT();
+SetPosition_ACT();
+LoopMove_ACT();
+LoopHomeToPos_ACT();
+IF NOT bInit THEN
+	bInit:=TRUE;
+END_IF
+
+busy:=stopBusy OR jogBusy OR absBusy OR relBusy OR velBusy (*OR homeBusy*) OR 0<>loopStep;
+mcBusy:=mcStop.Busy OR mcJog.Busy OR mcABSMove.Busy OR mcABSMove2.Busy 
+			OR mcABSMove3.Busy OR mcABSMove4.Busy OR mcRel.Busy 
+			OR mcVel.Busy OR mcHome.Busy OR mcSetPos.Busy OR mcMoveModulo.Busy;
+axisBusy:=(mcBusy OR busy OR homeBusy OR (0<>axis.NcToPlc.AxisState));
+busyR_Trig(CLK:=axisBusy);
+IF busyR_Trig.Q THEN
+	jogDone:=FALSE;
+	absDone:=FALSE;
+	relDone:=FALSE;
+	velDone:=FALSE;
+	homeDone:=FALSE;
+	setPosDone:=FALSE;
+	stopDone:=FALSE;
+	moveModuloDone:=FALSE;
+	
+	axisDone:=FALSE;
+END_IF
+
+doneR_Trig(CLK:=(jogDone OR absDone OR relDone OR velDone OR homeDone OR setPosDone (*OR stopDone*) OR moveModuloDone) AND NOT axisBusy);
+IF doneR_Trig.Q THEN
+	axisDone:=TRUE;
+	
+	jogDone:=FALSE;
+	absDone:=FALSE;
+	relDone:=FALSE;
+	velDone:=FALSE;
+	homeDone:=FALSE;
+	setPosDone:=FALSE;
+	stopDone:=FALSE;
+	moveModuloDone:=FALSE;
+END_IF]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{a906db48-4e60-443d-8f76-455b9d2c199a}">
+      <Folder Name="Error" Id="{95baf00a-2c4a-4743-8562-a040a19ff482}" />
+      <Folder Name="Init" Id="{a58bc72b-800e-48b7-a07a-9289d8e36677}" />
+      <Folder Name="Motion" Id="{63318a4f-0680-498b-bcec-9d061e7313f1}" />
+    </Folder>
+    <Folder Name="Public" Id="{a69b37a8-35c6-4998-bb53-b21ba7c7cde8}" />
+    <Action Name="AbsMove_ACT" Id="{1444844f-3a10-4d5d-b76f-ecd4208d0d3d}" FolderPath="Private\Motion\">
+      <Implementation>
+        <ST><![CDATA[//轴绝对运动运行控制--absExecute触发条件是复归型
+IF NOT bE_Stop THEN
+	absStep:=0;
+	absExecute:=FALSE;
+END_IF
+absCondition:=(axisHomeState AND NOT axisError 
+				AND NOT axisStopFlag AND (NOT axisBusy OR 0<>loopStep) 
+				AND powerReady AND absConditionOuter 
+				AND bE_Stop AND NOT axisPause);
+
+mcABSMove(
+	Axis:=axis , 
+	Execute:= , 
+	Position:= , 
+	Velocity:= , 
+	Acceleration:= , 
+	Deceleration:= , 
+	Jerk:= , 
+	BufferMode:= , 
+	Options:= , 
+	Done=> , 
+	Busy=> , 
+	Active=> , 
+	CommandAborted=> , 
+	Error=> , 
+	ErrorID=> );
+mcABSMove2(
+	Axis:=axis , 
+	Execute:= , 
+	Position:= , 
+	Velocity:= , 
+	Acceleration:= , 
+	Deceleration:= , 
+	Jerk:= , 
+	BufferMode:= , 
+	Options:= , 
+	Done=> , 
+	Busy=> , 
+	Active=> , 
+	CommandAborted=> , 
+	Error=> , 
+	ErrorID=> );
+mcABSMove3(
+	Axis:=axis , 
+	Execute:= , 
+	Position:= , 
+	Velocity:= , 
+	Acceleration:= , 
+	Deceleration:= , 
+	Jerk:= , 
+	BufferMode:= absBufferMode, 
+	Options:= , 
+	Done=> , 
+	Busy=> , 
+	Active=> , 
+	CommandAborted=> , 
+	Error=> , 
+	ErrorID=> );
+mcABSMove4(
+	Axis:=axis , 
+	Execute:= , 
+	Position:= , 
+	Velocity:= , 
+	Acceleration:= , 
+	Deceleration:= , 
+	Jerk:= , 
+	BufferMode:= absBufferMode, 
+	Options:= , 
+	Done=> , 
+	Busy=> , 
+	Active=> , 
+	CommandAborted=> , 
+	Error=> , 
+	ErrorID=> );
+
+CASE absStep OF
+0:
+	absBusy:=FALSE;
+	IF absExecute AND (NOT absCondition OR NOT powerEnable_Negative OR NOT powerEnable_Positive OR absVelocity>0.2) THEN
+		note_abs:=TRUE;
+		note_jog:=FALSE;
+		note_vel:=FALSE;
+		note_home:=FALSE;
+		note_rel:=FALSE;
+	END_IF
+	IF absExecute AND absCondition THEN
+		absBusy:=TRUE;
+		absDone:=FALSE;
+		absErrorDone:=FALSE;
+		note_abs:=FALSE;
+		note_jog:=FALSE;
+		note_vel:=FALSE;
+		note_home:=FALSE;
+		note_rel:=FALSE;
+		IF NOT absMixedMovement THEN
+			absStep:=20;//点到点运动
+		ELSE
+			absPosition:=absMixedPositionArray[absMixedArrayLength];
+			absStep:=100;//多段变速运动
+		END_IF
+	END_IF
+	absExecute:=FALSE;
+	absMixedMovement:=FALSE;
+	absMixedCount:=1;
+	mcABSMove(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	mcABSMove2(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	mcABSMove3(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	mcABSMove4(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+20:
+//	正确逻辑
+	IF NOT bPLimitSwitch OR NOT bNLimitSwitch OR NOT bSoftPLimit OR NOT bSoftNLimit OR NOT powerEnable_Positive OR NOT powerEnable_Negative THEN
+		axisStopFlag:=TRUE;
+
+		IF NOT bPLimitSwitch THEN
+			errorStep:=3;
+		ELSIF NOT bNLimitSwitch THEN
+			errorStep:=4;
+		END_IF
+		IF NOT bSoftPLimit OR NOT bSoftNLimit THEN
+			errorStep:=2;
+		END_IF
+		IF NOT powerEnable_Positive OR NOT powerEnable_Negative THEN
+			errorStep:=19;
+		END_IF
+		absStep:=10000;//error
+		RETURN;
+	END_IF
+//	测试逻辑
+//	IF NOT bSoftPLimit OR NOT bSoftNLimit THEN
+//		axisStopFlag:=TRUE;
+
+//		IF NOT bSoftPLimit OR NOT bSoftNLimit THEN
+//			errorStep:=2;
+//		END_IF
+//		absStep:=10000;//error
+//		RETURN;
+//	END_IF
+//	IF NOT bPLimitSwitch OR NOT bNLimitSwitch THEN
+//		IF NOT bPLimitSwitch AND ABS(axisActualPos-absPosition)>6 THEN
+//			axisStopFlag:=TRUE;
+//			errorStep:=3;
+//			absStep:=10000;//error
+//			RETURN;
+//		ELSIF NOT bNLimitSwitch AND ABS(axisActualPos-absPosition)>6 THEN
+//			axisStopFlag:=TRUE;
+//			errorStep:=4;
+//			absStep:=10000;//error
+//			RETURN;
+//		END_IF
+//	END_IF
+	mcABSMove(
+		Axis:=axis , 
+		Execute:=TRUE , 
+		Position:=absPosition , 
+		Velocity:=absVelocity , 
+		Acceleration:=absAcceleration , 
+		Deceleration:=absDeceleration , 
+		Jerk:=absJerk , 
+		BufferMode:= , 
+		Options:= , 
+		Done=> , 
+		Busy=> , 
+		Active=> , 
+		CommandAborted=> , 
+		Error=> , 
+		ErrorID=> );
+// 正常
+	IF mcABSMove.Done THEN//mcABSMove.Done信号只保持一个扫描周期
+		absStep:=5000;//done
+	ELSIF mcABSMove.Error OR mcABSMove.ErrorID<>0 THEN
+		errorStep:=7;
+		absStep:=10000;//error
+	END_IF
+// 测试逻辑
+//	IF mcABSMove.Done THEN//mcABSMove.Done信号只保持一个扫描周期
+//		IF NOT bSoftPLimit OR NOT bSoftNLimit THEN
+//			absStep:=5000;//done
+//		ELSE
+//			errorStep:=7;
+//			absStep:=10000;//error
+//		END_IF
+//	ELSIF mcABSMove.Error OR mcABSMove.ErrorID<>0 THEN
+//		errorStep:=7;
+//		absStep:=10000;//error
+//	END_IF
+
+	IF axisStopFlag OR NOT powerReady OR 0<>stopStep THEN
+		absStep:=4000;//stop
+	END_IF
+
+//变速运动
+100:
+	IF NOT bPLimitSwitch OR NOT bNLimitSwitch OR NOT bSoftPLimit OR NOT bSoftNLimit OR NOT powerEnable_Positive OR NOT powerEnable_Negative THEN
+		axisStopFlag:=TRUE;
+
+		IF NOT bPLimitSwitch THEN
+			errorStep:=3;
+		ELSIF NOT bNLimitSwitch THEN
+			errorStep:=4;
+		END_IF
+		IF NOT bSoftPLimit OR NOT bSoftNLimit THEN
+			errorStep:=2;
+		END_IF
+		IF NOT powerEnable_Positive OR NOT powerEnable_Negative THEN
+			errorStep:=19;
+		END_IF
+		absStep:=10000;//error
+		RETURN;
+	END_IF
+	mcABSMove2(
+		Axis:=axis , 
+		Execute:=TRUE , 
+		Position:=absMixedPositionArray[absMixedCount] , 
+		Velocity:=absMixedVelocityArray[absMixedCount] , 
+		Acceleration:=absAcceleration , 
+		Deceleration:=absDeceleration , 
+		Jerk:=absJerk , 
+		BufferMode:= , 
+		Options:= , 
+		Done=> , 
+		Busy=> , 
+		Active=> , 
+		CommandAborted=> , 
+		Error=> , 
+		ErrorID=> );
+	
+	IF mcABSMove2.Busy AND (absMixedCount<absMixedArrayLength) THEN
+		mcABSMove3(
+			Axis:=axis , 
+			Execute:=FALSE ,);
+		IF absMixedVelocityArray[absMixedCount]>absMixedVelocityArray[absMixedCount+1] THEN
+			absBufferMode:=MC_BufferMode.MC_BlendingNext;
+		ELSE
+			absBufferMode:=MC_BufferMode.MC_BlendingPrevious;
+		END_IF
+		absMixedCount:=absMixedCount+1;
+		absStep:=110;
+	END_IF
+	IF mcABSMove2.Done THEN//mcABSMove.Done信号只保持一个扫描周期
+		absStep:=5000;//done
+	ELSIF mcABSMove2.Error OR mcABSMove2.ErrorID<>0 THEN
+		errorStep:=7;
+		absStep:=10000;//error
+	END_IF
+
+	IF axisStopFlag OR NOT powerReady OR 0<>stopStep THEN
+		absStep:=4000;//stop
+	END_IF
+110:
+	IF NOT bPLimitSwitch OR NOT bNLimitSwitch OR NOT bSoftPLimit OR NOT bSoftNLimit OR NOT powerEnable_Positive OR NOT powerEnable_Negative THEN
+		axisStopFlag:=TRUE;
+
+		IF NOT bPLimitSwitch THEN
+			errorStep:=3;
+		ELSIF NOT bNLimitSwitch THEN
+			errorStep:=4;
+		END_IF
+		IF NOT bSoftPLimit OR NOT bSoftNLimit THEN
+			errorStep:=2;
+		END_IF
+		IF NOT powerEnable_Positive OR NOT powerEnable_Negative THEN
+			errorStep:=19;
+		END_IF
+		absStep:=10000;//error
+		RETURN;
+	END_IF
+	mcABSMove3(
+		Axis:=axis , 
+		Execute:=TRUE , 
+		Position:=absMixedPositionArray[absMixedCount] , 
+		Velocity:=absMixedVelocityArray[absMixedCount] , 
+		Acceleration:=absAcceleration , 
+		Deceleration:=absDeceleration , 
+		Jerk:=absJerk , 
+		BufferMode:= , 
+		Options:= , 
+		Done=> , 
+		Busy=> , 
+		Active=> , 
+		CommandAborted=> , 
+		Error=> , 
+		ErrorID=> );
+	
+	IF mcABSMove3.Busy AND NOT mcABSMove2.Busy AND NOT mcABSMove4.Busy AND (absMixedCount<absMixedArrayLength) THEN
+		mcABSMove4(
+			Axis:=axis , 
+			Execute:=FALSE ,);
+		IF absMixedVelocityArray[absMixedCount]>absMixedVelocityArray[absMixedCount+1] THEN
+			absBufferMode:=MC_BufferMode.MC_BlendingNext;
+		ELSE
+			absBufferMode:=MC_BufferMode.MC_BlendingPrevious;
+		END_IF
+		absMixedCount:=absMixedCount+1;
+		absStep:=120;
+	END_IF
+	IF mcABSMove3.Done THEN//mcABSMove.Done信号只保持一个扫描周期
+		absStep:=5000;//done
+	ELSIF mcABSMove3.Error OR mcABSMove3.ErrorID<>0 THEN
+		errorStep:=7;
+		absStep:=10000;//error
+	END_IF
+
+	IF axisStopFlag OR NOT powerReady OR 0<>stopStep THEN
+		absStep:=4000;//stop
+	END_IF
+120:
+	IF NOT bPLimitSwitch OR NOT bNLimitSwitch OR NOT bSoftPLimit OR NOT bSoftNLimit OR NOT powerEnable_Positive OR NOT powerEnable_Negative THEN
+		axisStopFlag:=TRUE;
+
+		IF NOT bPLimitSwitch THEN
+			errorStep:=3;
+		ELSIF NOT bNLimitSwitch THEN
+			errorStep:=4;
+		END_IF
+		IF NOT bSoftPLimit OR NOT bSoftNLimit THEN
+			errorStep:=2;
+		END_IF
+		IF NOT powerEnable_Positive OR NOT powerEnable_Negative THEN
+			errorStep:=19;
+		END_IF
+		absStep:=10000;//error
+		RETURN;
+	END_IF
+	mcABSMove4(
+		Axis:=axis , 
+		Execute:=TRUE , 
+		Position:=absMixedPositionArray[absMixedCount] , 
+		Velocity:=absMixedVelocityArray[absMixedCount] , 
+		Acceleration:=absAcceleration , 
+		Deceleration:=absDeceleration , 
+		Jerk:=absJerk , 
+		BufferMode:= , 
+		Options:= , 
+		Done=> , 
+		Busy=> , 
+		Active=> , 
+		CommandAborted=> , 
+		Error=> , 
+		ErrorID=> );
+	
+	IF mcABSMove4.Busy AND NOT mcABSMove3.Busy AND (absMixedCount<absMixedArrayLength) THEN
+		mcABSMove3(
+			Axis:=axis , 
+			Execute:=FALSE ,);
+		IF absMixedVelocityArray[absMixedCount]>absMixedVelocityArray[absMixedCount+1] THEN
+			absBufferMode:=MC_BufferMode.MC_BlendingNext;
+		ELSE
+			absBufferMode:=MC_BufferMode.MC_BlendingPrevious;
+		END_IF
+		absMixedCount:=absMixedCount+1;
+		absStep:=110;
+	END_IF
+	IF mcABSMove4.Done THEN//mcABSMove.Done信号只保持一个扫描周期
+		absStep:=5000;//done
+	ELSIF mcABSMove4.Error OR mcABSMove4.ErrorID<>0 THEN
+		errorStep:=7;
+		absStep:=10000;//error
+	END_IF
+
+	IF axisStopFlag OR NOT powerReady OR 0<>stopStep THEN
+		absStep:=4000;//stop
+	END_IF
+	
+4000://Stop
+	mcABSMove(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	mcABSMove2(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	mcABSMove3(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	mcABSMove4(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	absExecute:=FALSE;
+	absBusy:=FALSE;
+	absDone:=FALSE;
+	absErrorDone:=FALSE;
+	absStep:=0;
+5000://Done
+	mcABSMove(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	mcABSMove2(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	mcABSMove3(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	mcABSMove4(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	absExecute:=FALSE;
+	absBusy:=FALSE;
+	absDone:=TRUE;
+	absErrorDone:=FALSE;
+	absStep:=0;
+10000://Error
+	mcABSMove(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	mcABSMove2(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	mcABSMove3(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	mcABSMove4(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	absExecute:=FALSE;
+	absBusy:=FALSE;
+	absDone:=FALSE;
+	absErrorDone:=TRUE;
+	absStep:=0;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="changeVelVel" Id="{eeb8a0bf-94c5-4b78-b41f-4e0c17a0b147}" FolderPath="Public\">
+      <Declaration><![CDATA[//设定速度运行模式的方向和速度
+METHOD changeVelVel
+VAR_INPUT
+	vel:LREAL;//速度设定
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[velChangeVel:=TRUE;
+velVelocity:=vel;]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Error_ACT" Id="{9e2d4f2f-cb5a-41b4-853f-c27587662ddf}" FolderPath="Private\Error\">
+      <Implementation>
+        <ST><![CDATA[CASE errorStep OF
+	0:
+		motorError:=FALSE;
+		axisErrId:=0;
+		axisErrTxt:='';
+		axisErrWTxt:="";
+		PTPErrID:=0;
+ (*
+	1:
+		motorError:=TRUE;
+		axisErrId:=errorID+errorStep;
+		axisErrTxt:=CONCAT(STR1:=nameTXT,STR2:=' E_Stop!!!');
+		axisErrWTxt:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 急停错误!!!");
+	2:
+		motorError:=TRUE;
+		axisErrId:=errorID+errorStep;
+		axisErrTxt:=CONCAT(STR1:=nameTXT,STR2:=' Soft Limit Error');
+		axisErrWTxt:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 软限位错误");
+	3:
+		motorError:=TRUE;
+		axisErrId:=errorID+errorStep;
+		axisErrTxt:=CONCAT(STR1:=nameTXT,STR2:=' PLimit Switch Error');
+		axisErrWTxt:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 正限位感应错误");
+	4:
+		motorError:=TRUE;
+		axisErrId:=errorID+errorStep;
+		axisErrTxt:=CONCAT(STR1:=nameTXT,STR2:=' NLimit Switch Error');
+		axisErrWTxt:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 负限位感应错误");
+	5:
+		motorError:=TRUE;
+		axisErrId:=errorID+errorStep;
+		axisErrTxt:=CONCAT(STR1:=nameTXT,STR2:=' Origin sensor cannot be searched');
+		axisErrWTxt:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 原点信号无法被搜索到");
+	6:
+		motorError:=TRUE;
+		axisErrId:=errorID+errorStep;
+		axisErrTxt:=CONCAT(STR1:=nameTXT,STR2:=' Go Home Failed');
+		axisErrWTxt:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 回原点失败");
+	7:
+		motorError:=TRUE;
+		axisErrId:=errorID+errorStep;
+		axisErrTxt:=CONCAT(STR1:=nameTXT,STR2:=' Absolute Move Error');
+		axisErrWTxt:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 绝对定位错误");
+	8:
+		motorError:=TRUE;
+		axisErrId:=errorID+errorStep;
+		axisErrTxt:=CONCAT(STR1:=nameTXT,STR2:=' JOG Move Error');
+		axisErrWTxt:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" JOG运动错误");
+	9:
+		motorError:=TRUE;
+		axisErrId:=errorID+errorStep;
+		axisErrTxt:=CONCAT(STR1:=nameTXT,STR2:=' Modulo Move Error');
+		axisErrWTxt:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 模值定位错误");
+	10:
+		motorError:=TRUE;
+		axisErrId:=errorID+errorStep;
+		axisErrTxt:=CONCAT(STR1:=nameTXT,STR2:=' Relative Move Error');
+		axisErrWTxt:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 相对定位错误");
+	11:
+		motorError:=TRUE;
+		axisErrId:=errorID+errorStep;
+		axisErrTxt:=CONCAT(STR1:=nameTXT,STR2:=' Set Position Error');
+		axisErrWTxt:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 设置位置错误");
+	12:
+		motorError:=TRUE;
+		axisErrId:=errorID+errorStep;
+		axisErrTxt:=CONCAT(STR1:=nameTXT,STR2:=' Axis Stop Error');
+		axisErrWTxt:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 轴停止错误");
+	13:
+		motorError:=TRUE;
+		axisErrId:=errorID+errorStep;
+		axisErrTxt:=CONCAT(STR1:=nameTXT,STR2:=' Velocity Move Error');
+		axisErrWTxt:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 速度运行错误");
+	14:
+		motorError:=TRUE;
+		axisErrId:=errorID+errorStep;
+		axisErrTxt:=CONCAT(STR1:=nameTXT,STR2:=' mcPower Error');
+		axisErrWTxt:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" mcPower轴使能错误");
+	15:
+		motorError:=TRUE;
+		axisErrId:=errorID+errorStep;
+		axisErrTxt:=CONCAT(STR1:=nameTXT,STR2:=' mcReset Error');
+		axisErrWTxt:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" mcReset轴复位错误");
+	16:
+		motorError:=TRUE;
+		axisErrId:=errorID+errorStep;
+		axisErrTxt:=CONCAT(STR1:=nameTXT,STR2:=' axis_Status_Error');
+		axisErrWTxt:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 轴状态错误");
+ *)
+	1..19:
+		motorError:=TRUE;
+		axisErrId:=getErrID(errorStep);
+		axisErrTxt:=getErrTXT(errorStep);
+		axisErrWTxt:=getErrWTXT(errorStep);
+END_CASE
+IF mcPower.Error THEN
+	PTPErrID:=mcPower.ErrorID;
+END_IF
+IF mcReset.Error THEN
+	PTPErrID:=mcReset.ErrorID;
+END_IF
+IF mcStop.Error THEN
+	PTPErrID:=mcStop.ErrorID;
+END_IF
+IF mcJog.Error THEN
+	PTPErrID:=mcJog.ErrorID;
+END_IF
+IF mcABSMove.Error THEN
+	PTPErrID:=mcABSMove.ErrorID;
+END_IF
+IF mcABSMove2.Error THEN
+	PTPErrID:=mcABSMove2.ErrorID;
+END_IF
+IF mcABSMove3.Error THEN
+	PTPErrID:=mcABSMove3.ErrorID;
+END_IF
+IF mcABSMove4.Error THEN
+	PTPErrID:=mcABSMove4.ErrorID;
+END_IF
+IF mcRel.Error THEN
+	PTPErrID:=mcRel.ErrorID;
+END_IF
+IF mcVel.Error THEN
+	PTPErrID:=mcVel.ErrorID;
+END_IF
+IF mcHome.Error THEN
+	PTPErrID:=mcHome.ErrorID;
+END_IF
+IF mcSetPos.Error THEN
+	PTPErrID:=mcSetPos.ErrorID;
+END_IF
+IF mcMoveModulo.Error THEN
+	PTPErrID:=mcMoveModulo.ErrorID;
+END_IF
+IF axis.Status.Error THEN
+	PTPErrID:=axis.Status.ErrorID;
+END_IF
+IF 0<>axis.NcToPlc.ErrorCode THEN
+	PTPErrID:=axis.NcToPlc.ErrorCode;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="getErrID" Id="{d6f11e0f-c1b2-467e-a607-6e4d09b4eac9}" FolderPath="Public\">
+      <Declaration><![CDATA[METHOD getErrID : UDINT
+VAR_INPUT
+	errID					:UDINT;//取值范围1~16
+END_VAR
+VAR
+	nErrID					:UDINT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[nErrID:=errorID+errID;
+
+getErrID:=nErrID;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrTXT" Id="{a74f2176-b672-4a02-af00-903224c1a7cd}" FolderPath="Public\">
+      <Declaration><![CDATA[METHOD getErrTXT : STRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~16
+END_VAR
+VAR
+	sErrTXT					:STRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' E_Stop!!!');
+	2:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Soft Limit Error');
+	3:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' PLimit Switch Error');
+	4:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' NLimit Switch Error');
+	5:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Origin sensor cannot be searched');
+	6:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Go Home Failed');
+	7:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Absolute Move Error');
+	8:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' JOG Move Error');
+	9:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Modulo Move Error');
+	10:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Relative Move Error');
+	11:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Set Position Error');
+	12:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Axis Stop Error');
+	13:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Velocity Move Error');
+	14:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' mcPower Error');
+	15:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' mcReset Error');
+	16:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' axis_Status_Error');
+	17:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' axis_Torque_Error');
+	18:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' axis_Done_NotSensor');
+	19:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' axis_Negative Or Postive Error');
+ELSE
+	sErrTXT:=CONCAT(STR1:=nameTXT,STR2:='Null');
+END_CASE
+getErrTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrWTXT" Id="{3c7a3112-93a2-4b66-bb7e-8c2e34267215}" FolderPath="Public\">
+      <Declaration><![CDATA[METHOD getErrWTXT : WSTRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~16
+END_VAR
+VAR
+	sErrTXT					:WSTRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 急停错误!!!");
+	2:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 软限位错误");
+	3:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 正限位感应错误");
+	4:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 负限位感应错误");
+	5:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 原点信号无法被搜索到");
+	6:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 回原点失败");
+	7:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 绝对定位错误");
+	8:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" JOG运动错误");
+	9:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 模值定位错误");
+	10:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 相对定位错误");
+	11:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 设置位置错误");
+	12:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 轴停止错误");
+	13:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 速度运行错误");
+	14:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" mcPower轴使能错误");
+	15:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" mcReset轴复位错误");
+	16:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 轴状态错误");
+	17:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 轴扭力超限");
+	18:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 轴到位但传感器未感应");
+	19:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 轴正向或反向运行条件不满足");
+ELSE
+	sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:="空");
+END_CASE
+getErrWTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="GoHome_ACT" Id="{e5b810aa-54dd-48a9-873f-6c7f7921969e}" FolderPath="Private\Motion\">
+      <Implementation>
+        <ST><![CDATA[//轴回原点
+(*
+go home first direction: positive
+DOG point side:negative
+
+                  ____
+                 |____|  -->
+negative |____________|_____________| positive
+
+*)
+(*
+go home first direction :negative
+DOG point side :positive
+
+                       ____
+                <--   |____|  
+negative |____________|_____________| positive
+*)
+
+IF axisStopFlag THEN
+	homeStep:=0;
+	homeExecute:=FALSE;
+	CASE motorType OF
+	MotorType_Default:
+		;
+	MotorType_DDmotor_HC:
+		IF 6=mode_display OR 8<>op_mode THEN
+			op_mode:=8;
+		END_IF
+	END_CASE
+END_IF
+IF NOT bE_Stop THEN
+	homeStep:=50000;//Error
+	homeExecute:=FALSE;
+	CASE motorType OF
+	MotorType_Default:
+		;
+	MotorType_DDmotor_HC:
+		IF 6=mode_display OR 8<>op_mode THEN
+			op_mode:=8;
+		END_IF
+	END_CASE
+END_IF
+homeCondition:=(NOT axisError AND NOT axisBusy 
+				AND NOT axisStopFlag AND powerReady 
+				AND homeConditionOuter AND bE_Stop AND NOT axisPause);
+CASE homeStep OF
+	0:
+		homeBusy:=FALSE;
+		powerEnable_Inner:=TRUE;
+		IF homeExecute AND NOT homeCondition THEN
+			note_abs:=FALSE;
+			note_jog:=FALSE;
+			note_vel:=FALSE;
+			note_home:=TRUE;
+			note_rel:=FALSE;
+		END_IF
+		IF homeExecute AND homeCondition THEN
+			note_abs:=FALSE;
+			note_jog:=FALSE;
+			note_vel:=FALSE;
+			note_home:=FALSE;
+			note_rel:=FALSE;
+			stopExecute:=TRUE;
+			velExecute:=FALSE;
+			axisHomeState:=FALSE;
+			homeBusy:=TRUE;
+			homeDone:=FALSE;
+			homeErrorDone:=FALSE;
+			CASE motorType OF
+			MotorType_Default:
+				IF homeMode=MotorHomeMode.MotorHomeMode_Default THEN
+					IF homeDirection THEN
+						homeStep:=101;	//正方向回原点-增量式
+					ELSE
+						homeStep:=201;	//负方向回原点-增量式
+					END_IF
+				ELSIF homeMode=MotorHomeMode.MotorHomeMode_PLimitSwitch_To_DOG THEN
+					homeStep:=1000;
+				ELSIF homeMode=MotorHomeMode.MotorHomeMode_NLimitSwitch_To_DOG THEN
+					homeStep:=2000;
+				ELSIF homeMode=MotorHomeMode.MotorHomeMode_OnlyDOGPointSwitch THEN
+					homeStep:=3000;
+				ELSE
+					IF homeDirection THEN
+						homeStep:=101;	//正方向回原点-增量式
+					ELSE
+						homeStep:=201;	//负方向回原点-增量式
+					END_IF
+				END_IF
+			MotorType_DDmotor_HC:
+				homeStep:=301;	//横川-绝对零点回归
+			MotorType_Absolute:
+				homeStep:=401;	//绝对式编码器回归
+			END_CASE
+		ELSE
+			homeBusy:=FALSE;
+		END_IF
+		mcHome(
+				Axis:= axis,
+				Execute:= FALSE, 
+				HomingMode:= MC_DefaultHoming);//MC_DefaultHoming  MC_Direct
+		homeExecute:=FALSE;	
+		
+(************** 正方向回原点 ********************)
+	101://正方向回原点开始
+		goHomeDelayTon(in:=(NOT goHomeDelayTon.Q AND 0=stopStep ), PT:=T#500MS);
+		IF 0=axis.NcToPlc.AxisState AND NOT busy AND NOT mcBusy AND 0=stopStep AND goHomeDelayTon.Q THEN
+			goHomeDelayTon(in:=FALSE);
+			homeStep:=homeStep+1;
+		END_IF
+	102://检测原点or正限位信号
+		velVelocity:=HMIItf.goHomeVel;
+		velDirection:=TRUE;
+		velExecute:=TRUE;
+		IF (DOGPointSwitch) OR (NOT bPLimitSwitch) THEN
+			homeStep:=homeStep+1;
+		END_IF	
+	103:
+		velExecute:=FALSE;
+		IF 0=axis.NcToPlc.AxisState AND NOT busy AND NOT mcBusy THEN
+			homeStep:=homeStep+1;
+		END_IF
+	104:
+		velVelocity:=HMIItf.goHomeVel;
+		velDirection:=FALSE;
+		velExecute:=TRUE;
+		homeStep:=homeStep+1;
+	105:
+		IF NOT bNLimitSwitch THEN
+			homeStep:=50000;//Error
+			errorStep:=5;
+			RETURN;
+		END_IF
+		goHomeTrigF1(CLK:=(DOGPointSwitch));
+		IF goHomeTrigF1.Q THEN
+			homeStep:=homeStep+1;
+		END_IF
+	106:	
+		goHomeDelayTon(in:=NOT goHomeDelayTon.Q,PT:=goHomeDelayTime);
+		IF goHomeDelayTon.Q THEN
+			goHomeDelayTon(in:=FALSE);
+			velExecute:=FALSE;
+			homeStep:=homeStep+1;
+		END_IF
+	107:
+		IF 0=axis.NcToPlc.AxisState AND NOT busy AND NOT mcBusy THEN
+			homeStep:=108;
+		END_IF
+	108:
+		homeStep:=109;
+	109:
+		IF 0=axis.NcToPlc.AxisState AND NOT busy AND NOT mcBusy THEN
+			mcHome(
+				Axis:= axis, 
+				Execute:= FALSE,  
+				HomingMode:= );//MC_DefaultHoming  MC_Direct
+			IF NOT mcHome.Busy THEN
+				//homeStep:=120;
+				homeStep:=110;
+			END_IF
+		END_IF
+	110:
+		powerEnable_Inner:=FALSE;
+		goHomeDelayTon(in:=NOT goHomeDelayTon.Q,PT:=T#800MS);
+		IF goHomeDelayTon.Q AND NOT powerReady THEN
+			homeStep:=homeStep+1;
+			goHomeDelayTon(in:=FALSE);
+		END_IF
+	111:
+		homeStep:=homeStep+1;
+	112:
+		powerEnable_Inner:=TRUE;
+		goHomeDelayTon(in:=NOT goHomeDelayTon.Q,PT:=T#800MS);
+		IF goHomeDelayTon.Q AND powerReady THEN
+			homeStep:=homeStep+1;
+			goHomeDelayTon(in:=FALSE);
+		END_IF
+	113:
+		homeStep:=homeStep+1;
+	114:
+		homeStep:=120;
+	120:
+		mcHome(
+				Axis:=axis , 
+				Execute:=TRUE , 
+				Position:=homePosition , 
+				HomingMode:= , //MC_DefaultHoming  MC_Direct
+				BufferMode:= , 
+				Options:= , 
+				bCalibrationCam:= DOGPointSwitch, //DOGPointSwitch
+				Done=> , 
+				Busy=> , 
+				Active=> , 
+				CommandAborted=> , 
+				Error=> , 
+				ErrorID=> );
+		IF (*NOT mcHome.Busy*) mcHome.Done AND NOT mcHome.Error THEN
+			mcHome(
+				Axis:= axis, 
+				Execute:= FALSE, 
+				HomingMode:= );//MC_DefaultHoming  MC_Direct
+			homeStep:=homeStep+1;
+		ELSIF mcHome.Error THEN
+			homeStep:=160;//Home Error
+		END_IF
+		
+	121:
+		goHomeDelayTon(IN:=NOT goHomeDelayTon.Q,PT:=T#500MS);
+		IF goHomeDelayTon.Q THEN
+			goHomeDelayTon(in:=FALSE);
+			homeStep:=homeStep+1;
+		END_IF
+	122:
+		homeStep:=homeStep+1;
+		(*mcSetPos(
+			Axis:=axis , 
+			Execute:=TRUE , 
+			Position:=homePosition);
+		goHomeDelayTon(in:=NOT goHomeDelayTon.Q,PT:=T#1000MS);//HMIItf.goHomeDelayTime
+		IF goHomeDelayTon.Q THEN
+			goHomeDelayTon(in:=FALSE);
+			homeStep:=homeStep+1;
+		END_IF*)
+	123:
+		IF ABS(axis.NcToPlc.ActPos)<homeCheckRange THEN
+			homeStep:=150;
+		ELSE
+			homeStep:=160;
+		END_IF
+	
+	150://Home Done
+		homeStep:=0;
+		homeBusy:=FALSE;
+		homeDone:=TRUE;
+		homeErrorDone:=FALSE;
+		axisHomeState:=TRUE;
+		
+		homeExecute:=FALSE;
+		
+	160://Home Error
+		homeStep:=0;
+		homeBusy:=FALSE;
+		homeDone:=FALSE;
+		homeErrorDone:=TRUE;
+		axisHomeState:=FALSE;
+		
+		homeExecute:=FALSE;
+		
+		errorStep:=6;
+	
+(************** 负方向回原点 ********************)
+	201://负方向回原点开始
+		goHomeDelayTon(in:=(NOT goHomeDelayTon.Q AND 0=stopStep ), PT:=T#500MS);
+		IF 0=axis.NcToPlc.AxisState AND NOT busy AND NOT mcBusy AND 0=stopStep AND goHomeDelayTon.Q THEN
+			goHomeDelayTon(in:=FALSE);
+			homeStep:=homeStep+1;
+		END_IF
+	202://检测原点or正限位信号
+		velVelocity:=HMIItf.goHomeVel;
+		velDirection:=FALSE;
+		velExecute:=TRUE;
+		IF (DOGPointSwitch) OR NOT bNLimitSwitch THEN
+			homeStep:=homeStep+1;
+		END_IF	
+	203:
+		velExecute:=FALSE;
+		IF 0=axis.NcToPlc.AxisState AND NOT busy AND NOT mcBusy THEN
+			homeStep:=homeStep+1;
+		END_IF
+	204:
+		velVelocity:=HMIItf.goHomeVel;
+		velDirection:=TRUE;
+		velExecute:=TRUE;		
+		goHomeTrigF1(CLK:=FALSE);
+		homeStep:=homeStep+1;
+	205:
+		IF NOT bPLimitSwitch THEN
+			homeStep:=50000;//Error
+			errorStep:=5;
+			RETURN;
+		END_IF
+		goHomeTrigF1(CLK:=DOGPointSwitch);
+		IF goHomeTrigF1.Q THEN
+			homeStep:=homeStep+1;
+		END_IF
+	206:	
+		goHomeDelayTon(in:=NOT goHomeDelayTon.Q,PT:=goHomeDelayTime);
+		IF goHomeDelayTon.Q THEN
+			goHomeDelayTon(IN:=FALSE);
+			velExecute:=FALSE;
+			
+			homeStep:=homeStep+1;
+		END_IF
+	207:
+		IF 0=axis.NcToPlc.AxisState AND NOT busy AND NOT mcBusy THEN
+			(*velVelocity:=HMIItf.goHomeVelSlow;
+			velDirection:=FALSE;
+			velExecute:=TRUE;*)
+			goHomeTrigF1(CLK:=FALSE);
+			homeStep:=homeStep+1;
+		END_IF
+
+	208:
+		velVelocity:=HMIItf.goHomeVelSlow;
+		velDirection:=FALSE;
+		velExecute:=TRUE;
+		IF NOT bNLimitSwitch THEN//never cover negative limit switch
+			homeStep:=50000;//Error
+			errorStep:=5;
+			RETURN;
+		END_IF
+	
+		goHomeTrigF1(CLK:=DOGPointSwitch);
+		IF goHomeTrigF1.Q THEN
+			goHomeDelayTon(IN:=FALSE);
+			homeStep:=homeStep+1;
+		END_IF
+	209:
+		goHomeDelayTon(in:=NOT goHomeDelayTon.Q,PT:=goHomeDelayTime);
+		IF goHomeDelayTon.Q THEN
+			velExecute:=FALSE;
+			homeStep:=homeStep+1;
+		END_IF
+	210:
+		IF 0=axis.NcToPlc.AxisState AND NOT busy AND NOT mcBusy THEN
+			mcHome(
+				Axis:= axis, 
+				Execute:= FALSE,  
+				HomingMode:= );//MC_DefaultHoming  MC_Direct
+			IF NOT mcHome.Busy THEN
+				//homeStep:=230;
+				homeStep:=220;
+			END_IF
+		END_IF
+	220:
+		powerEnable_Inner:=FALSE;
+		goHomeDelayTon(in:=NOT goHomeDelayTon.Q,PT:=T#800MS);
+		IF goHomeDelayTon.Q AND NOT powerReady THEN
+			homeStep:=homeStep+1;
+			goHomeDelayTon(in:=FALSE);
+		END_IF
+	221:
+		homeStep:=homeStep+1;
+	222:
+		powerEnable_Inner:=TRUE;
+		goHomeDelayTon(in:=NOT goHomeDelayTon.Q,PT:=T#800MS);
+		IF goHomeDelayTon.Q AND powerReady THEN
+			homeStep:=homeStep+1;
+			goHomeDelayTon(in:=FALSE);
+		END_IF
+	223:
+		homeStep:=homeStep+1;
+	224:
+		homeStep:=230;
+		
+	230:
+		mcHome(
+				Axis:=axis , 
+				Execute:=TRUE , 
+				Position:=homePosition , 
+				HomingMode:= , //MC_DefaultHoming  MC_Direct
+				BufferMode:= , 
+				Options:= , 
+				bCalibrationCam:= DOGPointSwitch, 
+				Done=> , 
+				Busy=> , 
+				Active=> , 
+				CommandAborted=> , 
+				Error=> , 
+				ErrorID=> );
+		IF (*NOT mcHome.Busy*) mcHome.Done AND NOT mcHome.Error THEN
+			mcHome(
+				Axis:= axis, 
+				Execute:= FALSE, 
+				HomingMode:= );//MC_DefaultHoming  MC_Direct
+			homeStep:=homeStep+1;
+			
+		ELSIF mcHome.Error THEN
+			homeStep:=260;//Home Error
+		END_IF
+	231:
+		goHomeDelayTon(in:=NOT goHomeDelayTon.Q,PT:=T#500MS);
+		IF goHomeDelayTon.Q THEN
+			goHomeDelayTon(in:=FALSE);
+			homeStep:=homeStep+1;
+		END_IF
+	232:
+		homeStep:=homeStep+1;
+		(*mcSetPos(
+			Axis:=axis , 
+			Execute:=TRUE , 
+			Position:=homePosition);
+		goHomeDelayTon(in:=NOT goHomeDelayTon.Q,PT:=T#1000MS);//HMIItf.goHomeDelayTime
+		IF goHomeDelayTon.Q THEN
+			goHomeDelayTon(in:=FALSE);
+			homeStep:=homeStep+1;
+		END_IF*)
+	233:
+		IF ABS(axis.NcToPlc.ActPos)<homeCheckRange THEN
+			homeStep:=250;
+		ELSE
+			homeStep:=260;
+		END_IF
+	
+	250://Home Done
+		homeStep:=0;
+		homeBusy:=FALSE;
+		homeDone:=TRUE;
+		homeErrorDone:=FALSE;
+		axisHomeState:=TRUE;
+		
+		homeExecute:=FALSE;
+	
+	260://Home Error
+		homeStep:=0;
+		homeBusy:=FALSE;
+		homeDone:=FALSE;
+		homeErrorDone:=TRUE;
+		axisHomeState:=FALSE;
+		
+		homeExecute:=FALSE;
+		
+		errorStep:=6;
+	
+(************** 汇川_横川-绝对零点回归 ********************)
+	301://汇川_横川-绝对零点回归
+		IF 0=axis.NcToPlc.AxisState AND NOT busy THEN
+			powerEnable_Inner:=FALSE;
+			homeStep:=homeStep+1;
+		END_IF
+	302:
+		IF NOT powerReady THEN
+			op_mode:=6;
+			homeStep:=homeStep+1;
+		END_IF
+		goHomeDelayTon(IN:=FALSE);
+	303:
+		IF 6=mode_display OR 6=op_mode THEN
+			powerEnable_Inner:=TRUE;
+			goHomeDelayTon(IN:=NOT goHomeDelayTon.Q,PT:=T#100MS);
+			IF goHomeDelayTon.Q AND powerReady THEN
+				goHomeDelayTon(IN:=FALSE);
+				homeStep:=homeStep+1;
+			END_IF
+		END_IF
+	304:
+		goHomeDelayTon(IN:=ABS(axis.NcToPlc.ActPos)<homeCheckRange (*AND ABS(axis.NcToPlc.ActVelo)<0.01*)
+							AND NOT axis.Status.Error AND 1=statusWord.12 AND 0=statusWord.13,PT:=T#1000MS);
+		IF goHomeDelayTon.Q THEN
+			goHomeDelayTon(IN:=FALSE);
+			homeStep:=homeStep+1;
+		ELSIF axis.Status.Error OR 0<>statusWord.13 THEN
+			homeStep:=360;//Error
+		END_IF
+	305:
+		goHomeDelayTon(IN:=NOT goHomeDelayTon.Q,PT:=T#10MS);
+		IF goHomeDelayTon.Q THEN
+			resetExecute:=TRUE;
+			goHomeDelayTon(IN:=FALSE);
+			homeStep:=homeStep+1;
+		END_IF
+	306:
+		goHomeDelayTon(IN:=NOT goHomeDelayTon.Q,PT:=T#100MS);
+		IF NOT mcReset.Busy AND goHomeDelayTon.Q THEN
+			homeStep:=homeStep+1;
+			goHomeDelayTon(IN:=FALSE);
+		END_IF
+	307:
+		op_mode:=8;
+		homeStep:=homeStep+1;
+	308:
+		IF 8=mode_display OR 8=op_mode THEN
+			homeStep:=homeStep+1;
+		END_IF
+	309:
+		goHomeDelayTon(IN:=NOT goHomeDelayTon.Q,PT:=T#100MS);
+		IF goHomeDelayTon.Q THEN
+			mcSetPos(
+				Axis:=axis , 
+				Execute:=TRUE , 
+				Position:=homePosition);
+			homeStep:=homeStep+1;
+		END_IF
+	310:	
+		homeStep:=350;
+		
+	350://Go Home Done
+		homeStep:=0;
+		homeBusy:=FALSE;
+		homeDone:=TRUE;
+		homeErrorDone:=FALSE;
+		axisHomeState:=TRUE;
+		
+		homeExecute:=FALSE;
+	
+	360://Home Error
+		homeStep:=0;
+		homeBusy:=FALSE;
+		homeDone:=FALSE;
+		homeErrorDone:=TRUE;
+		axisHomeState:=FALSE;
+		
+		homeExecute:=FALSE;
+		
+		errorStep:=6;
+		
+(************** 绝对式编码器回归 ********************)
+	401://绝对式编码器回归
+		IF 0=axis.NcToPlc.AxisState AND NOT busy THEN
+			homeStep:=homeStep+1;
+		END_IF
+	402:
+		velVelocity:=HMIItf.goHomeVel;
+		IF NOT bPLimitSwitch THEN
+			velDirection:=FALSE;
+			//velExecute:=TRUE;
+			homeStep:=403;
+		ELSIF NOT bNLimitSwitch THEN
+			velDirection:=TRUE;
+			//velExecute:=TRUE;
+			homeStep:=403;
+		ELSE
+			homeStep:=405;//结束
+		END_IF
+		goHomeDelayTon(IN:=FALSE);
+	403:
+		velExecute:=TRUE;
+		homeStep:=404;
+	404:
+		goHomeDelayTon(IN:=NOT goHomeDelayTon.Q,PT:=T#100MS);
+		IF goHomeDelayTon.Q THEN
+			IF bPLimitSwitch AND bNLimitSwitch THEN
+				homeStep:=405;
+			ELSE
+				homeStep:=460;
+			END_IF
+			goHomeDelayTon(IN:=FALSE);
+			velExecute:=FALSE;
+		END_IF
+	405:
+		velExecute:=FALSE;
+		homeStep:=homeStep+1;
+	406:
+		IF 0=axis.NcToPlc.AxisState AND NOT busy THEN
+			homeStep:=homeStep+1;
+		END_IF
+	407:
+		homeStep:=450;//Home Done
+		
+	450://Home Done
+		homeStep:=0;
+		homeBusy:=FALSE;
+		homeDone:=TRUE;
+		homeErrorDone:=FALSE;
+		axisHomeState:=TRUE;
+		
+		homeExecute:=FALSE;
+		
+	460://Home Error
+		homeStep:=0;
+		homeBusy:=FALSE;
+		homeDone:=FALSE;
+		homeErrorDone:=TRUE;
+		axisHomeState:=FALSE;
+		
+		homeExecute:=FALSE;
+		
+		errorStep:=6;
+
+(************** 正限位做原点 ********************)
+	1000://正方向回原点开始，以正限位做原点
+		goHomeDelayTon(in:=(NOT goHomeDelayTon.Q AND 0=stopStep ), PT:=T#500MS);
+		IF 0=axis.NcToPlc.AxisState AND NOT busy AND NOT mcBusy AND 0=stopStep AND goHomeDelayTon.Q THEN
+			goHomeDelayTon(in:=FALSE);
+			homeStep:=homeStep+10;
+		END_IF
+	1010://正限位信号
+		velVelocity:=HMIItf.goHomeVel;
+		velDirection:=TRUE;
+		velExecute:=TRUE;
+		IF (NOT bPLimitSwitch) THEN
+			velExecute:=FALSE;
+			homeStep:=homeStep+10;
+		END_IF
+		IF axisError THEN
+			homeStep:=1460;//Error
+		END_IF
+	1020:
+		IF 0=axis.NcToPlc.AxisState AND NOT busy AND NOT mcBusy AND 0=stopStep THEN
+			homeStep:=homeStep+10;
+		END_IF
+	1030:
+		velVelocity:=HMIItf.goHomeVelSlow;
+		velDirection:=FALSE;
+		velExecute:=TRUE;
+		homeStep:=homeStep+10;
+	1040:
+		IF (bPLimitSwitch) THEN
+			velExecute:=FALSE;
+			homeStep:=homeStep+10;
+		END_IF
+		IF axisError OR (NOT bNLimitSwitch) THEN
+			homeStep:=1460;//Error
+		END_IF
+	1050:
+		IF 0=axis.NcToPlc.AxisState AND NOT busy AND NOT mcBusy AND 0=stopStep THEN
+			homeStep:=homeStep+10;
+		END_IF
+	1060:
+		homeStep:=homeStep+10;
+	1070:
+		goHomeRelDistance:=-ABS(homeLimitSwitch_To_DOGDistance);
+		goHomeRelVelocity:=HMIItf.goHomeVel;
+		mcRel(
+			Axis:=axis , 
+			Execute:=FALSE , );
+		goHomeDelayTon(in:=FALSE);
+		homeStep:=homeStep+10;
+	1080:
+		mcRel(
+			Axis:=axis , 
+			Execute:=TRUE , 
+			Distance:=goHomeRelDistance , 
+			Velocity:=goHomeRelVelocity , 
+			Acceleration:=relAcceleration , 
+			Deceleration:=relDeceleration , 
+			Jerk:= relJerk, 
+			BufferMode:= , 
+			Options:= , 
+			Done=> , 
+			Busy=> , 
+			Active=> , 
+			CommandAborted=> , 
+			Error=> , 
+			ErrorID=> );
+		IF mcRel.Done THEN
+			homeStep:=homeStep+10;
+		END_IF
+		IF axisError OR mcRel.Error OR mcRel.ErrorID<>0 THEN
+			homeStep:=1460;//Error
+		END_IF
+	1090:
+		goHomeDelayTon(IN:=NOT goHomeDelayTon.Q, PT:=T#500MS);
+		IF goHomeDelayTon.Q THEN
+			goHomeDelayTon(in:=FALSE);
+			homeStep:=homeStep+10;
+		END_IF
+		mcRel(
+			Axis:=axis , 
+			Execute:=FALSE , );
+		mcSetPos(
+		      Axis:=axis , 
+		      Execute:=FALSE , );
+	1100:
+		mcSetPos(
+			Axis:=axis , 
+			Execute:=TRUE , 
+			Position:=0 , 
+			Mode:= , 
+			Options:= setPosOptions, 
+			Done=> , 
+			Busy=> , 
+			Error=> , 
+			ErrorID=> );
+		IF mcSetPos.Done THEN
+			homeStep:=homeStep+10;
+	   	END_IF
+		IF axisError OR mcSetPos.Error OR mcSetPos.ErrorID<>0 THEN
+			homeStep:=1460;//Error
+		END_IF
+	1110:
+	 	mcSetPos(
+		      Axis:=axis , 
+		      Execute:=FALSE , );
+		homeStep:=homeStep+10;
+	1120:
+		homeStep:=1450;//Done
+	 
+	1450://Home Done
+		homeStep:=0;
+		homeBusy:=FALSE;
+		homeDone:=TRUE;
+		homeErrorDone:=FALSE;
+		axisHomeState:=TRUE;
+		
+		homeExecute:=FALSE;
+		
+	1460://Home Error
+		homeStep:=0;
+		homeBusy:=FALSE;
+		homeDone:=FALSE;
+		homeErrorDone:=TRUE;
+		axisHomeState:=FALSE;
+		
+		homeExecute:=FALSE;
+		
+		errorStep:=6;
+
+(************** 负限位做原点 ********************)
+	2000://负方向回原点开始，以负限位做原点
+		goHomeDelayTon(in:=(0=stopStep ), PT:=T#500MS);
+		IF 0=axis.NcToPlc.AxisState AND NOT busy AND NOT mcBusy AND 0=stopStep AND goHomeDelayTon.Q THEN
+			goHomeDelayTon(in:=FALSE);
+			homeStep:=homeStep+10;
+		END_IF
+	2010://负限位信号
+		velVelocity:=HMIItf.goHomeVel;
+		velDirection:=FALSE;
+		velExecute:=TRUE;
+		IF (NOT bNLimitSwitch) THEN
+			velExecute:=FALSE;
+			homeStep:=homeStep+10;
+		END_IF
+		IF axisError THEN
+			homeStep:=2460;//Error
+		END_IF
+	2020:
+		IF 0=axis.NcToPlc.AxisState AND NOT busy AND NOT mcBusy AND 0=stopStep THEN
+			homeStep:=homeStep+10;
+		END_IF
+	2030:
+		velVelocity:=HMIItf.goHomeVelSlow;
+		velDirection:=TRUE;
+		velExecute:=TRUE;
+		homeStep:=homeStep+10;
+	2040:
+		IF (bNLimitSwitch) THEN
+			velExecute:=FALSE;
+			homeStep:=homeStep+10;
+			mcReset(//陈培华
+				Axis:= axis, 
+				Execute:= FALSE,
+				Done=> , 
+				Busy=> , 
+				Error=> , 
+				ErrorID=> );
+		END_IF
+		IF axisError OR (NOT bPLimitSwitch) THEN
+			homeStep:=2460;//Error
+		END_IF
+	2050:
+		IF 0=axis.NcToPlc.AxisState AND NOT busy AND NOT mcBusy AND 0=stopStep THEN
+			homeStep:=homeStep+10;
+		END_IF
+	2060:
+		homeStep:=homeStep+10;
+	2070:
+		goHomeRelDistance:=ABS(homeLimitSwitch_To_DOGDistance);
+		goHomeRelVelocity:=HMIItf.goHomeVel;
+		mcRel(
+			Axis:=axis , 
+			Execute:=FALSE , );
+		goHomeDelayTon(in:=FALSE);
+		homeStep:=homeStep+10;
+	2080:
+		mcRel(
+			Axis:=axis , 
+			Execute:=TRUE , 
+			Distance:=goHomeRelDistance , 
+			Velocity:=goHomeRelVelocity , 
+			Acceleration:=relAcceleration , 
+			Deceleration:=relDeceleration , 
+			Jerk:= relJerk, 
+			BufferMode:= , 
+			Options:= , 
+			Done=> , 
+			Busy=> , 
+			Active=> , 
+			CommandAborted=> , 
+			Error=> , 
+			ErrorID=> );
+		IF mcRel.Done THEN
+			homeStep:=homeStep+10;
+		END_IF
+		IF axisError OR mcRel.Error OR mcRel.ErrorID<>0 THEN
+			homeStep:=2460;//Error
+		END_IF
+	2090:
+		goHomeDelayTon(IN:=NOT goHomeDelayTon.Q, PT:=T#500MS);
+		IF goHomeDelayTon.Q THEN
+			goHomeDelayTon(in:=FALSE);
+			homeStep:=homeStep+10;
+		END_IF
+		mcRel(
+			Axis:=axis , 
+			Execute:=FALSE , );
+		mcSetPos(
+		      Axis:=axis , 
+		      Execute:=FALSE , );
+	2100:
+		mcSetPos(
+			Axis:=axis , 
+			Execute:=TRUE , 
+			Position:=0 , 
+			Mode:= , 
+			Options:= setPosOptions, 
+			Done=> , 
+			Busy=> , 
+			Error=> , 
+			ErrorID=> );
+		IF mcSetPos.Done THEN
+			homeStep:=homeStep+10;
+	   	END_IF
+		IF axisError OR mcSetPos.Error OR mcSetPos.ErrorID<>0 THEN
+			homeStep:=2460;//Error
+		END_IF
+	2110:
+	 	mcSetPos(
+		      Axis:=axis , 
+		      Execute:=FALSE , );
+		homeStep:=homeStep+10;
+	2120:
+		homeStep:=2450;//Done
+	 
+	2450://Home Done
+		homeStep:=0;
+		homeBusy:=FALSE;
+		homeDone:=TRUE;
+		homeErrorDone:=FALSE;
+		axisHomeState:=TRUE;
+		
+		homeExecute:=FALSE;
+		
+	2460://Home Error
+		homeStep:=0;
+		homeBusy:=FALSE;
+		homeDone:=FALSE;
+		homeErrorDone:=TRUE;
+		axisHomeState:=FALSE;
+		
+		homeExecute:=FALSE;
+		
+		errorStep:=6;
+
+(************** 只有原点信号, 执行往复搜寻动作 ********************)
+	3000://and 0=stopstep加入的目的是为了防止在step=0时，触发了stop=true，且stop步骤刷新需要好几个周期，而在homestep中会立马跳转到3000步，紧接着触发mcreal,即在停止的动作指令中再去动作则会报错
+		//同时，marimba项目在凸轮回原时，会在低速找零DOG时，会因为设置的慢速速度过快，导致周期时间内，捕捉不到原点信号，机台会慢速朝一个方向不停运动
+		IF 0=axis.NcToPlc.AxisState AND NOT busy AND NOT mcBusy AND 0=stopstep  THEN
+			homeStep:=homeStep+10;
+		END_IF
+	3010:
+		mcRel(
+			Axis:=axis , 
+			Execute:=FALSE , );
+		homeStep:=homeStep+10;
+	3020:
+		IF homeDirection THEN
+	       goHomeRelDistance:=1*ABS(homeOnlyDOGDistance);
+        ELSE
+	       goHomeRelDistance:=-1*ABS(homeOnlyDOGDistance);
+        END_IF
+		goHomeRelVelocity:=HMIItf.goHomeVel;
+		homeStep:=3210;
+	
+	3100://开始搜寻
+		IF ABS(goHomeRelDistance)>ABS(homeOnlyDOGMaxDistance) THEN
+			homeStep:=3460;//Error
+		ELSE
+			homeStep:=homeStep+10;
+		END_IF
+		mcRel(
+			Axis:=axis , 
+			Execute:=FALSE , );
+	3110:
+		mcRel(
+			Axis:=axis , 
+			Execute:=TRUE , 
+			Distance:=20*goHomeRelDistance , 
+			Velocity:=goHomeRelVelocity , 
+			Acceleration:=relAcceleration , 
+			Deceleration:=relDeceleration , 
+			Jerk:= relJerk, 
+			BufferMode:= , 
+			Options:= , 
+			Done=> , 
+			Busy=> , 
+			Active=> , 
+			CommandAborted=> , 
+			Error=> , 
+			ErrorID=> );
+		IF mcRel.Done THEN
+			homeStep:=3120;
+		END_IF
+		goHomeTrigF1(CLK:=(DOGPointSwitch));
+		IF goHomeTrigF1.Q THEN
+			stopExecute:=TRUE;
+			IF goHomeRelDistance>0 THEN
+				homeStep:=3200;//创造 mcHome 执行条件
+			ELSE
+				homeStep:=3300;//mcHome 执行
+			END_IF
+		END_IF
+		IF axisError OR mcRel.Error OR mcRel.ErrorID<>0 THEN
+			homeStep:=3460;//Error
+		END_IF
+	3120:
+		IF goHomeRelDistance>0 THEN
+			goHomeRelDistance:=1*(ABS(goHomeRelDistance)+ABS(homeOnlyDOGDistance));//
+		ELSE
+			goHomeRelDistance:=-1*(ABS(goHomeRelDistance)+ABS(homeOnlyDOGDistance));//
+		END_IF
+		goHomeRelVelocity:=HMIItf.goHomeVel;
+		homeStep:=3100;//反向搜寻
+	
+	3200://创造 mcHome 执行条件
+		IF 0=axis.NcToPlc.AxisState AND NOT busy AND NOT mcBusy AND 0=stopStep THEN
+			homeStep:=homeStep+10;
+		END_IF
+	3210:
+		velVelocity:=HMIItf.goHomeVel;
+		velDirection:=NOT homeDirection;
+		velExecute:=TRUE;
+		homeStep:=homeStep+10;
+	3220:
+		goHomeTrigF1(CLK:=(DOGPointSwitch));
+		IF goHomeTrigF1.Q THEN
+			velExecute:=FALSE;
+			homeStep:=homeStep+10;
+		END_IF
+		IF axisError THEN
+			homeStep:=3460;//Error
+		END_IF
+	3230:
+		homeStep:=3300;//mcHome 执行
+	
+	3300://mcHome 执行
+		IF 0=axis.NcToPlc.AxisState AND NOT busy AND NOT mcBusy THEN
+			homeStep:=homeStep+10;
+		END_IF
+	3310:
+		homeStep:=homeStep+10;
+		mcHome(
+			Axis:= axis, 
+			Execute:= FALSE,  
+			HomingMode:= );//MC_DefaultHoming  MC_Direct
+	3320:
+		powerEnable_Inner:=FALSE;
+		goHomeDelayTon(in:=NOT goHomeDelayTon.Q,PT:=T#800MS);
+		IF goHomeDelayTon.Q AND NOT powerReady THEN
+			homeStep:=homeStep+10;
+			goHomeDelayTon(in:=FALSE);
+		END_IF
+	3330:
+		homeStep:=homeStep+10;
+	3340:
+		powerEnable_Inner:=TRUE;
+		goHomeDelayTon(in:=NOT goHomeDelayTon.Q,PT:=T#800MS);
+		IF goHomeDelayTon.Q AND powerReady THEN
+			homeStep:=homeStep+10;
+			goHomeDelayTon(in:=FALSE);
+		END_IF
+	3350:
+		homeStep:=homeStep+10;
+	3360:
+		homeStep:=homeStep+10;
+	3370:
+		mcHome(
+			Axis:=axis , 
+			Execute:=TRUE , 
+			Position:=homePosition , 
+			HomingMode:= , //MC_DefaultHoming  MC_Direct
+			BufferMode:= , 
+			Options:= , 
+			bCalibrationCam:= DOGPointSwitch, 
+			Done=> , 
+			Busy=> , 
+			Active=> , 
+			CommandAborted=> , 
+			Error=> , 
+			ErrorID=> );
+		IF (*NOT mcHome.Busy*) mcHome.Done AND NOT mcHome.Error THEN
+			mcHome(
+				Axis:= axis, 
+				Execute:= FALSE, 
+				HomingMode:= );//MC_DefaultHoming  MC_Direct
+			homeStep:=homeStep+10;
+		ELSIF mcHome.Error THEN
+			homeStep:=3460;//Home Error
+		END_IF
+	3380:
+		goHomeDelayTon(in:=NOT goHomeDelayTon.Q,PT:=T#500MS);
+		IF goHomeDelayTon.Q THEN
+			goHomeDelayTon(in:=FALSE);
+			homeStep:=homeStep+10;
+		END_IF
+	3390:
+		homeStep:=homeStep+10;
+		(*mcSetPos(
+			Axis:=axis , 
+			Execute:=TRUE , 
+			Position:=homePosition);
+		goHomeDelayTon(in:=NOT goHomeDelayTon.Q,PT:=T#1000MS);//HMIItf.goHomeDelayTime
+		IF goHomeDelayTon.Q THEN
+			goHomeDelayTon(in:=FALSE);
+			homeStep:=homeStep+10;
+		END_IF*)
+	3400:
+		IF ABS(axis.NcToPlc.ActPos)<homeCheckRange THEN
+			homeStep:=3450;//Done
+		ELSE
+			homeStep:=3460;//Error
+		END_IF
+
+	3450://Home Done
+		homeStep:=0;
+		homeBusy:=FALSE;
+		homeDone:=TRUE;
+		homeErrorDone:=FALSE;
+		axisHomeState:=TRUE;
+		
+		homeExecute:=FALSE;
+		
+	3460://Home Error
+		homeStep:=0;
+		homeBusy:=FALSE;
+		homeDone:=FALSE;
+		homeErrorDone:=TRUE;
+		axisHomeState:=FALSE;
+		
+		homeExecute:=FALSE;
+		
+		errorStep:=6;
+		
+(************** Error step ********************)
+	50000://Error step
+		stopExecute:=TRUE;
+		homeStep:=homeStep+1;
+	50001://reset status
+		IF 0=axis.NcToPlc.AxisState AND NOT busy THEN
+			homeStep:=0;
+			homeBusy:=FALSE;
+			homeDone:=FALSE;
+			homeErrorDone:=TRUE;
+			axisHomeState:=FALSE;
+			
+			homeExecute:=FALSE;
+		END_IF
+END_CASE
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="InitHMI_ACT" Id="{204f3165-963a-4a00-b263-f898e891fc00}" FolderPath="Private\Init\">
+      <Implementation>
+        <ST><![CDATA[//将HMI上的数据和轴关联起来
+HMIItf.actualPos:=axisActualPos;//HMI实际位置
+HMIItf.actualVel:=axisActualVel;//HMI实际速率
+HMIItf.forwardLimitSwitch:=bPLimitSwitch AND bSoftPLimit;
+HMIItf.backwardsLimitSwitch:=bNLimitSwitch AND bSoftNLimit;
+HMIItf.dogPointSwitch:=DOGPointSwitch;
+HMIItf.forwardEnable:=powerEnable_Positive;
+HMIItf.backwardsEnable:=powerEnable_Negative;
+HMIItf.powerEnable:=powerReady;
+HMIItf.running:=busy AND ABS(axisActualVel)>0.01;
+HMIItf.jogNrunning:=jogBusy AND HMIItf.running AND (axisActualVel)<0;
+HMIItf.jogPrunning:=jogBusy AND HMIItf.running AND (axisActualVel)>0;
+HMIItf.velNrunning:=velBusy AND HMIItf.running AND (axisActualVel)<0;
+HMIItf.velPrunning:=velBusy AND HMIItf.running AND (axisActualVel)>0;
+HMIItf.busy:=axisBusy;
+HMIItf.done:=axisDone;
+HMIItf.error:=axisError;
+HMIItf.oPause:=axisPause;
+HMIItf.errID:=UDINT_TO_DINT(axisErrId);
+HMIItf.errTxt:=axisErrTxt;
+HMIItf.errWTxt:=axisErrWTxt;
+HMIItf.PTPErrID:=PTPErrID;
+HMIItf.enable:=axisEnable;
+//HMIItf.softPLimitPos:=;
+//HMIItf.softNLimitPos:=;
+HMIItf.ctrlModeCondition:=hmiEN;//(ctrlMode=ControlMode.eManualCtrMode);
+HMIItf.jogCondition:=jogCondition;
+HMIItf.velCondition:=velCondition;
+HMIItf.relCondition:=relCondition AND 0=loopStep;
+HMIItf.absCondition:=absCondition AND 0=loopStep;
+HMIItf.homeCondition:=homeCondition;
+HMIItf.loopRelCondition:=relCondition AND 0=loopStep;
+HMIItf.loopAbsCondition:=absCondition AND 0=loopStep;
+HMIItf.loopHomeToAbsCondition:=absCondition AND 0=loopStepHome;
+HMIItf.setCondition:=setCondition;
+IF NOT bInit THEN
+	HMIItf.goHomeVel:=homeVel;
+	HMIItf.goHomeVelSlow:=homeVelSlow;
+	HMIItf.softPLimitPos:=softPLimitPos;
+	HMIItf.softNLimitPos:=softNLimitPos;
+END_IF
+//HMIItf.goHomeDrtInv:=homeDirection;//取消
+HMIItf.goHomeDone:=axisHomeState;
+HMIItf.nameTXT:=nameTXT;
+
+noteTON_P(IN:=note_abs,PT:=T#0.1S);
+noteRTrig_P(CLK:=noteTON_P.Q);
+IF noteRTrig_P.Q THEN
+//	gLog_Note.append_EX(noteWTXT_abs);
+END_IF
+noteTON_N(IN:=note_jog,PT:=T#0.1S);
+noteRTrig_N(CLK:=noteTON_N.Q);
+IF noteRTrig_N.Q THEN
+//	gLog_Note.append_EX(noteWTXT_jog);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="JogMove_ACT" Id="{e8fc2f1c-b6f4-42c0-8936-3a474572eb4d}" FolderPath="Private\Motion\">
+      <Implementation>
+        <ST><![CDATA[//轴JOG运行控制--jogExecute触发条件是切换型
+IF NOT bE_Stop THEN
+	jogStep:=0;
+	jogExecute:=FALSE;
+END_IF
+jogCondition:=(NOT axisError AND NOT axisStopFlag 
+				AND NOT axisBusy AND powerReady 
+				AND jogConditionOuter AND bE_Stop AND NOT axisPause);
+
+mcJog(
+	Axis:=axis , 
+	JogForward:= , 
+	JogBackwards:= , 
+	Mode:=MC_JOGMODE_CONTINOUS, //MC_JOGMODE_STANDARD_SLOW, MC_JOGMODE_STANDARD_FAST, MC_JOGMODE_CONTINOUS, MC_JOGMODE_INCHING, MC_JOGMODE_INCHING_MODULO
+	Position:= , 
+	Velocity:= , 
+	Acceleration:= , 
+	Deceleration:= , 
+	Jerk:= , 
+	Done=> , 
+	Busy=> , 
+	Active=> , 
+	CommandAborted=> , 
+	Error=> , 
+	ErrorID=> );
+
+CASE jogStep OF
+0:
+	jogBusy:=FALSE;
+	IF jogExecute AND (NOT jogCondition OR NOT powerEnable_Negative OR NOT powerEnable_Positive  OR jogVelocity>0.2) THEN
+		note_abs:=FALSE;
+		note_jog:=TRUE;
+		note_vel:=FALSE;
+		note_home:=FALSE;
+		note_rel:=FALSE;
+	END_IF
+	IF jogExecute AND jogCondition THEN
+		note_abs:=FALSE;
+		note_jog:=FALSE;
+		note_vel:=FALSE;
+		note_home:=FALSE;
+		note_rel:=FALSE;
+		jogBusy:=TRUE;
+		jogDone:=FALSE;
+		jogErrorDone:=FALSE;
+		IF jogDirection THEN
+			jogForward:=TRUE;
+			jogBackwards:=FALSE;
+		ELSE
+			jogForward:=FALSE;
+			jogBackwards:=TRUE;
+		END_IF
+		jogStep:=10;
+		mcReset(
+				Axis:= axis, 
+				Execute:= TRUE,
+				Done=> , 
+				Busy=> , 
+				Error=> , 
+				ErrorID=> );
+	ELSE
+		jogExecute:=FALSE;
+	END_IF
+	mcJog(
+		Axis:=axis , 
+		JogForward:=FALSE , 
+		JogBackwards:=FALSE ,);
+10:
+	IF NOT axisStopFlag AND powerReady AND 0=stopStep THEN
+		jogStep:=20;
+		mcReset(//陈培华
+				Axis:= axis, 
+				Execute:= FALSE,
+				Done=> , 
+				Busy=> , 
+				Error=> , 
+				ErrorID=> );
+	END_IF
+20:
+	IF jogDirection THEN
+		IF NOT bPLimitSwitch OR NOT bSoftPLimit OR NOT powerEnable_Positive THEN
+			axisStopFlag:=TRUE;
+
+			IF NOT bPLimitSwitch THEN
+				errorStep:=3;
+			END_IF
+			IF NOT bSoftPLimit THEN
+				errorStep:=2;
+			END_IF
+			IF NOT powerEnable_Positive THEN
+				errorStep:=19;
+			END_IF
+			jogStep:=10000;//error
+			RETURN;
+		END_IF
+	ELSE
+		IF NOT bNLimitSwitch OR NOT bSoftNLimit OR NOT powerEnable_Negative THEN
+			axisStopFlag:=TRUE;
+
+			IF NOT bNLimitSwitch THEN
+				errorStep:=4;
+			END_IF
+			IF NOT bSoftNLimit THEN
+				errorStep:=2;
+			END_IF
+			IF NOT powerEnable_Negative THEN
+				errorStep:=19;
+			END_IF
+			jogStep:=10000;//error
+			RETURN;
+		END_IF
+	END_IF
+	
+	mcJog(
+		Axis:=axis , 
+		JogForward:=jogForward , 
+		JogBackwards:=jogBackwards , 
+		Mode:=MC_JOGMODE_CONTINOUS, //MC_JOGMODE_STANDARD_SLOW, MC_JOGMODE_STANDARD_FAST, MC_JOGMODE_CONTINOUS, MC_JOGMODE_INCHING, MC_JOGMODE_INCHING_MODULO
+		Position:= , 
+		Velocity:=jogVelocity , 
+		Acceleration:=jogAcceleration , 
+		Deceleration:=jogDeceleration , 
+		Jerk:=jogJerk , 
+		Done=> , 
+		Busy=> , 
+		Active=> , 
+		CommandAborted=> , 
+		Error=> , 
+		ErrorID=> );
+	IF NOT jogExecute THEN
+		jogStep:=5000;//done
+	END_IF
+	IF mcJog.Error OR mcJog.ErrorID<>0 THEN
+		errorStep:=8;
+		jogStep:=10000;//error
+	END_IF
+
+	IF axisStopFlag OR NOT powerReady OR 0<>stopStep THEN
+		jogStep:=4000;//stop
+	END_IF
+
+4000://Stop
+	mcJog(
+		Axis:=axis , 
+		JogForward:=FALSE , 
+		JogBackwards:=FALSE ,);
+	jogExecute:=FALSE;
+	jogBusy:=FALSE;
+	jogDone:=FALSE;
+	jogErrorDone:=FALSE;
+	jogStep:=0;
+5000://Done
+	mcJog(
+		Axis:=axis , 
+		JogForward:=FALSE , 
+		JogBackwards:=FALSE ,);
+	jogExecute:=FALSE;
+	jogBusy:=FALSE;
+	jogDone:=TRUE;
+	jogErrorDone:=FALSE;
+	jogStep:=0;
+10000://Error
+	mcJog(
+		Axis:=axis , 
+		JogForward:=FALSE , 
+		JogBackwards:=FALSE ,);
+	jogExecute:=FALSE;
+	jogBusy:=FALSE;
+	jogDone:=FALSE;
+	jogErrorDone:=TRUE;
+	jogStep:=0;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="LoopHomeToPos_ACT" Id="{0e1cbb00-07ad-4542-8649-8fad24453c40}" FolderPath="Private\Motion\">
+      <Implementation>
+        <ST><![CDATA[IF loopGoHome AND loopStepHome=0 THEN
+	loopCycleTimes:=0;
+	loopFirstPoint:=HMIItf.loopFirstPoint;
+	loopGoVel:=HMIItf.loopGoVel;
+	loopCycle:=HMIItf.loopCycle;
+	loopStepHome:=1000;//相对运动 Loop
+END_IF
+IF NOT bE_Stop OR axisStopFlag THEN
+	loopStepHome:=0;
+	tHomeTemp(IN:=FALSE);
+	loopWatingTON(IN:=FALSE);
+END_IF
+loopGoHome:=FALSE;
+CASE loopStepHome OF
+0:
+	//Ready
+
+
+//相对运动 Loop
+1000:
+	IF homeCondition THEN
+		loopStepHome:=loopStepHome+10;
+		tHomeTemp(IN:=FALSE);
+	END_IF
+1010:
+	homeExecute:=TRUE;
+	loopStepHome:=loopStepHome+10;
+1020:
+	tHomeTemp(IN:=NOT tHomeTemp.Q, PT:=T#50MS);
+	IF tHomeTemp.Q THEN
+		tHomeTemp(IN:=FALSE);
+		loopStepHome:=loopStepHome+10;
+	END_IF
+	
+1030:
+	IF homeDone THEN
+		loopStepHome:=loopStepHome+10;
+	END_IF
+1040:
+	IF absCondition THEN
+		loopStepHome:=loopStepHome+10;
+	END_IF
+1050:
+	absVelocity:=loopGoVel;
+	absPosition:=loopFirstPoint;
+	absExecute:=TRUE;
+	IF absBusy THEN
+		absExecute:=FALSE;
+		loopStepHome:=loopStepHome+10;
+	END_IF
+1060:
+	IF NOT absBusy AND absDone THEN
+		loopStepHome:=loopStepHome+10;
+		loopCycleTimes:=loopCycleTimes+1;
+	END_IF
+	IF axisError THEN
+		loopStepHome:=10000;//Error
+	END_IF
+	tHomeTemp(IN:=FALSE);
+1070:
+	loopWatingTON(IN:=NOT loopWatingTON.Q, PT:=UINT_TO_TIME(HMIItf.loopWatingTime));
+	IF loopWatingTON.Q THEN
+		loopWatingTON(IN:=FALSE);
+		loopStepHome:=loopStepHome+10;
+	END_IF
+1080:
+	IF (0=loopCycleTimes) OR loopCycle<=loopCycleTimes THEN
+		loopStepHome:=8000;//Done
+	ELSE
+		loopStepHome:=1000;
+	END_IF
+
+
+
+//Done
+8000:
+	loopStepHome:=0;
+
+//Error
+10000:
+	loopStepHome:=0;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="LoopMove_ACT" Id="{a7510a00-47cd-48a8-98d2-29c225e13c81}" FolderPath="Private\Motion\">
+      <Implementation>
+        <ST><![CDATA[IF loopRelGo AND relCondition AND 0=loopStep THEN
+	loopFirstPoint:=HMIItf.loopFirstPoint;
+	loopSecondPoint:=HMIItf.loopSecondPoint;
+	loopGoVel:=HMIItf.loopGoVel;
+	loopCycle:=HMIItf.loopCycle;
+	loopWatingTime:=HMIItf.loopWatingTime;
+	
+	loopCycleTimes:=0;
+	loopStep:=1000;//相对运动 Loop
+END_IF
+IF loopAbsGo AND absCondition AND 0=loopStep THEN
+	loopFirstPoint:=HMIItf.loopFirstPoint;
+	loopSecondPoint:=HMIItf.loopSecondPoint;
+	loopGoVel:=HMIItf.loopGoVel;
+	loopCycle:=HMIItf.loopCycle;
+	loopWatingTime:=HMIItf.loopWatingTime;
+	
+	loopCycleTimes:=0;
+	loopStep:=3000;//绝对运动 Loop
+END_IF
+loopRelGo:=FALSE;
+loopAbsGo:=FALSE;
+
+IF NOT bE_Stop OR axisStopFlag THEN
+	loopStep:=0;
+END_IF
+
+CASE loopStep OF
+0:
+	//Ready
+
+
+//相对运动 Loop
+1000:
+	IF relCondition THEN
+		loopStep:=loopStep+10;
+	END_IF
+1010:
+	IF (0=loopCycle) OR loopCycle<=loopCycleTimes THEN
+		loopStep:=8000;//Done
+	ELSE
+		loopCycleTimes:=loopCycleTimes+1;
+		loopStep:=loopStep+10;
+	END_IF
+1020:
+	relVelocity:=loopGoVel;
+	relDistance:=loopFirstPoint;
+	relExecute:=TRUE;
+	IF relBusy THEN
+		relExecute:=FALSE;
+		loopStep:=loopStep+10;
+	END_IF
+1030:
+	IF NOT relBusy AND relDone THEN
+		loopStep:=loopStep+10;
+	END_IF
+	IF axisError THEN
+		loopStep:=10000;//Error
+	END_IF
+	loopWatingTON(IN:=FALSE);
+1040:
+	loopWatingTON(IN:=NOT loopWatingTON.Q, PT:=UINT_TO_TIME(loopWatingTime));
+	IF loopWatingTON.Q AND relCondition THEN
+		loopWatingTON(IN:=FALSE);
+		loopStep:=loopStep+10;
+	END_IF
+1050:
+	relVelocity:=loopGoVel;
+	relDistance:=loopSecondPoint;
+	relExecute:=TRUE;
+	IF relBusy THEN
+		relExecute:=FALSE;
+		loopStep:=loopStep+10;
+	END_IF
+1060:
+	IF NOT relBusy AND relDone THEN
+		loopStep:=loopStep+10;
+	END_IF
+	IF axisError THEN
+		loopStep:=10000;//Error
+	END_IF
+	loopWatingTON(IN:=FALSE);
+1070:
+	loopWatingTON(IN:=NOT loopWatingTON.Q, PT:=UINT_TO_TIME(loopWatingTime));
+	IF loopWatingTON.Q THEN
+		loopWatingTON(IN:=FALSE);
+		loopStep:=loopStep+10;
+	END_IF
+1080:
+	IF (0=loopCycle) OR loopCycle<=loopCycleTimes THEN
+		loopStep:=8000;//Done
+	ELSE
+		loopStep:=1000;
+	END_IF
+
+
+//绝对运动 Loop
+3000:
+	IF absCondition THEN
+		loopStep:=loopStep+10;
+	END_IF
+3010:
+	IF (0=loopCycle) OR loopCycle<=loopCycleTimes THEN
+		loopStep:=8000;//Done
+	ELSE
+		loopCycleTimes:=loopCycleTimes+1;
+		loopStep:=loopStep+10;
+	END_IF
+3020:
+	absVelocity:=loopGoVel;
+	absPosition:=loopFirstPoint;
+	absExecute:=TRUE;
+	IF absBusy THEN
+		absExecute:=FALSE;
+		loopStep:=loopStep+10;
+	END_IF
+3030:
+	IF NOT absBusy AND absDone THEN
+		loopStep:=loopStep+10;
+	END_IF
+	IF axisError THEN
+		loopStep:=10000;//Error
+	END_IF
+	loopWatingTON(IN:=FALSE);
+3040:
+	loopWatingTON(IN:=NOT loopWatingTON.Q, PT:=UINT_TO_TIME(loopWatingTime));
+	IF loopWatingTON.Q AND absCondition THEN
+		loopWatingTON(IN:=FALSE);
+		loopStep:=loopStep+10;
+	END_IF
+3050:
+	absVelocity:=loopGoVel;
+	absPosition:=loopSecondPoint;
+	absExecute:=TRUE;
+	IF absBusy THEN
+		absExecute:=FALSE;
+		loopStep:=loopStep+10;
+	END_IF
+3060:
+	IF NOT absBusy AND absDone THEN
+		loopStep:=loopStep+10;
+	END_IF
+	IF axisError THEN
+		loopStep:=10000;//Error
+	END_IF
+	loopWatingTON(IN:=FALSE);
+3070:
+	loopWatingTON(IN:=NOT loopWatingTON.Q, PT:=UINT_TO_TIME(loopWatingTime));
+	IF loopWatingTON.Q AND absCondition THEN
+		loopWatingTON(IN:=FALSE);
+		loopStep:=loopStep+10;
+	END_IF
+3080:
+	IF (0=loopCycle) OR loopCycle<=loopCycleTimes THEN
+		loopStep:=8000;//Done
+	ELSE
+		loopStep:=3000;
+	END_IF
+
+//Done
+8000:
+	loopStep:=0;
+
+//Error
+10000:
+	loopStep:=0;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ManualCtr_ACT" Id="{15c5dc59-085d-4a96-a7f6-7110786d5002}" FolderPath="Private\Init\">
+      <Implementation>
+        <ST><![CDATA[
+//*********** Stop button ***************
+stopTrigR1(CLK:=HMIItf.stop OR stoptemp);
+IF stopTrigR1.Q THEN
+	axisStopFlag:=TRUE;
+END_IF
+CASE manualStep OF
+0:
+	IF axisStopFlag THEN
+		stopExecute:=TRUE;
+		manualStep:=manualStep+1;
+	END_IF
+1:
+	manualStep:=manualStep+1;
+2:
+	IF NOT axisStopFlag THEN
+		manualStep:=0;
+	END_IF
+END_CASE
+//Velo Limit
+IF HMIItf.manSoftLimitVel<0 THEN
+	HMIItf.manSoftLimitVel:=ABS(HMIItf.manSoftLimitVel);
+END_IF
+//Jog
+IF HMIItf.manJogVel>HMIItf.manSoftLimitVel THEN
+	HMIItf.manJogVel:=HMIItf.manSoftLimitVel;
+END_IF
+//manVel
+IF HMIItf.manVel>HMIItf.manSoftLimitVel THEN
+	HMIItf.manVel:=HMIItf.manSoftLimitVel;
+END_IF
+//in each mode, stop is still working
+stopTon(in:=axisStopFlag,pt:=T#1S);
+IF stopTon.Q THEN
+	axisStopFlag:=FALSE;
+	stopTon(in:=FALSE);
+	stoptemp:=FALSE;
+END_IF
+
+IF (NOT axisEnable) 
+	AND (HMIItf.manJogGo OR HMIItf.manRelGo OR HMIItf.manVelGo OR HMIItf.manABSGo OR HMIItf.reset OR HMIItf.stop 
+		OR HMIItf.pauseB OR HMIItf.power OR HMIItf.setZero OR HMIItf.goHomeGo) THEN
+	RETURN;
+END_IF
+
+//*********** Reset button ***************
+resetTrigR1(CLK:=HMIItf.reset);
+IF resetTrigR1.Q THEN
+	resetExecute:=TRUE;
+	stoptemp:=FALSE;
+END_IF
+//resetTrigR2(CLK:=HMIItf.reset2);
+//IF resetTrigR2.Q THEN
+//	resetExecute2:=TRUE;
+//	stoptemp:=FALSE;
+//END_IF
+
+IF HMIItf.ctrlModeCondition THEN
+//*********** Home button ***************
+	goHomeTrigR1(CLK:=HMIItf.goHomeGo);
+	IF goHomeTrigR1.Q AND NOT axisBusy THEN
+		homeExecute:=TRUE;
+	END_IF
+
+//*********** JOG button ***************
+	IF HMIItf.manJogVel<0 THEN
+		HMIItf.manJogVel:=ABS(HMIItf.manJogVel);
+	END_IF
+	jogTrigR1_NAiko(CLK:=HMIItf.manJogN);
+	jogTrigF1_NAiko(CLK:=HMIItf.manJogN);
+	IF jogTrigR1_NAiko.Q THEN
+		HMIItf.choiceOfDirection:=FALSE;
+		jogDirection:=FALSE;
+		HMIItf.manJogGo:=TRUE;
+	END_IF
+	IF jogTrigF1_NAiko.Q THEN
+		HMIItf.manJogGo:=FALSE;
+	END_IF
+	jogTrigR1_PAiko(CLK:=HMIItf.manJogP);
+	jogTrigF1_PAiko(CLK:=HMIItf.manJogP);
+	IF jogTrigR1_PAiko.Q THEN
+		HMIItf.choiceOfDirection:=TRUE;
+		jogDirection:=TRUE;
+		HMIItf.manJogGo:=TRUE;
+	END_IF
+	IF jogTrigF1_PAiko.Q THEN
+		HMIItf.manJogGo:=FALSE;
+	END_IF
+	jogTrigR1(CLK:=HMIItf.manJogGo);
+	jogTrigF1(CLK:=HMIItf.manJogGo);
+	IF jogTrigR1.Q AND NOT axisBusy THEN
+		IF HMIItf.choiceOfDirection THEN
+			jogDirection:=TRUE;
+		ELSE
+			jogDirection:=FALSE;
+		END_IF
+		jogVelocity:=ABS(HMIItf.manJogVel);
+		jogExecute:=TRUE;
+	END_IF
+	IF jogTrigF1.Q THEN
+		jogExecute:=FALSE;
+	END_IF
+	
+//*********** VelGo button ***************
+//	velTrigR1_NAiko(CLK:=HMIItf.manVelN);
+//	velTrigF1_NAiko(CLK:=HMIItf.manVelN);
+//	IF velTrigR1_NAiko.Q AND NOT velBusy THEN
+//		HMIItf.choiceOfDirection:=FALSE;
+//		jogDirection:=FALSE;
+//		HMIItf.manVelGo:=TRUE;
+//	END_IF
+//	IF velTrigR1_NAiko.Q AND velBusy THEN
+//		HMIItf.manVelGo:=FALSE;
+//		axisStopFlag:=TRUE;
+//	END_IF
+//	IF velTrigF1_NAiko.Q THEN
+//		HMIItf.manVelGo:=FALSE;
+//	END_IF
+	
+//	velTrigR1_PAiko(CLK:=HMIItf.manVelP);
+//	velTrigF1_PAiko(CLK:=HMIItf.manVelP);
+//	IF velTrigR1_PAiko.Q AND NOT velBusy THEN
+//		HMIItf.choiceOfDirection:=TRUE;
+//		jogDirection:=TRUE;
+//		HMIItf.manVelGo:=TRUE;
+//	END_IF
+//	IF velTrigR1_PAiko.Q AND velBusy THEN
+//		axisStopFlag:=TRUE;
+//		HMIItf.manVelGo:=FALSE;
+//	END_IF
+//	IF velTrigF1_PAiko.Q THEN
+//		HMIItf.manVelGo:=FALSE;
+//	END_IF
+	
+	velTrigR1(CLK:=HMIItf.manVelGo);
+	IF velTrigR1.Q THEN
+		IF HMIItf.choiceOfDirection THEN
+			velDirection:=TRUE;
+		ELSE
+			velDirection:=FALSE;
+		END_IF
+		IF velExecute THEN
+			velExecute:=FALSE;
+		ELSIF NOT axisBusy THEN
+			velExecute:=TRUE;
+		END_IF
+		velVelocity:=ABS(HMIItf.manJogVel);
+	END_IF
+	
+//*********** RelGo button ***************
+	IF HMIItf.manVel<0 THEN
+		HMIItf.manVel:=ABS(HMIItf.manVel);
+	END_IF
+	IF HMIItf.manRelDis<0 THEN
+		HMIItf.manRelDis:=ABS(HMIItf.manRelDis);
+	END_IF
+	relT1(IN:=HMIItf.manRelGo,PT:=T#1S);
+	relTrigR1(CLK:=relT1.Q);
+	IF relTrigR1.Q AND NOT axisBusy THEN
+		relVelocity:=ABS(HMIItf.manVel);
+		IF HMIItf.choiceOfDirection THEN
+			relDistance:=HMIItf.manRelDis;
+		ELSE
+			relDistance:=0-HMIItf.manRelDis;
+		END_IF
+		relExecute:=TRUE;
+	END_IF
+
+//*********** AbsGo button ***************
+	absT1(IN:=HMIItf.manABSGo,PT:=T#1S);
+	absTrigR1(CLK:=absT1.Q);
+	IF absTrigR1.Q AND NOT axisBusy THEN
+		absVelocity:=ABS(HMIItf.manVel);
+		absPosition:=HMIItf.manABSPos;
+		absExecute:=TRUE;
+	END_IF
+	absRP(CLK:=HMIItf.GoToOpen);
+	IF absRP.Q AND bP_Pos<>0.777 THEN
+		absVelocity:=ABS(HMIItf.manVel);
+		absPosition:=bP_Pos;
+		absExecute:=TRUE;
+	END_IF
+	absRN(CLK:=HMIItf.GoToClose);
+	IF absRN.Q AND bN_Pos<>0.777 THEN
+		absVelocity:=ABS(HMIItf.manVel);
+		absPosition:=bN_Pos;
+		absExecute:=TRUE;
+	END_IF
+//*********** Zero button ***************
+	setPosTrigR1(CLK:=HMIItf.setZero);
+	IF setPosTrigR1.Q AND NOT axisBusy THEN
+		setPosPosition:=0;
+		setPosExecute:=TRUE;
+	END_IF
+	
+//*********** Power button ***************
+	powerTrigF1(CLK:=HMIItf.power);
+	IF powerTrigF1.Q AND NOT axisBusy THEN
+		IF powerEnable THEN
+			powerEnable:=FALSE;
+		ELSE
+			powerEnable:=TRUE;
+		END_IF
+	END_IF
+
+//*********** Pause button ***************
+	pause_Manual_F_Trig(CLK:=HMIItf.pauseB);
+	IF pause_Manual_F_Trig.Q THEN
+		pauseExecute:=NOT pauseExecute;
+	END_IF
+	
+//*********** LOOP ***************
+//*********** loopRelGo button ***************
+	loopRelGoT1(IN:=HMIItf.loopRelGo,PT:=T#2S);
+	loopRelGoTrigR1(CLK:=loopRelGoT1.Q);
+	IF loopRelGoTrigR1.Q AND NOT axisBusy THEN
+		loopRelGo:=TRUE;
+	END_IF
+//*********** loopAbsGo button ***************
+	loopAbsGoT1(IN:=HMIItf.loopAbsGo,PT:=T#2S);
+	loopAbsGoTrigR1(CLK:=loopAbsGoT1.Q);
+	IF loopAbsGoTrigR1.Q AND NOT axisBusy THEN
+		loopAbsGo:=TRUE;
+	END_IF
+	loopHomeToPosGoT1(IN:=HMIItf.loopHomeToPosGo,PT:=T#2S);
+	loopHomeToPosTrigR1(CLK:=loopHomeToPosGoT1.Q);
+	IF loopHomeToPosTrigR1.Q AND NOT axisBusy THEN
+		loopGoHome:=TRUE;
+	END_IF
+ELSE
+	HMIItf.manABSPos:=0;
+	HMIItf.manRelDis:=0;
+	
+	HMIItf.manJogGo:=FALSE;
+	HMIItf.manVelGo:=FALSE;
+	HMIItf.manRelGo:=FALSE;
+	HMIItf.manABSGo:=FALSE;
+	HMIItf.pauseB:=FALSE;
+	//HMIItf.power:=FALSE;//解决控制模式切换导致掉使能的问题
+	HMIItf.setZero:=FALSE;
+	HMIItf.goHomeGo:=FALSE;
+	HMIItf.loopRelGo:=FALSE;
+	HMIItf.loopAbsGo:=FALSE;
+	
+	relT1(IN:=FALSE);
+	absT1(IN:=FALSE);
+	loopRelGoT1(IN:=FALSE);
+	loopAbsGoT1(IN:=FALSE);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="MoveModulo_ACT" Id="{24c661b1-cd73-4145-a23e-bda8691d3dfc}" FolderPath="Private\Motion\">
+      <Implementation>
+        <ST><![CDATA[//轴 模运动运行控制-- moveModuloExecute 触发条件是复归型
+IF NOT bE_Stop THEN
+	moveModuloStep:=0;
+	moveModuloExecute:=FALSE;
+END_IF
+moveModuloCondition:=(NOT axisError AND NOT axisStopFlag 
+				AND (NOT axisBusy OR 0<>loopStep) AND powerReady 
+				AND moveModuloConditionOuter AND bE_Stop AND NOT axisPause);
+mcMoveModulo(
+	Axis:= axis, 
+	Execute:= , 
+	Position:= , 
+	Velocity:= , 
+	Acceleration:= , 
+	Deceleration:= , 
+	Jerk:= , 
+	Direction:= , 
+	BufferMode:= , 
+	Options:= , 
+	Done=> , 
+	Busy=> , 
+	Active=> , 
+	CommandAborted=> , 
+	Error=> , 
+	ErrorID=> );
+
+CASE moveModuloStep OF
+0:
+	moveModuloBusy:=FALSE;
+	IF moveModuloExecute AND moveModuloCondition THEN
+		moveModuloBusy:=TRUE;
+		moveModuloDone:=FALSE;
+		moveModuloErrorDone:=FALSE;
+		moveModuloStep:=20;
+	END_IF
+	moveModuloExecute:=FALSE;
+	mcMoveModulo(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+20:
+	IF NOT bPLimitSwitch OR NOT bNLimitSwitch OR NOT bSoftPLimit OR NOT bSoftNLimit OR NOT powerEnable_Positive OR NOT powerEnable_Negative THEN
+		axisStopFlag:=TRUE;
+
+		IF NOT bPLimitSwitch THEN
+			errorStep:=3;
+		ELSIF NOT bNLimitSwitch THEN
+			errorStep:=4;
+		END_IF
+		IF NOT bSoftPLimit OR NOT bSoftNLimit THEN
+			errorStep:=2;
+		END_IF
+		IF NOT powerEnable_Positive OR NOT powerEnable_Negative THEN
+			errorStep:=19;
+		END_IF
+		absStep:=10000;//error
+		RETURN;
+	END_IF
+	mcMoveModulo(
+		Axis:= axis, 
+		Execute:= TRUE, 
+		Position:= moveModuloPosition, 
+		Velocity:= moveModuloVelocity, 
+		Acceleration:= moveModuloAcceleration, 
+		Deceleration:= moveModuloDeceleration, 
+		Jerk:= moveModuloJerk, 
+		Direction:= moveModuloDirection, 
+		BufferMode:= , 
+		Options:= , 
+		Done=> , 
+		Busy=> , 
+		Active=> , 
+		CommandAborted=> , 
+		Error=> , 
+		ErrorID=> );
+	IF mcMoveModulo.Done THEN//mcMoveModulo.Done信号只保持一个扫描周期
+		moveModuloStep:=5000;//done
+	ELSIF mcMoveModulo.Error OR mcMoveModulo.ErrorID<>0 THEN
+		errorStep:=9;
+		moveModuloStep:=10000;//error
+	END_IF
+
+	IF axisStopFlag OR NOT powerReady OR 0<>stopStep THEN
+		moveModuloStep:=4000;//stop
+	END_IF
+	
+4000://Stop
+	mcMoveModulo(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	moveModuloExecute:=FALSE;
+	moveModuloBusy:=FALSE;
+	moveModuloDone:=FALSE;
+	moveModuloErrorDone:=FALSE;
+	moveModuloStep:=0;
+5000://Done
+	mcMoveModulo(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	moveModuloExecute:=FALSE;
+	moveModuloBusy:=FALSE;
+	moveModuloDone:=TRUE;
+	moveModuloErrorDone:=FALSE;
+	moveModuloStep:=0;
+10000://Error
+	mcMoveModulo(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	moveModuloExecute:=FALSE;
+	moveModuloBusy:=FALSE;
+	moveModuloDone:=FALSE;
+	moveModuloErrorDone:=TRUE;
+	moveModuloStep:=0;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Power_ACT" Id="{cf9abe9c-be0c-49d1-87d5-43b30e31f5b2}" FolderPath="Private\Init\">
+      <Implementation>
+        <ST><![CDATA[IF powerEnable_Inner AND powerEnable AND bE_Stop THEN
+	mcPower(
+		Axis:= axis, 
+		Enable:= TRUE, 
+		Enable_Positive:= powerEnable_Positive, 
+		Enable_Negative:= powerEnable_Negative, 
+		Override:= overrideSet, 
+		BufferMode:= , 
+		Options:= , 
+		Status=> , 
+		Busy=> , 
+		Active=> , 
+		Error=> , 
+		ErrorID=> );
+ELSE
+	mcPower(
+		Axis:= axis, 
+		Enable:= FALSE, 
+		Enable_Positive:= powerEnable_Positive, 
+		Enable_Negative:= powerEnable_Negative, 
+		Override:= overrideSet, 
+		BufferMode:= , 
+		Options:= , 
+		Status=> , 
+		Busy=> , 
+		Active=> , 
+		Error=> , 
+		ErrorID=> );
+END_IF
+IF mcPower.Error THEN
+	errorStep:=14;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="RelMove_ACT" Id="{9b6b1b59-b701-4c1f-872a-b8f86c3b9d1d}" FolderPath="Private\Motion\">
+      <Implementation>
+        <ST><![CDATA[//轴相对运动运行控制--relExecute触发条件是复归型
+IF NOT bE_Stop THEN
+	relStep:=0;
+	relExecute:=FALSE;
+END_IF
+relCondition:=(NOT axisError AND NOT axisStopFlag 
+				AND (NOT axisBusy OR 0<>loopStep) AND powerReady 
+				AND relConditionOuter AND bE_Stop AND NOT axisPause);
+
+mcRel(
+	Axis:=axis , 
+	Execute:= , 
+	Distance:= , 
+	Velocity:= , 
+	Acceleration:= , 
+	Deceleration:= , 
+	Jerk:= , 
+	BufferMode:= , 
+	Options:= , 
+	Done=> , 
+	Busy=> , 
+	Active=> , 
+	CommandAborted=> , 
+	Error=> , 
+	ErrorID=> );
+
+CASE relStep OF
+0:
+	relBusy:=FALSE;
+	IF relExecute AND (NOT relCondition OR NOT powerEnable_Negative OR NOT powerEnable_Positive) THEN
+		note_abs:=FALSE;
+		note_jog:=FALSE;
+		note_vel:=FALSE;
+		note_home:=FALSE;
+		note_rel:=TRUE;
+	END_IF
+	IF relExecute AND relCondition THEN
+		note_abs:=FALSE;
+		note_jog:=FALSE;
+		note_vel:=FALSE;
+		note_home:=FALSE;
+		note_rel:=FALSE;
+		relBusy:=TRUE;
+		relDone:=FALSE;
+		relErrorDone:=FALSE;
+		relStep:=10;
+		mcReset(
+			Axis:= axis, 
+			Execute:= TRUE,
+			Done=> , 
+			Busy=> , 
+			Error=> , 
+			ErrorID=> );
+	END_IF
+	relExecute:=FALSE;
+	mcRel(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+10:
+	IF NOT axisStopFlag AND powerReady AND 0=stopStep THEN
+		relStep:=20;
+		mcReset(//陈培华
+				Axis:= axis, 
+				Execute:= FALSE,
+				Done=> , 
+				Busy=> , 
+				Error=> , 
+				ErrorID=> );
+	END_IF
+20:
+	IF NOT bPLimitSwitch OR NOT bNLimitSwitch OR NOT bSoftPLimit OR NOT bSoftNLimit OR NOT powerEnable_Positive OR NOT powerEnable_Negative THEN
+		axisStopFlag:=TRUE;
+
+		IF NOT bPLimitSwitch THEN
+			errorStep:=3;
+		ELSIF NOT bNLimitSwitch THEN
+			errorStep:=4;
+		END_IF
+		IF NOT bSoftPLimit OR NOT bSoftNLimit THEN
+			errorStep:=2;
+		END_IF
+		IF NOT powerEnable_Positive OR NOT powerEnable_Negative THEN
+			errorStep:=19;
+		END_IF
+		absStep:=10000;//error
+		RETURN;
+	END_IF
+	mcRel(
+		Axis:=axis , 
+		Execute:=TRUE , 
+		Distance:=relDistance , 
+		Velocity:=relVelocity , 
+		Acceleration:=relAcceleration , 
+		Deceleration:=relDeceleration , 
+		Jerk:=relJerk , 
+		BufferMode:= , 
+		Options:= , 
+		Done=> , 
+		Busy=> , 
+		Active=> , 
+		CommandAborted=> , 
+		Error=> , 
+		ErrorID=> );
+	IF mcRel.Done THEN//mcRel.Done信号只保持一个扫描周期
+		relStep:=5000;//done
+	ELSIF mcRel.Error OR mcRel.ErrorID<>0 THEN
+		errorStep:=10;
+		relStep:=10000;//error
+	END_IF
+
+	IF axisStopFlag OR NOT powerReady OR 0<>stopStep THEN
+		relStep:=4000;//stop
+	END_IF
+	
+4000://Stop
+	mcRel(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	relExecute:=FALSE;
+	relBusy:=FALSE;
+	relDone:=FALSE;
+	relErrorDone:=FALSE;
+	relStep:=0;
+5000://Done
+	mcRel(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	relExecute:=FALSE;
+	relBusy:=FALSE;
+	relDone:=TRUE;
+	relErrorDone:=FALSE;
+	relStep:=0;
+10000://Error
+	mcRel(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	relExecute:=FALSE;
+	relBusy:=FALSE;
+	relDone:=FALSE;
+	relErrorDone:=TRUE;
+	relStep:=0;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Reset_ACT" Id="{26e8ce78-06f9-4138-97ad-64ec0d857074}" FolderPath="Private\Init\">
+      <Implementation>
+        <ST><![CDATA[(*
+CASE resetStep OF
+	0:
+	IF resetExecute THEN
+		resetExecute:=FALSE;
+		mcReset(
+			Axis:= axis, 
+			Execute:= FALSE,
+			Done=> , 
+			Busy=> , 
+			Error=> , 
+			ErrorID=> );
+		resetStep:=1;
+	END_IF
+	1:
+	IF (mcError OR axis.Status.Error OR 0<>axis.NcToPlc.ErrorCode OR homeBusy) THEN
+		mcReset(
+			Axis:= axis, 
+			Execute:= TRUE,
+			Done=> , 
+			Busy=> , 
+			Error=> , 
+			ErrorID=> );
+	END_IF
+	resetExecute:=FALSE;
+	motorError:=FALSE;
+	resetStep:=0;
+END_CASE
+*)
+mcReset(
+	Axis:= axis, 
+	Execute:= ,
+	Done=> , 
+	Busy=> , 
+	Error=> , 
+	ErrorID=> );
+	IF resetExecute  THEN
+		note_abs:=FALSE;
+		note_jog:=FALSE;
+		note_vel:=TRUE;
+		note_home:=FALSE;
+		note_rel:=FALSE;
+		mcReset(
+			Axis:= axis, 
+			Execute:= FALSE,
+			Done=> , 
+			Busy=> , 
+			Error=> , 
+			ErrorID=> );
+		IF (mcError OR axis.Status.Error 
+			OR 0<>axis.NcToPlc.ErrorCode 
+			OR (homeBusy AND MotorType_DDmotor_HC=motorType)) THEN
+			mcReset(
+				Axis:= axis, 
+				Execute:= TRUE,
+				Done=> , 
+				Busy=> , 
+				Error=> , 
+				ErrorID=> );
+				//陈培华 0903
+//				mcReset(
+//					Axis:= axis, 
+//					Execute:= FALSE,
+//					Done=> , 
+//					Busy=> , 
+//					Error=> , 
+//					ErrorID=> );
+		END_IF
+		motorError:=FALSE;
+		errorStep:=0;
+		resetExecute:=FALSE;
+	ELSE
+		IF resetStep=0 THEN
+			mcReset(
+				Axis:= axis, 
+				Execute:=FALSE ,
+				Done=> , 
+				Busy=> , 
+				Error=> , 
+				ErrorID=> );
+		END_IF
+	END_IF
+	IF mcReset.Error THEN
+		errorStep:=15;
+	END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ResetEx_ACT" Id="{738d9062-3e21-4b10-a0f6-e558baeecf8e}" FolderPath="Private\Init\">
+      <Implementation>
+        <ST><![CDATA[mcReset(
+	Axis:= axis, 
+	Execute:= ,
+	Done=> , 
+	Busy=> , 
+	Error=> , 
+	ErrorID=> );
+CASE resetStep OF
+	0:
+		resetBusy:=FALSE;
+		IF resetExecute2 THEN
+			resetBusy:=TRUE;
+			resetDone:=FALSE;
+			resetErrorDone:=FALSE;
+			resetStep:=10;
+			mcReset(
+				Axis:= axis, 
+				Execute:= FALSE,
+				Done=> , 
+				Busy=> , 
+				Error=> , 
+				ErrorID=> );
+		END_IF
+		resetExecute2:=FALSE;
+	10:
+		mcReset(
+			Axis:= axis, 
+			Execute:= TRUE,
+			Done=> , 
+			Busy=> , 
+			Error=> , 
+			ErrorID=> );
+		IF NOT mcReset.Busy THEN
+			resetStep:=20;
+			mcReset(
+				Axis:= axis, 
+				Execute:= FALSE,
+				Done=> , 
+				Busy=> , 
+				Error=> , 
+				ErrorID=> );
+		END_IF
+	20:
+		resetStep:=resetStep+10;
+	30:
+		resetExecute:=TRUE;
+		resetStep:=resetStep+10;
+	40:
+		resetStep:=resetStep+10;
+	50:
+		resetStep:=resetStep+10;
+	60:
+		resetBusy:=FALSE;
+		resetDone:=TRUE;
+		resetErrorDone:=FALSE;
+		resetStep:=0;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="setAbs" Id="{65e53aa3-f5c8-40aa-a5e1-15b5c1626e45}" FolderPath="Public\">
+      <Declaration><![CDATA[//设定绝对定位运行模式的位置和速度
+METHOD setAbs
+VAR_INPUT
+	pos:LREAL;//绝对目标设定
+	vel:LREAL;//速度设定
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[absPosition:=pos;
+absVelocity:=vel;]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="SetPause_ACT" Id="{cbd7c4da-58cf-4a14-9e82-e26a29e4b655}" FolderPath="Private\Init\">
+      <Implementation>
+        <ST><![CDATA[IF axisOverride<>overrideSet AND ((overrideSet<>0) OR NOT pauseExecute) THEN
+	overrideSet:=axisOverride;
+END_IF
+
+pauseR_Trig(CLK:=pauseExecute);
+IF pauseR_Trig.Q THEN
+	overrideTemp:=overrideSet;
+	overrideSet:=0;
+	axisPause:=TRUE;
+END_IF
+
+pauseF_Trig(CLK:=pauseExecute);
+IF pauseF_Trig.Q THEN
+	overrideSet:=overrideTemp;
+	axisPause:=FALSE;
+	HMIItf.pauseB:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="SetPosition_ACT" Id="{a2632d02-3106-4257-9e9f-6b131ab9950c}" FolderPath="Private\Motion\">
+      <Implementation>
+        <ST><![CDATA[//轴当前位置修改--setPosExecute触发条件是复归型
+IF NOT bE_Stop THEN
+	setPosStep:=0;
+	setPosExecute:=FALSE;
+END_IF
+setCondition:=(NOT axisError AND NOT axisStopFlag 
+				AND NOT axisBusy AND powerReady 
+				AND setConditionOuter AND bE_Stop AND NOT axisPause);
+
+mcSetPos(
+	Axis:=axis , 
+	Execute:= , 
+	Position:= , 
+	Mode:= , 
+	Options:= , 
+	Done=> , 
+	Busy=> , 
+	Error=> , 
+	ErrorID=> );
+
+CASE setPosStep OF
+0:
+	setPosBusy:=FALSE;
+	IF setPosExecute AND (setCondition OR homeBusy) THEN
+		setPosBusy:=TRUE;
+		setPosDone:=FALSE;
+		setPosErrorDone:=FALSE;
+		
+		setPosStep:=20;
+	END_IF
+	setPosExecute:=FALSE;
+	mcSetPos(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+20:
+	IF NOT bPLimitSwitch OR NOT bNLimitSwitch OR NOT bSoftPLimit OR NOT bSoftNLimit THEN
+		axisStopFlag:=TRUE;
+
+		IF NOT bPLimitSwitch THEN
+			errorStep:=3;
+		ELSIF NOT bNLimitSwitch THEN
+			errorStep:=4;
+		END_IF
+		IF NOT bSoftPLimit OR NOT bSoftNLimit THEN
+			errorStep:=2;
+		END_IF
+		
+		setPosStep:=10000;//error
+		RETURN;
+	END_IF
+	mcSetPos(
+		Axis:=axis , 
+		Execute:=TRUE , 
+		Position:=setPosPosition , 
+		Mode:= , 
+		Options:= setPosOptions, 
+		Done=> , 
+		Busy=> , 
+		Error=> , 
+		ErrorID=> );
+	IF mcSetPos.Done THEN//mcSetPos.Done信号只保持一个扫描周期
+		setPosStep:=5000;//done
+	ELSIF mcSetPos.Error OR mcSetPos.ErrorID<>0 THEN
+		errorStep:=11;
+		setPosStep:=10000;//error
+	END_IF
+
+	IF axisStopFlag OR NOT powerReady OR 0<>stopStep THEN
+		setPosStep:=4000;//stop
+	END_IF
+
+4000://Stop
+	mcSetPos(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	setPosExecute:=FALSE;
+	setPosBusy:=FALSE;
+	setPosDone:=FALSE;
+	setPosErrorDone:=FALSE;
+	setPosStep:=0;
+5000://Done
+	mcSetPos(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	setPosExecute:=FALSE;
+	setPosBusy:=FALSE;
+	setPosDone:=TRUE;
+	setPosErrorDone:=FALSE;
+	setPosStep:=0;
+10000://Error
+	mcSetPos(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	setPosExecute:=FALSE;
+	setPosBusy:=FALSE;
+	setPosDone:=FALSE;
+	setPosErrorDone:=TRUE;
+	setPosStep:=0;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="setRel" Id="{2a827cda-29c9-443f-b8c1-34368fb723b5}" FolderPath="Public\">
+      <Declaration><![CDATA[//设定相对定位运行模式的距离和速度
+METHOD setRel
+VAR_INPUT
+	dis:LREAL;//相对目标设定
+	vel:LREAL;//速度设定
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[relDistance:=dis;
+relVelocity:=vel;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="setVel" Id="{43b0c164-f7a4-4c09-a53e-315ca3447a6f}" FolderPath="Public\">
+      <Declaration><![CDATA[//设定速度运行模式的方向和速度
+METHOD setVel
+VAR_INPUT
+	dire:BOOL;//方向设定, TRUE为正方向, FALSE为负方向
+	vel:LREAL;//速度设定
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[velDirection:=dire;
+velVelocity:=vel;]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Stop_ACT" Id="{fbe7c5f2-b43d-4a19-843f-2c05325f255c}" FolderPath="Private\Motion\">
+      <Implementation>
+        <ST><![CDATA[//轴停止函数--stopExecute触发条件是复归型
+
+mcStop(
+	Axis:=axis , 
+	Execute:=, 
+	Deceleration:= , 
+	Jerk:= ,
+	Options:= ,
+	Done=>,
+	Busy=> ,
+	Active=> ,
+	CommandAborted=> ,
+	Error=> , 
+	ErrorID=> );
+	(*IF stopStep<>0 THEN
+		stopStep:=0;
+		stopErrorDone:=mcStop.Execute;
+	END_IF*)
+(*mcHalt(
+	Axis:= axis, 
+	Execute:= , 
+	Deceleration:= , 
+	Jerk:= , 
+	BufferMode:= , 
+	Options:= , 
+	Done=> , 
+	Busy=> , 
+	Active=> , 
+	CommandAborted=> , 
+	Error=> , 
+	ErrorID=> );*)
+//(*
+CASE stopStep OF
+0:
+	stopBusy:=FALSE;
+	IF stopExecute AND powerReady (*AND bE_Stop*) THEN
+		stopBusy:=TRUE;
+		stopDone:=FALSE;
+		stopErrorDone:=FALSE;
+		stopStep:=10;
+	END_IF
+	stopExecute:=FALSE;
+10:
+	stopTimeout(IN:=FALSE);
+	mcStop(
+		Axis:=axis , 
+		Execute:=FALSE,);
+	(*mcHalt(
+		Axis:=axis , 
+		Execute:=FALSE,);*)
+	stopStep:=20;
+20:
+	mcStop.Execute:=TRUE;
+	mcStop.Deceleration:=stopDeceleration;
+	mcStop.Jerk:=stopJerk;
+	stopStep:=30;
+30:
+	//stopExecute:=FALSE;
+	(*
+	mcStop(
+		Axis:=axis , 
+		Execute:=TRUE, 
+		Deceleration:=stopDeceleration , 
+		Jerk:=stopJerk ,
+		Options:= ,
+		Done=>,
+		Busy=> ,
+		Active=> ,
+		CommandAborted=> ,
+		Error=> , 
+		ErrorID=> );
+	//*)
+	(*
+	mcHalt(
+		Axis:= axis, 
+		Execute:= TRUE, 
+		Deceleration:= stopDeceleration, 
+		Jerk:= , 
+		BufferMode:= , 
+		Options:= , 
+		Done=> , 
+		Busy=> , 
+		Active=> , 
+		CommandAborted=> , 
+		Error=> , 
+		ErrorID=> );
+	//*)
+	stopTimeout(IN:=NOT stopTimeout.Q,PT:=T#60S);
+	
+	IF mcStop.Done(* OR mcHalt.Done *) AND (axis.Status.NotMoving (*AND axis.Status.StandStill*)) THEN//mcStop.Done信号只保持一个扫描周期
+		(*mcStop(
+			Axis:=axis , 
+			Execute:=FALSE, 
+			Deceleration:=stopDeceleration , 
+			Jerk:=stopJerk ,
+			Options:= ,
+			Done=>,
+			Busy=> ,
+			Active=> ,
+			CommandAborted=> ,
+			Error=> , 
+			ErrorID=> );*)
+		mcStop.Execute:=FALSE;
+		(*mcHalt(
+			Axis:=axis , 
+			Execute:=FALSE,);*)
+		stopStep:=40;
+	ELSIF mcStop.Error OR mcStop.ErrorID<>0 (*OR mcHalt.Error OR mcHalt.ErrorID<>0*) THEN
+		errorStep:=12;
+		stopStep:=10000;//error
+	ELSIF stopTimeout.Q THEN
+		stopStep:=10;
+	END_IF
+40:
+	mcReset(
+		Axis:= axis, 
+		Execute:= TRUE,
+		Done=> , 
+		Busy=> , 
+		Error=> , 
+		ErrorID=> );
+	stopStep:=41;
+41:
+	stopStep:=5000;//done
+	mcReset(
+		Axis:= axis, 
+		Execute:= FALSE,
+		Done=> , 
+		Busy=> , 
+		Error=> , 
+		ErrorID=> );
+
+4000://Stop
+	mcStop(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	stopExecute:=FALSE;
+	pauseExecute:=FALSE;
+	stopBusy:=FALSE;
+	stopDone:=FALSE;
+	stopErrorDone:=FALSE;
+	stopStep:=0;
+5000://Done
+	mcStop(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	stopExecute:=FALSE;
+	pauseExecute:=FALSE;
+	stopBusy:=FALSE;
+	stopDone:=TRUE;
+	stopErrorDone:=FALSE;
+	stopStep:=0;
+	//homestep:=0;
+10000://Error
+	mcStop(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	stopExecute:=FALSE;
+	pauseExecute:=FALSE;
+	stopBusy:=FALSE;
+	stopDone:=FALSE;
+	stopErrorDone:=TRUE;
+	stopStep:=0;
+END_CASE
+//*)]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="VelMove_ACT" Id="{2d72e886-38f6-453d-8a1f-5c631e9366f1}" FolderPath="Private\Motion\">
+      <Implementation>
+        <ST><![CDATA[//轴的速度模式运行控制--velExecute触发条件是切换型
+IF NOT bE_Stop THEN
+	velStep:=0;
+	velExecute:=FALSE;
+END_IF
+velCondition:=(NOT axisError AND NOT axisStopFlag 
+				AND (NOT axisBusy OR homeBusy) 
+				AND powerReady AND velConditionOuter 
+				AND bE_Stop AND NOT axisPause);
+mcVel(
+	Axis:=axis , 
+	Execute:= , 
+	Velocity:= , 
+	Acceleration:= , 
+	Deceleration:= , 
+	Jerk:= , 
+	Direction:= , 
+	BufferMode:= Tc2_MC2.MC_BufferMode.MC_Aborting, 
+	Options:= , 
+	InVelocity=> , 
+	Busy=> , 
+	Active=> , 
+	CommandAborted=> , 
+	Error=> , 
+	ErrorID=>);
+CASE velStep OF
+0:
+	velBusy:=FALSE;
+	IF velExecute AND (NOT velCondition OR NOT powerEnable_Negative OR NOT powerEnable_Positive) THEN
+		note_abs:=FALSE;
+		note_jog:=FALSE;
+		note_vel:=TRUE;
+		note_home:=FALSE;
+		note_rel:=FALSE;
+	END_IF
+	IF velExecute AND velCondition THEN
+		note_abs:=FALSE;
+		note_jog:=FALSE;
+		note_vel:=FALSE;
+		note_home:=FALSE;
+		note_rel:=FALSE;
+		velBusy:=TRUE;
+		velDone:=FALSE;
+		velErrorDone:=FALSE;
+		velStep:=10;
+		mcReset(
+				Axis:= axis, 
+				Execute:= TRUE,
+				Done=> , 
+				Busy=> , 
+				Error=> , 
+				ErrorID=> );
+	ELSE
+		velExecute:=FALSE;
+	END_IF
+	mcVel(
+		Axis:=axis , 
+		Execute:=FALSE);
+	velChangeVel:=FALSE;
+10:
+	IF NOT axisStopFlag AND powerReady AND 0=stopStep THEN
+			velStep:=20;
+			mcReset(//陈培华
+				Axis:= axis, 
+				Execute:= FALSE,
+				Done=> , 
+				Busy=> , 
+				Error=> , 
+				ErrorID=> );
+	END_IF
+20:
+	IF velDirection THEN
+		IF (NOT bPLimitSwitch OR NOT bSoftPLimit OR NOT powerEnable_Positive) AND NOT homeBusy THEN
+			axisStopFlag:=TRUE;
+			
+			IF NOT bPLimitSwitch THEN
+				errorStep:=3;
+			END_IF
+			IF NOT bSoftPLimit THEN
+				errorStep:=2;
+			END_IF
+			IF NOT powerEnable_Positive THEN
+				errorStep:=19;
+			END_IF
+			velStep:=10000;//error
+			RETURN;
+		END_IF
+	ELSE
+		IF (NOT bNLimitSwitch OR NOT bSoftNLimit OR NOT powerEnable_Positive) AND NOT homeBusy THEN
+			axisStopFlag:=TRUE;
+			
+			IF NOT bNLimitSwitch THEN
+				errorStep:=4;
+			END_IF
+			IF NOT bSoftNLimit THEN
+				errorStep:=2;
+			END_IF
+			IF NOT powerEnable_Positive THEN
+				errorStep:=19;
+			END_IF
+			velStep:=10000;//error
+			RETURN;
+		END_IF
+	END_IF
+	IF velDirection THEN
+		mcVel.Direction:=MC_Positive_Direction;
+	ELSE
+		mcVel.Direction:=MC_Negative_Direction;
+	END_IF
+	mcVel(
+		Axis:=axis , 
+		Execute:=TRUE , 
+		Velocity:=velVelocity , 
+		Acceleration:=velAcceleration , 
+		Deceleration:=velDeceleration , 
+		Jerk:=velJerk , 
+		Direction:= , 
+		BufferMode:= , 
+		Options:= , 
+		InVelocity=> , 
+		Busy=> , 
+		Active=> , 
+		CommandAborted=> , 
+		Error=> , 
+		ErrorID=>);
+	IF mcVel.Busy THEN
+		velStep:=21;
+	END_IF
+21:
+	(*mcVel(
+		Axis:=axis , 
+		Execute:=TRUE , 
+		);*)
+		velStep:=30;
+30:
+	IF velDirection THEN
+		IF (NOT bPLimitSwitch OR NOT bSoftPLimit OR NOT powerEnable_Positive) AND NOT homeBusy THEN
+			axisStopFlag:=TRUE;
+			
+			IF NOT bPLimitSwitch THEN
+				errorStep:=3;
+			END_IF
+			IF NOT bSoftPLimit THEN
+				errorStep:=2;
+			END_IF
+			IF NOT powerEnable_Positive THEN
+				errorStep:=19;
+			END_IF
+			velStep:=10000;//error
+			RETURN;
+		END_IF
+	ELSE
+		IF (NOT bNLimitSwitch OR NOT bSoftNLimit OR NOT powerEnable_Positive) AND NOT homeBusy THEN
+			axisStopFlag:=TRUE;
+			
+			IF NOT bNLimitSwitch THEN
+				errorStep:=4;
+			END_IF
+			IF NOT bSoftNLimit THEN
+				errorStep:=2;
+			END_IF
+			IF NOT powerEnable_Positive THEN
+				errorStep:=19;
+			END_IF
+			velStep:=10000;//error
+			RETURN;
+		END_IF
+	END_IF
+	
+	IF velChangeVel THEN
+		velChangeVel:=FALSE;
+	mcVel(
+		Axis:=axis , 
+		Execute:=FALSE , 
+		);
+		mcVel(
+			Axis:=axis , 
+			Execute:=TRUE , 
+			Velocity:=velVelocity , 
+			Acceleration:=velAcceleration , 
+			Deceleration:=velDeceleration , 
+			Jerk:=velJerk , 
+			Direction:= , 
+			BufferMode:= , 
+			Options:= , 
+			InVelocity=> , 
+			Busy=> , 
+			Active=> , 
+			CommandAborted=> , 
+			Error=> , 
+			ErrorID=>);
+	END_IF
+	IF NOT velExecute THEN
+		mcVel(
+			Axis:=axis , 
+			Execute:=FALSE ,);
+		stopExecute:=TRUE;//轴停止
+		velStep:=40;
+	END_IF
+	IF mcVel.Error OR mcVel.ErrorID<>0 THEN
+		errorStep:=13;
+		velStep:=10000;//error
+	END_IF
+
+	IF axisStopFlag OR NOT powerReady OR 0<>stopStep THEN
+		velStep:=4000;//stop
+	END_IF
+	
+40:
+	velExecute:=FALSE;
+	IF 0=stopStep THEN
+		velStep:=5000;//done
+	END_IF
+4000://Stop
+	mcVel(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	velExecute:=FALSE;
+	velBusy:=FALSE;
+	velDone:=FALSE;
+	velErrorDone:=FALSE;
+	velStep:=0;
+5000://Done
+	mcVel(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	velExecute:=FALSE;
+	velBusy:=FALSE;
+	velDone:=TRUE;
+	velErrorDone:=FALSE;
+	velStep:=0;
+10000://Error
+	mcVel(
+		Axis:=axis , 
+		Execute:=FALSE ,);
+	velExecute:=FALSE;
+	velBusy:=FALSE;
+	velDone:=FALSE;
+	velErrorDone:=TRUE;
+	velStep:=0;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="VersionLog" Id="{48bf92c3-63a5-484c-95db-c6b71862fa3b}">
+      <Implementation>
+        <ST><![CDATA[(*
+旧版本: V1.0.0.0
+(--------------------------------------------------)
+新版本: V1.0.0.1
+更新说明:
+	1. 增加绝对运动三段变速触发功能
+	2. 优化部分代码
+(--------------------------------------------------)
+新版本: V1.0.0.2
+更新时间: 2019/09/16 8:30
+更新说明:
+	1. 修复轴停止在一直触发的情况下导致轴停止失效的bug
+	2. 增加速度模式运行时动态变速触发功能
+	3. 增加HMI按钮条件判断功能
+	4. 优化部分代码
+(--------------------------------------------------)
+新版本: V1.0.0.3
+更新时间: 2019/09/24 9:35
+更新说明:
+	1. 优化绝对运动的三段变速运动为可变多段变速
+	2. 优化部分代码
+(--------------------------------------------------)
+新版本: V1.0.0.4
+更新时间: 2019/10/10 18:55
+更新说明:
+	1. 增加 AXIS_REF 指针对象输出
+(--------------------------------------------------)
+新版本: V1.0.0.5
+更新时间: 2019/11/04 8:55
+更新说明:
+	1. 修正驱动器回原点使能失败的bug
+(--------------------------------------------------)
+新版本: V1.0.0.6
+更新时间: 2019/11/12 19:02
+更新说明:
+	1. 修改ABS运动变速位置不准问题
+(--------------------------------------------------)
+新版本: V1.0.1.0
+更新时间: 2019/11/20 18:40
+更新说明:
+	1. 优化编写方式，减少扫描周期损耗
+	2. 修改错误编码起始位，现改为从1开始
+(--------------------------------------------------)
+新版本: V1.0.1.1
+更新时间: 2019/12/02
+更新说明:
+	1. 优化正负限位功能
+	2. 增加正负软限位功能
+(--------------------------------------------------)
+新版本: V1.0.1.2
+更新时间: 2020/03/23
+更新说明:
+	1. 优化报错功能
+(--------------------------------------------------)
+新版本: V1.0.1.3
+更新时间: 2020/03/30
+更新说明:
+	1. 修正内部使能关闭后未及时开启导致无法使能的BUG
+(--------------------------------------------------)
+新版本: V1.0.1.4
+更新时间: 2020/04/22
+更新说明:
+	1. 增加中文报警输出
+(--------------------------------------------------)
+新版本: V1.0.1.5
+更新时间: 2020/09/12
+更新说明:
+	1. 处理ManualCtr_ACT下控制模式切换后可能导致掉使能的问题
+(--------------------------------------------------)
+新版本: V1.0.1.6
+更新时间: 2020/09/16
+更新说明:
+	1. 开放错误ID、错误文本信息获取接口
+(--------------------------------------------------)
+新版本: V1.0.1.7
+更新时间: 2020/10/06
+更新说明:
+	1. 移除控制模式变量，增加HMI启用条件
+(--------------------------------------------------)
+新版本: V1.0.1.8
+更新时间: 2020/10/14
+更新说明:
+	1. 优化代码
+(--------------------------------------------------)
+新版本: V1.0.1.9
+更新时间: 2020/11/4
+更新说明:
+	1. 处理轴停止控制步无法正常结束的bug
+(--------------------------------------------------)
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="MotionModule">
+      <LineId Id="683" Count="0" />
+      <LineId Id="910" Count="0" />
+      <LineId Id="226" Count="0" />
+      <LineId Id="2402" Count="0" />
+      <LineId Id="1352" Count="1" />
+      <LineId Id="1355" Count="1" />
+      <LineId Id="1354" Count="0" />
+      <LineId Id="3837" Count="0" />
+      <LineId Id="228" Count="0" />
+      <LineId Id="3829" Count="0" />
+      <LineId Id="3832" Count="0" />
+      <LineId Id="3834" Count="1" />
+      <LineId Id="3833" Count="0" />
+      <LineId Id="3826" Count="0" />
+      <LineId Id="3828" Count="0" />
+      <LineId Id="3827" Count="0" />
+      <LineId Id="3843" Count="0" />
+      <LineId Id="3839" Count="2" />
+      <LineId Id="229" Count="0" />
+      <LineId Id="1130" Count="0" />
+      <LineId Id="1578" Count="0" />
+      <LineId Id="230" Count="5" />
+      <LineId Id="237" Count="0" />
+      <LineId Id="1896" Count="0" />
+      <LineId Id="2140" Count="0" />
+      <LineId Id="2152" Count="1" />
+      <LineId Id="1588" Count="0" />
+      <LineId Id="238" Count="1" />
+      <LineId Id="681" Count="0" />
+      <LineId Id="240" Count="1" />
+      <LineId Id="1633" Count="0" />
+      <LineId Id="1640" Count="1" />
+      <LineId Id="1643" Count="5" />
+      <LineId Id="2665" Count="0" />
+      <LineId Id="1658" Count="1" />
+      <LineId Id="1642" Count="0" />
+      <LineId Id="1639" Count="0" />
+      <LineId Id="1634" Count="2" />
+      <LineId Id="2667" Count="0" />
+      <LineId Id="1651" Count="5" />
+      <LineId Id="1650" Count="0" />
+      <LineId Id="2666" Count="0" />
+      <LineId Id="1637" Count="0" />
+      <LineId Id="2155" Count="2" />
+      <LineId Id="2154" Count="0" />
+      <LineId Id="242" Count="1" />
+      <LineId Id="1605" Count="0" />
+      <LineId Id="244" Count="0" />
+      <LineId Id="2668" Count="0" />
+      <LineId Id="245" Count="0" />
+      <LineId Id="1591" Count="0" />
+      <LineId Id="2930" Count="0" />
+      <LineId Id="260" Count="1" />
+      <LineId Id="263" Count="0" />
+      <LineId Id="224" Count="1" />
+      <LineId Id="223" Count="0" />
+      <LineId Id="3507" Count="0" />
+      <LineId Id="467" Count="0" />
+      <LineId Id="222" Count="0" />
+      <LineId Id="218" Count="0" />
+      <LineId Id="264" Count="0" />
+      <LineId Id="207" Count="5" />
+      <LineId Id="2669" Count="0" />
+      <LineId Id="213" Count="0" />
+      <LineId Id="215" Count="0" />
+      <LineId Id="1631" Count="0" />
+      <LineId Id="216" Count="1" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="3192" Count="31" />
+      <LineId Id="3191" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.AbsMove_ACT">
+      <LineId Id="446" Count="3" />
+      <LineId Id="2" Count="3" />
+      <LineId Id="10" Count="68" />
+      <LineId Id="450" Count="0" />
+      <LineId Id="463" Count="1" />
+      <LineId Id="466" Count="3" />
+      <LineId Id="465" Count="0" />
+      <LineId Id="79" Count="3" />
+      <LineId Id="470" Count="3" />
+      <LineId Id="83" Count="21" />
+      <LineId Id="107" Count="1" />
+      <LineId Id="495" Count="0" />
+      <LineId Id="109" Count="1" />
+      <LineId Id="490" Count="4" />
+      <LineId Id="120" Count="0" />
+      <LineId Id="451" Count="2" />
+      <LineId Id="553" Count="1" />
+      <LineId Id="551" Count="0" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="123" Count="0" />
+      <LineId Id="474" Count="0" />
+      <LineId Id="496" Count="0" />
+      <LineId Id="499" Count="8" />
+      <LineId Id="510" Count="1" />
+      <LineId Id="536" Count="0" />
+      <LineId Id="512" Count="0" />
+      <LineId Id="523" Count="1" />
+      <LineId Id="513" Count="0" />
+      <LineId Id="537" Count="0" />
+      <LineId Id="514" Count="0" />
+      <LineId Id="521" Count="1" />
+      <LineId Id="515" Count="0" />
+      <LineId Id="497" Count="0" />
+      <LineId Id="125" Count="15" />
+      <LineId Id="549" Count="0" />
+      <LineId Id="143" Count="0" />
+      <LineId Id="535" Count="0" />
+      <LineId Id="436" Count="0" />
+      <LineId Id="149" Count="0" />
+      <LineId Id="151" Count="1" />
+      <LineId Id="550" Count="0" />
+      <LineId Id="539" Count="9" />
+      <LineId Id="538" Count="0" />
+      <LineId Id="438" Count="0" />
+      <LineId Id="154" Count="1" />
+      <LineId Id="166" Count="0" />
+      <LineId Id="439" Count="0" />
+      <LineId Id="167" Count="1" />
+      <LineId Id="571" Count="15" />
+      <LineId Id="184" Count="29" />
+      <LineId Id="216" Count="1" />
+      <LineId Id="220" Count="0" />
+      <LineId Id="223" Count="2" />
+      <LineId Id="441" Count="0" />
+      <LineId Id="227" Count="3" />
+      <LineId Id="587" Count="15" />
+      <LineId Id="246" Count="29" />
+      <LineId Id="278" Count="1" />
+      <LineId Id="282" Count="0" />
+      <LineId Id="285" Count="2" />
+      <LineId Id="445" Count="0" />
+      <LineId Id="289" Count="3" />
+      <LineId Id="555" Count="15" />
+      <LineId Id="308" Count="29" />
+      <LineId Id="340" Count="1" />
+      <LineId Id="344" Count="0" />
+      <LineId Id="347" Count="2" />
+      <LineId Id="444" Count="0" />
+      <LineId Id="351" Count="1" />
+      <LineId Id="372" Count="1" />
+      <LineId Id="375" Count="0" />
+      <LineId Id="401" Count="10" />
+      <LineId Id="378" Count="6" />
+      <LineId Id="412" Count="10" />
+      <LineId Id="387" Count="6" />
+      <LineId Id="423" Count="10" />
+      <LineId Id="396" Count="4" />
+      <LineId Id="374" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.changeVelVel">
+      <LineId Id="15" Count="0" />
+      <LineId Id="8" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.Error_ACT">
+      <LineId Id="1" Count="0" />
+      <LineId Id="113" Count="2" />
+      <LineId Id="112" Count="0" />
+      <LineId Id="143" Count="0" />
+      <LineId Id="122" Count="0" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="191" Count="0" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="59" Count="1" />
+      <LineId Id="126" Count="0" />
+      <LineId Id="116" Count="2" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="127" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="7" Count="2" />
+      <LineId Id="128" Count="0" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="24" Count="1" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="130" Count="0" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="27" Count="1" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="131" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="30" Count="1" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="132" Count="0" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="33" Count="1" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="133" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="36" Count="1" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="134" Count="0" />
+      <LineId Id="119" Count="2" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="135" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="42" Count="1" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="136" Count="0" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="45" Count="1" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="137" Count="0" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="48" Count="1" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="138" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="51" Count="1" />
+      <LineId Id="50" Count="0" />
+      <LineId Id="139" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="53" Count="1" />
+      <LineId Id="140" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="55" Count="1" />
+      <LineId Id="141" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="64" Count="0" />
+      <LineId Id="57" Count="1" />
+      <LineId Id="142" Count="0" />
+      <LineId Id="190" Count="0" />
+      <LineId Id="193" Count="3" />
+      <LineId Id="192" Count="0" />
+      <LineId Id="3" Count="0" />
+      <LineId Id="66" Count="34" />
+      <LineId Id="123" Count="2" />
+      <LineId Id="101" Count="2" />
+      <LineId Id="109" Count="2" />
+      <LineId Id="65" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.getErrID">
+      <LineId Id="22" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="MotionModule.getErrTXT">
+      <LineId Id="22" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="48" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="49" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="50" Count="0" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="51" Count="0" />
+      <LineId Id="34" Count="0" />
+      <LineId Id="52" Count="0" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="56" Count="0" />
+      <LineId Id="39" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="66" Count="1" />
+      <LineId Id="74" Count="3" />
+      <LineId Id="40" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="MotionModule.getErrWTXT">
+      <LineId Id="21" Count="2" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="72" Count="0" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="70" Count="0" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="69" Count="0" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="68" Count="0" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="67" Count="0" />
+      <LineId Id="39" Count="0" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="65" Count="0" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="64" Count="0" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="49" Count="0" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="51" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="81" Count="1" />
+      <LineId Id="89" Count="3" />
+      <LineId Id="55" Count="3" />
+      <LineId Id="14" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.GoHome_ACT">
+      <LineId Id="2" Count="17" />
+      <LineId Id="1143" Count="31" />
+      <LineId Id="2186" Count="0" />
+      <LineId Id="2189" Count="3" />
+      <LineId Id="2187" Count="1" />
+      <LineId Id="1175" Count="0" />
+      <LineId Id="2182" Count="3" />
+      <LineId Id="2181" Count="0" />
+      <LineId Id="1176" Count="41" />
+      <LineId Id="1221" Count="0" />
+      <LineId Id="2148" Count="3" />
+      <LineId Id="2147" Count="0" />
+      <LineId Id="1222" Count="140" />
+      <LineId Id="1366" Count="0" />
+      <LineId Id="2143" Count="3" />
+      <LineId Id="2142" Count="0" />
+      <LineId Id="1367" Count="312" />
+      <LineId Id="1683" Count="0" />
+      <LineId Id="2138" Count="3" />
+      <LineId Id="2137" Count="0" />
+      <LineId Id="1684" Count="123" />
+      <LineId Id="2135" Count="0" />
+      <LineId Id="1808" Count="0" />
+      <LineId Id="2136" Count="0" />
+      <LineId Id="1809" Count="24" />
+      <LineId Id="2162" Count="0" />
+      <LineId Id="2170" Count="5" />
+      <LineId Id="2169" Count="0" />
+      <LineId Id="1835" Count="4" />
+      <LineId Id="2152" Count="0" />
+      <LineId Id="1841" Count="94" />
+      <LineId Id="2134" Count="0" />
+      <LineId Id="1936" Count="197" />
+      <LineId Id="1045" Count="0" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="1123" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.InitHMI_ACT">
+      <LineId Id="53" Count="8" />
+      <LineId Id="91" Count="1" />
+      <LineId Id="94" Count="0" />
+      <LineId Id="96" Count="0" />
+      <LineId Id="95" Count="0" />
+      <LineId Id="62" Count="5" />
+      <LineId Id="98" Count="0" />
+      <LineId Id="68" Count="11" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="80" Count="2" />
+      <LineId Id="87" Count="1" />
+      <LineId Id="83" Count="3" />
+      <LineId Id="52" Count="0" />
+      <LineId Id="109" Count="0" />
+      <LineId Id="100" Count="0" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="101" Count="3" />
+      <LineId Id="108" Count="0" />
+      <LineId Id="105" Count="1" />
+      <LineId Id="99" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.JogMove_ACT">
+      <LineId Id="2" Count="2" />
+      <LineId Id="165" Count="0" />
+      <LineId Id="5" Count="23" />
+      <LineId Id="166" Count="0" />
+      <LineId Id="242" Count="0" />
+      <LineId Id="245" Count="3" />
+      <LineId Id="243" Count="1" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="238" Count="3" />
+      <LineId Id="237" Count="0" />
+      <LineId Id="119" Count="0" />
+      <LineId Id="31" Count="1" />
+      <LineId Id="121" Count="5" />
+      <LineId Id="120" Count="0" />
+      <LineId Id="223" Count="6" />
+      <LineId Id="33" Count="6" />
+      <LineId Id="49" Count="0" />
+      <LineId Id="185" Count="0" />
+      <LineId Id="193" Count="1" />
+      <LineId Id="231" Count="5" />
+      <LineId Id="230" Count="0" />
+      <LineId Id="203" Count="0" />
+      <LineId Id="50" Count="2" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="167" Count="0" />
+      <LineId Id="141" Count="0" />
+      <LineId Id="168" Count="3" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="250" Count="1" />
+      <LineId Id="249" Count="0" />
+      <LineId Id="59" Count="4" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="142" Count="0" />
+      <LineId Id="172" Count="4" />
+      <LineId Id="69" Count="0" />
+      <LineId Id="253" Count="1" />
+      <LineId Id="252" Count="0" />
+      <LineId Id="70" Count="20" />
+      <LineId Id="93" Count="3" />
+      <LineId Id="101" Count="2" />
+      <LineId Id="149" Count="0" />
+      <LineId Id="105" Count="0" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="114" Count="0" />
+      <LineId Id="156" Count="0" />
+      <LineId Id="115" Count="0" />
+      <LineId Id="162" Count="2" />
+      <LineId Id="161" Count="0" />
+      <LineId Id="152" Count="3" />
+      <LineId Id="116" Count="0" />
+      <LineId Id="135" Count="0" />
+      <LineId Id="158" Count="2" />
+      <LineId Id="157" Count="0" />
+      <LineId Id="139" Count="0" />
+      <LineId Id="136" Count="2" />
+      <LineId Id="129" Count="1" />
+      <LineId Id="145" Count="2" />
+      <LineId Id="143" Count="0" />
+      <LineId Id="140" Count="0" />
+      <LineId Id="132" Count="1" />
+      <LineId Id="131" Count="0" />
+      <LineId Id="134" Count="0" />
+      <LineId Id="118" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.LoopHomeToPos_ACT">
+      <LineId Id="168" Count="0" />
+      <LineId Id="175" Count="0" />
+      <LineId Id="219" Count="2" />
+      <LineId Id="176" Count="1" />
+      <LineId Id="25" Count="1" />
+      <LineId Id="198" Count="0" />
+      <LineId Id="216" Count="0" />
+      <LineId Id="27" Count="10" />
+      <LineId Id="195" Count="0" />
+      <LineId Id="38" Count="1" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="190" Count="0" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="196" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="197" Count="0" />
+      <LineId Id="194" Count="0" />
+      <LineId Id="193" Count="0" />
+      <LineId Id="191" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="199" Count="1" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="67" Count="0" />
+      <LineId Id="201" Count="1" />
+      <LineId Id="68" Count="0" />
+      <LineId Id="204" Count="1" />
+      <LineId Id="69" Count="0" />
+      <LineId Id="207" Count="2" />
+      <LineId Id="206" Count="0" />
+      <LineId Id="76" Count="0" />
+      <LineId Id="210" Count="1" />
+      <LineId Id="217" Count="0" />
+      <LineId Id="212" Count="3" />
+      <LineId Id="83" Count="13" />
+      <LineId Id="159" Count="8" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.LoopMove_ACT">
+      <LineId Id="2" Count="165" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.ManualCtr_ACT">
+      <LineId Id="211" Count="67" />
+      <LineId Id="403" Count="1" />
+      <LineId Id="407" Count="0" />
+      <LineId Id="472" Count="0" />
+      <LineId Id="469" Count="0" />
+      <LineId Id="408" Count="1" />
+      <LineId Id="411" Count="2" />
+      <LineId Id="415" Count="2" />
+      <LineId Id="473" Count="0" />
+      <LineId Id="468" Count="0" />
+      <LineId Id="418" Count="0" />
+      <LineId Id="420" Count="2" />
+      <LineId Id="406" Count="0" />
+      <LineId Id="279" Count="15" />
+      <LineId Id="428" Count="2" />
+      <LineId Id="475" Count="0" />
+      <LineId Id="470" Count="0" />
+      <LineId Id="431" Count="0" />
+      <LineId Id="433" Count="0" />
+      <LineId Id="450" Count="0" />
+      <LineId Id="471" Count="0" />
+      <LineId Id="453" Count="0" />
+      <LineId Id="436" Count="0" />
+      <LineId Id="481" Count="1" />
+      <LineId Id="480" Count="0" />
+      <LineId Id="454" Count="0" />
+      <LineId Id="456" Count="2" />
+      <LineId Id="474" Count="0" />
+      <LineId Id="476" Count="0" />
+      <LineId Id="459" Count="0" />
+      <LineId Id="461" Count="3" />
+      <LineId Id="455" Count="0" />
+      <LineId Id="477" Count="2" />
+      <LineId Id="445" Count="0" />
+      <LineId Id="295" Count="41" />
+      <LineId Id="483" Count="0" />
+      <LineId Id="485" Count="0" />
+      <LineId Id="490" Count="1" />
+      <LineId Id="486" Count="1" />
+      <LineId Id="484" Count="0" />
+      <LineId Id="488" Count="0" />
+      <LineId Id="494" Count="1" />
+      <LineId Id="489" Count="0" />
+      <LineId Id="337" Count="36" />
+      <LineId Id="394" Count="3" />
+      <LineId Id="393" Count="0" />
+      <LineId Id="374" Count="18" />
+      <LineId Id="192" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.MoveModulo_ACT">
+      <LineId Id="2" Count="7" />
+      <LineId Id="112" Count="15" />
+      <LineId Id="26" Count="15" />
+      <LineId Id="145" Count="15" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="129" Count="15" />
+      <LineId Id="128" Count="0" />
+      <LineId Id="74" Count="37" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.Power_ACT">
+      <LineId Id="2" Count="27" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="31" Count="1" />
+      <LineId Id="30" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.RelMove_ACT">
+      <LineId Id="2" Count="27" />
+      <LineId Id="141" Count="0" />
+      <LineId Id="170" Count="0" />
+      <LineId Id="173" Count="3" />
+      <LineId Id="171" Count="1" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="178" Count="3" />
+      <LineId Id="177" Count="0" />
+      <LineId Id="31" Count="3" />
+      <LineId Id="157" Count="5" />
+      <LineId Id="156" Count="0" />
+      <LineId Id="35" Count="4" />
+      <LineId Id="153" Count="2" />
+      <LineId Id="164" Count="5" />
+      <LineId Id="163" Count="0" />
+      <LineId Id="152" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="182" Count="15" />
+      <LineId Id="59" Count="16" />
+      <LineId Id="78" Count="1" />
+      <LineId Id="82" Count="0" />
+      <LineId Id="85" Count="2" />
+      <LineId Id="140" Count="0" />
+      <LineId Id="89" Count="1" />
+      <LineId Id="100" Count="0" />
+      <LineId Id="102" Count="0" />
+      <LineId Id="108" Count="0" />
+      <LineId Id="134" Count="1" />
+      <LineId Id="133" Count="0" />
+      <LineId Id="109" Count="5" />
+      <LineId Id="136" Count="1" />
+      <LineId Id="118" Count="6" />
+      <LineId Id="138" Count="1" />
+      <LineId Id="128" Count="4" />
+      <LineId Id="103" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.Reset_ACT">
+      <LineId Id="2" Count="28" />
+      <LineId Id="73" Count="5" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="92" Count="3" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="91" Count="0" />
+      <LineId Id="34" Count="15" />
+      <LineId Id="65" Count="0" />
+      <LineId Id="67" Count="5" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="50" Count="1" />
+      <LineId Id="64" Count="0" />
+      <LineId Id="52" Count="1" />
+      <LineId Id="82" Count="6" />
+      <LineId Id="79" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="62" Count="1" />
+      <LineId Id="61" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.ResetEx_ACT">
+      <LineId Id="2" Count="5" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="8" Count="1" />
+      <LineId Id="12" Count="5" />
+      <LineId Id="20" Count="5" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="28" Count="5" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="38" Count="1" />
+      <LineId Id="54" Count="5" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="69" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="67" Count="1" />
+      <LineId Id="65" Count="0" />
+      <LineId Id="70" Count="0" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="71" Count="1" />
+      <LineId Id="63" Count="1" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="10" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.setAbs">
+      <LineId Id="5" Count="0" />
+      <LineId Id="8" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.SetPause_ACT">
+      <LineId Id="20" Count="15" />
+      <LineId Id="18" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.SetPosition_ACT">
+      <LineId Id="2" Count="21" />
+      <LineId Id="122" Count="0" />
+      <LineId Id="24" Count="10" />
+      <LineId Id="37" Count="2" />
+      <LineId Id="91" Count="0" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="44" Count="1" />
+      <LineId Id="48" Count="0" />
+      <LineId Id="123" Count="2" />
+      <LineId Id="49" Count="2" />
+      <LineId Id="53" Count="11" />
+      <LineId Id="67" Count="1" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="74" Count="2" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="78" Count="2" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="95" Count="25" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.setRel">
+      <LineId Id="8" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.setVel">
+      <LineId Id="5" Count="0" />
+      <LineId Id="8" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.Stop_ACT">
+      <LineId Id="2" Count="13" />
+      <LineId Id="225" Count="1" />
+      <LineId Id="228" Count="0" />
+      <LineId Id="227" Count="0" />
+      <LineId Id="189" Count="11" />
+      <LineId Id="188" Count="0" />
+      <LineId Id="16" Count="2" />
+      <LineId Id="124" Count="0" />
+      <LineId Id="19" Count="6" />
+      <LineId Id="141" Count="0" />
+      <LineId Id="143" Count="0" />
+      <LineId Id="26" Count="1" />
+      <LineId Id="214" Count="2" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="142" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="229" Count="2" />
+      <LineId Id="148" Count="0" />
+      <LineId Id="147" Count="0" />
+      <LineId Id="127" Count="0" />
+      <LineId Id="223" Count="0" />
+      <LineId Id="32" Count="11" />
+      <LineId Id="222" Count="0" />
+      <LineId Id="221" Count="0" />
+      <LineId Id="202" Count="11" />
+      <LineId Id="201" Count="0" />
+      <LineId Id="220" Count="0" />
+      <LineId Id="144" Count="0" />
+      <LineId Id="150" Count="0" />
+      <LineId Id="136" Count="0" />
+      <LineId Id="167" Count="10" />
+      <LineId Id="217" Count="0" />
+      <LineId Id="232" Count="0" />
+      <LineId Id="218" Count="1" />
+      <LineId Id="166" Count="0" />
+      <LineId Id="137" Count="3" />
+      <LineId Id="145" Count="1" />
+      <LineId Id="130" Count="0" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="181" Count="5" />
+      <LineId Id="180" Count="0" />
+      <LineId Id="187" Count="0" />
+      <LineId Id="178" Count="0" />
+      <LineId Id="158" Count="0" />
+      <LineId Id="160" Count="5" />
+      <LineId Id="159" Count="0" />
+      <LineId Id="119" Count="0" />
+      <LineId Id="93" Count="4" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="98" Count="8" />
+      <LineId Id="122" Count="0" />
+      <LineId Id="107" Count="3" />
+      <LineId Id="149" Count="0" />
+      <LineId Id="111" Count="4" />
+      <LineId Id="123" Count="0" />
+      <LineId Id="116" Count="2" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="224" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.VelMove_ACT">
+      <LineId Id="2" Count="26" />
+      <LineId Id="198" Count="0" />
+      <LineId Id="337" Count="0" />
+      <LineId Id="340" Count="3" />
+      <LineId Id="338" Count="1" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="345" Count="3" />
+      <LineId Id="344" Count="0" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="186" Count="1" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="299" Count="5" />
+      <LineId Id="298" Count="0" />
+      <LineId Id="32" Count="5" />
+      <LineId Id="188" Count="0" />
+      <LineId Id="249" Count="0" />
+      <LineId Id="290" Count="0" />
+      <LineId Id="297" Count="0" />
+      <LineId Id="331" Count="5" />
+      <LineId Id="330" Count="0" />
+      <LineId Id="276" Count="0" />
+      <LineId Id="39" Count="2" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="189" Count="0" />
+      <LineId Id="207" Count="4" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="350" Count="1" />
+      <LineId Id="349" Count="0" />
+      <LineId Id="48" Count="4" />
+      <LineId Id="212" Count="6" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="353" Count="1" />
+      <LineId Id="352" Count="0" />
+      <LineId Id="59" Count="24" />
+      <LineId Id="204" Count="1" />
+      <LineId Id="203" Count="0" />
+      <LineId Id="239" Count="0" />
+      <LineId Id="241" Count="2" />
+      <LineId Id="240" Count="0" />
+      <LineId Id="244" Count="0" />
+      <LineId Id="85" Count="0" />
+      <LineId Id="355" Count="31" />
+      <LineId Id="305" Count="0" />
+      <LineId Id="112" Count="1" />
+      <LineId Id="309" Count="3" />
+      <LineId Id="114" Count="18" />
+      <LineId Id="194" Count="2" />
+      <LineId Id="193" Count="0" />
+      <LineId Id="133" Count="1" />
+      <LineId Id="323" Count="6" />
+      <LineId Id="151" Count="0" />
+      <LineId Id="313" Count="0" />
+      <LineId Id="152" Count="3" />
+      <LineId Id="157" Count="0" />
+      <LineId Id="160" Count="25" />
+      <LineId Id="159" Count="0" />
+      <LineId Id="158" Count="0" />
+    </LineIds>
+    <LineIds Name="MotionModule.VersionLog">
+      <LineId Id="2" Count="1" />
+      <LineId Id="20" Count="1" />
+      <LineId Id="23" Count="1" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="4" Count="6" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="13" Count="3" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="30" Count="3" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="40" Count="2" />
+      <LineId Id="34" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="36" Count="2" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="45" Count="4" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="51" Count="3" />
+      <LineId Id="56" Count="0" />
+      <LineId Id="63" Count="39" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

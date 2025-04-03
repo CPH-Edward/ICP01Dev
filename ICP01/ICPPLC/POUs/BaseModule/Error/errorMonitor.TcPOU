@@ -1,0 +1,1477 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="errorMonitor" Id="{c699ae9e-fcb3-4f98-8578-596012ca4d59}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM errorMonitor
+VAR
+	baseErrID:LINT;
+
+	iTempInit:DINT:=0;
+	bInit:BOOL;
+	swStopMsg:wstring;
+END_VAR
+VAR
+	cy_index_LRobot:INT;
+	cy_index_Test:INT;
+	cy_index_Buff:INT;
+	cy_index_BIN1:INT;
+	cy_index_BIN2:INT;
+	cy_index_ULRobot:INT;
+	
+	bInit_Axis:BOOL;
+	nInit_Axis:UINT;
+	pAxisArr:ARRAY [1..nMaxNum_Axis] OF POINTER TO FB_MotorMovements;
+	r_trig_AxisArr:ARRAY [1..nMaxNum_Axis] OF R_TRIG;
+	nTemp_Axis:UINT;
+	
+	r_trig_RobotArr:ARRAY [1..2] OF R_TRIG;
+	
+	bInit_Cy:BOOL;
+	nInit_Cy:UINT;
+	pCyArr:ARRAY [1..nMaxNum_Cy] OF POINTER TO CylinderModule;
+	r_trig_CyArr:ARRAY [1..nMaxNum_Cy] OF R_TRIG;
+	nTemp_Cy:UINT;
+	
+	bInit_MFC:BOOL;
+	nInit_MFC:UINT;
+	pMFCArr:ARRAY [1..nMaxNum_MFC] OF POINTER TO MFCModule;
+	r_trig_MFCArr:ARRAY [1..nMaxNum_MFC] OF R_TRIG;
+	nTemp_MFC:UINT;
+	
+	bInit_TMP:BOOL;
+	nInit_TMP:UINT;
+	pTMPArr:ARRAY [1..nMaxNum_Vpe] OF POINTER TO TMPModule;
+	r_trig_TMPArr:ARRAY [1..nMaxNum_TMP] OF R_TRIG;
+	nTemp_TMP:UINT;
+	
+	bInit_Vpe:BOOL;
+	nInit_Vpe:UINT;
+	pVpeArr:ARRAY [1..nMaxNum_Vpe] OF POINTER TO VPEModule;
+	r_trig_VpeArr:ARRAY [1..nMaxNum_Vpe] OF R_TRIG;
+	nTemp_Vpe:UINT;
+	
+	bInit_PDV:BOOL;
+	nInit_PDV:UINT;
+	pPDVArr:ARRAY [1..nMaxNum_PDV] OF POINTER TO PVModule;
+	r_trig_PDVArr:ARRAY [1..nMaxNum_PDV] OF R_TRIG;
+	nTemp_PDV:UINT;
+	
+	bInit_RF:BOOL;
+	nInit_RF:UINT;
+	pRFArr:ARRAY [1..nMaxNum_RF] OF POINTER TO RFModule;
+	r_trig_RFArr:ARRAY [1..nMaxNum_RF] OF R_TRIG;
+	nTemp_RF:UINT;
+	
+	bInit_Chiller:BOOL;
+	nInit_Chiller:UINT;
+	pChillerArr:ARRAY [1..nMaxNum_Chiller] OF POINTER TO ChillerModule_1;
+	r_trig_ChillerArr:ARRAY [1..nMaxNum_Chiller] OF R_TRIG;
+	nTemp_Chiller:UINT;
+	
+	bInit_ARM:BOOL;
+	nInit_ARM:UINT;
+	pARMArr:ARRAY [1..nMaxNum_ARM] OF POINTER TO ARMModule;
+	r_trig_ARMArr:ARRAY [1..nMaxNum_Chiller] OF R_TRIG;
+	nTemp_ARM:UINT;
+END_VAR
+VAR CONSTANT
+	nMaxNum_Axis:UINT:=100;
+	nMaxNum_Cy:UINT:=200;
+	nMaxNum_MFC:UINT:=20;
+	nMaxNum_Vpe:UINT:=10;
+	nMaxNum_TMP:UINT:=10;
+	nMaxNum_PDV:UINT:=10;
+	nMaxNum_RF:UINT:=10;
+	nMaxNum_Chiller:UINT:=2;
+	nMaxNum_ARM:UINT:=1;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF NOT bInit THEN
+	bInit:=TRUE;
+	F_CreateHashTableHnd(ADR(gError_table),SIZEOF(gError_table),gError_hTable);(* Intialize table handle *)
+END_IF
+
+
+(* 此处是用于设备报错信息、报错ID的分配以及上报 *)
+baseErrID:=0;// 通过改变变量值可实现 error ID的基础值
+
+FOR iTempInit:=g_d_ErrorBegin TO g_d_ErrorEnd DO
+	gErrorARRAY[iTempInit].uErrID:=baseErrID+iTempInit;// Error ID 分配
+	IF gErrorARRAY[iTempInit].bError THEN
+		gRunningState:=RunningStatus.eErrorState;// 进入Error状态
+	END_IF
+	IF gErrorARRAY[iTempInit].eErrLevel=4 THEN//用错误等级区分两个机台，从而实现两个机台的报警独立控制
+		;
+	END_IF
+END_FOR
+IF RunningStatus.eErrorState<>gRunningState THEN
+	gErrTxtShow:='';
+	gErrWTxtShow:=" ";
+END_IF
+
+(*
+---------------------------------------------------------------------
+*)
+
+// error_Trigger(1);// 报警触发方式 示例
+//////////////////////////////////////////////////////////////////////////////////////////////////1-20 严重错误,需重新回原
+gErrorARRAY[0].eErrLevel:=Error_Level_1;// Error Level 分配
+gErrorARRAY[0].sErrTXT:='This is a test message!';// Error 信息 分配
+gErrorARRAY[0].sErrWTXT:=" 这是一个测试信息！";// Error 信息 分配
+
+gErrorARRAY[1].eErrLevel:=Error_Level_4;// Error Level 分配
+gErrorARRAY[1].sErrTXT:='E_Stop error!';// Error 信息 分配
+gErrorARRAY[1].sErrWTXT:=" 急停错误！";// Error 信息 分配
+
+gErrorARRAY[5].eErrLevel:=Error_Level_4;// Error Level 分配
+gErrorARRAY[5].sErrTXT:='Slave device disconnected.';// Error 信息 分配
+gErrorARRAY[5].sErrWTXT:=" 有从站设备掉线，请排除硬件问题后整机回原点";// Error 信息 分配
+
+
+gErrorARRAY[10].eErrLevel:=Error_Level_4;// Error Level 分配
+gErrorARRAY[10].sErrTXT:='Par etchTime input error.';// Error 信息 分配
+gErrorARRAY[10].sErrWTXT:=" 输入的参数etchTime有误";// Error 信息 分配
+
+gErrorARRAY[11].eErrLevel:=Error_Level_4;// Error Level 分配
+gErrorARRAY[11].sErrTXT:='Par rfPoint_Source input error.';// Error 信息 分配
+gErrorARRAY[11].sErrWTXT:=" 输入的参数rfPoint_Source有误";// Error 信息 分配
+
+gErrorARRAY[12].eErrLevel:=Error_Level_4;// Error Level 分配
+gErrorARRAY[12].sErrTXT:='Par pdvPoint input error.';// Error 信息 分配
+gErrorARRAY[12].sErrWTXT:=" 输入的参数pdvPoint有误";// Error 信息 分配
+
+gErrorARRAY[13].eErrLevel:=Error_Level_4;// Error Level 分配
+gErrorARRAY[13].sErrTXT:='Par mfc1 input error.';// Error 信息 分配
+gErrorARRAY[13].sErrWTXT:=" 输入的参数mfc1有误";// Error 信息 分配
+
+gErrorARRAY[14].eErrLevel:=Error_Level_4;// Error Level 分配
+gErrorARRAY[14].sErrTXT:='Par mfc2 input error.';// Error 信息 分配
+gErrorARRAY[14].sErrWTXT:=" 输入的参数mfc2有误";// Error 信息 分配
+
+gErrorARRAY[15].eErrLevel:=Error_Level_4;// Error Level 分配
+gErrorARRAY[15].sErrTXT:='Par mfc3 input error.';// Error 信息 分配
+gErrorARRAY[15].sErrWTXT:=" 输入的参数mfc3有误";// Error 信息 分配
+
+gErrorARRAY[16].eErrLevel:=Error_Level_4;// Error Level 分配
+gErrorARRAY[16].sErrTXT:='Par mfc4 input error.';// Error 信息 分配
+gErrorARRAY[16].sErrWTXT:=" 输入的参数mfc4有误";// Error 信息 分配
+
+gErrorARRAY[17].eErrLevel:=Error_Level_4;// Error Level 分配
+gErrorARRAY[17].sErrTXT:='Par mfc5 input error.';// Error 信息 分配
+gErrorARRAY[17].sErrWTXT:=" 输入的参数mfc5有误";// Error 信息 分配
+
+gErrorARRAY[18].eErrLevel:=Error_Level_4;// Error Level 分配
+gErrorARRAY[18].sErrTXT:='Par mfc6 input error.';// Error 信息 分配
+gErrorARRAY[18].sErrWTXT:=" 输入的参数mfc6有误";// Error 信息 分配
+
+gErrorARRAY[19].eErrLevel:=Error_Level_4;// Error Level 分配
+gErrorARRAY[19].sErrTXT:='Par mfc7 input error.';// Error 信息 分配
+gErrorARRAY[19].sErrWTXT:=" 输入的参数mfc7有误";// Error 信息 分配
+
+gErrorARRAY[20].eErrLevel:=Error_Level_4;// Error Level 分配
+gErrorARRAY[20].sErrTXT:='Par mfc8 input error.';// Error 信息 分配
+gErrorARRAY[20].sErrWTXT:=" 输入的参数mfc8有误";// Error 信息 分配
+
+gErrorARRAY[21].eErrLevel:=Error_Level_4;// Error Level 分配
+gErrorARRAY[21].sErrTXT:='Par mfc9 input error.';// Error 信息 分配
+gErrorARRAY[21].sErrWTXT:=" 输入的参数mfc9有误";// Error 信息 分配
+
+gErrorARRAY[22].eErrLevel:=Error_Level_4;// Error Level 分配
+gErrorARRAY[22].sErrTXT:='Par rfPoint_Power input error.';// Error 信息 分配
+gErrorARRAY[22].sErrWTXT:=" 输入的参数rfPoint_Power有误";// Error 信息 分配
+
+gErrorARRAY[23].eErrLevel:=Error_Level_4;// Error Level 分配
+gErrorARRAY[23].sErrTXT:='Par par_2 input error.';// Error 信息 分配
+gErrorARRAY[23].sErrWTXT:=" 输入的参数par_2有误";// Error 信息 分配
+
+gErrorARRAY[24].eErrLevel:=Error_Level_4;// Error Level 分配
+gErrorARRAY[24].sErrTXT:='Par par_3 input error.';// Error 信息 分配
+gErrorARRAY[24].sErrWTXT:=" 输入的参数par_3有误";// Error 信息 分配
+
+gErrorARRAY[30].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[30].sErrTXT:='Recipe Error (does not exist).';// Error 信息 分配
+gErrorARRAY[30].sErrWTXT:=" 配方出错，不存在或配方参数出错.";// Error 信息 分配
+//////////////////////////////////////////////////////////////////////////////////////////////////50-500 Machine 
+
+gErrorARRAY[50].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[50].sErrTXT:='The air supply conditions are not met: it is not turned on or the air pressure is insufficient.';// Error 信息 分配
+gErrorARRAY[50].sErrWTXT:=" 气源条件未满足：未打开或气压不足.";// Error 信息 分配
+
+gErrorARRAY[51].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[51].sErrTXT:='The water source conditions are not met: it is not opened or the water flow is insufficient, and the water temperature is overwarm.';// Error 信息 分配
+gErrorARRAY[51].sErrWTXT:=" 水源条件未满足：未打开或水流不足、水温超温.";// Error 信息 分配
+
+gErrorARRAY[52].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[52].sErrTXT:='Power condition not met: Not powered on or not in a ready state.';// Error 信息 分配
+gErrorARRAY[52].sErrWTXT:=" 电源条件未满足：未上电或未进入就绪状态。";// Error 信息 分配
+
+gErrorARRAY[53].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[53].sErrTXT:='ForLinGauge Error:disconected or Par. out of limit.';// Error 信息 分配
+gErrorARRAY[53].sErrWTXT:=" 前置真空计报错：未链接或读数超限。";// Error 信息 分配
+
+gErrorARRAY[54].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[54].sErrTXT:='LoadLockeGauge Error:disconected or Par. out of limit.';// Error 信息 分配
+gErrorARRAY[54].sErrWTXT:=" 过渡腔真空计：未链接或读数超限。";// Error 信息 分配
+
+gErrorARRAY[55].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[55].sErrTXT:='AIMGauge Error:disconected or Par. out of limit.';// Error 信息 分配
+gErrorARRAY[55].sErrWTXT:=" 工艺腔电离真空计：未链接或读数超限。";// Error 信息 分配
+
+gErrorARRAY[56].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[56].sErrTXT:='ChamberGauge Error:disconected or Par. out of limit.';// Error 信息 分配
+gErrorARRAY[56].sErrWTXT:=" 腔体真空计：未链接或读数超限。";// Error 信息 分配
+
+gErrorARRAY[57].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[57].sErrTXT:='Power condition not met: Not powered on or not in a ready state.';// Error 信息 分配
+gErrorARRAY[57].sErrWTXT:=" 起破条件不满足，未上电或未就绪。";// Error 信息 分配
+
+gErrorARRAY[58].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[58].sErrTXT:='TruboPum tail pressure error or disconected.';// Error 信息 分配
+gErrorARRAY[58].sErrWTXT:=" 分子泵尾排压力报错或模块未连接。";// Error 信息 分配
+
+// 100-200 半自动报错
+gErrorARRAY[100].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[100].sErrTXT:=' CO-Control RF Open Condition Not Satisfied.';// Error 信息 分配
+gErrorARRAY[100].sErrWTXT:=" 共同控制RF 起破条件不满足！";// Error 信息 分配
+
+gErrorARRAY[101].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[101].sErrTXT:=' CO-Control RF Error.';// Error 信息 分配
+gErrorARRAY[101].sErrWTXT:=" 共同控制RF 电源起破过程存在错误！";// Error 信息 分配
+
+gErrorARRAY[102].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[102].sErrTXT:=' CO-Control RF Close Condition Not Satisfied.';// Error 信息 分配
+gErrorARRAY[102].sErrWTXT:=" 共同控制RF 电源起破过程存在错误！";// Error 信息 分配
+
+gErrorARRAY[103].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[103].sErrTXT:=' Open PDV need TB No rotation or open done.';// Error 信息 分配
+gErrorARRAY[103].sErrWTXT:=" 开PDV需要分子完全静止或者开启完成才可以操作！";// Error 信息 分配
+
+gErrorARRAY[104].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[104].sErrTXT:=' Open PDV sT.:The anterior and posterior differential pressure must be less than 500mTorr';// Error 信息 分配
+gErrorARRAY[104].sErrWTXT:=" 开PDV需要前后压差小于500mTorr！";// Error 信息 分配
+
+gErrorARRAY[105].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[105].sErrTXT:=' Running State Error';// Error 信息 分配
+gErrorARRAY[105].sErrWTXT:=" 运行状态出错！";// Error 信息 分配
+
+gErrorARRAY[106].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[106].sErrTXT:=' Actuator Recovery POU Action Time Out';// Error 信息 分配
+gErrorARRAY[106].sErrWTXT:=" 执行器复位程序动作超时！";// Error 信息 分配
+
+gErrorARRAY[107].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[107].sErrTXT:=' Gauge State Error';// Error 信息 分配
+gErrorARRAY[107].sErrWTXT:=" 真空计状态出错！";// Error 信息 分配
+
+gErrorARRAY[108].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[108].sErrTXT:=' Chamber Vent POU Action Time Out';// Error 信息 分配
+gErrorARRAY[108].sErrWTXT:=" 腔体破空程序动作超时！";// Error 信息 分配
+
+gErrorARRAY[109].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[109].sErrTXT:=' LoadLock Vent POU Action Time Out';// Error 信息 分配
+gErrorARRAY[109].sErrWTXT:=" LoadLock破空程序动作超时！";// Error 信息 分配
+
+gErrorARRAY[110].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[110].sErrTXT:=' Load Wafer POU Action Time Out';// Error 信息 分配
+gErrorARRAY[110].sErrWTXT:=" Load Wafer程序动作超时！";// Error 信息 分配
+
+gErrorARRAY[111].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[111].sErrTXT:=' ARM IN Action Time Out';// Error 信息 分配
+gErrorARRAY[111].sErrWTXT:=" ARM进入腔体动作超时！";// Error 信息 分配
+
+gErrorARRAY[112].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[112].sErrTXT:=' Machine Vent POU Time Out';// Error 信息 分配
+gErrorARRAY[112].sErrWTXT:=" Machine Vent程序动作超时！";// Error 信息 分配
+
+gErrorARRAY[113].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[113].sErrTXT:=' RoughPumpong POU Time Out';// Error 信息 分配
+gErrorARRAY[113].sErrWTXT:=" RoughPumpong(粗抽)程序动作超时！";// Error 信息 分配
+
+gErrorARRAY[114].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[114].sErrTXT:=' UnLoad Wafer POU Time Out';// Error 信息 分配
+gErrorARRAY[114].sErrWTXT:=" UnLoad Wafer程序动作超时！";// Error 信息 分配
+
+gErrorARRAY[115].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[115].sErrTXT:=' UnLoad Wafer Arm have wafer,Not allow to UnLoad Wafer';// Error 信息 分配
+gErrorARRAY[115].sErrWTXT:=" UnLoad Wafer程序检测到ARM上有晶圆，不允许下晶圆！";// Error 信息 分配
+
+gErrorARRAY[116].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[116].sErrTXT:=' Etching POU Run but wafer outside chamber';// Error 信息 分配
+gErrorARRAY[116].sErrWTXT:=" 刻蚀程序运行但是腔体内无Wafer！";// Error 信息 分配
+
+gErrorARRAY[120].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[120].sErrTXT:=' Gas flow error';// Error 信息 分配
+gErrorARRAY[120].sErrWTXT:=" 气体流量出错！";// Error 信息 分配
+
+gErrorARRAY[121].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[121].sErrTXT:=' Gas flow not clear';// Error 信息 分配
+gErrorARRAY[121].sErrWTXT:=" 气体未关闭，需手动关闭后再执行操作！";// Error 信息 分配
+
+gErrorARRAY[122].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[122].sErrTXT:=' LoadLock Pumping TimeOut';// Error 信息 分配
+gErrorARRAY[122].sErrWTXT:=" LL腔抽气动作超时！";// Error 信息 分配
+
+gErrorARRAY[123].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[123].sErrTXT:=' Pumping limit vacuum timeout';// Error 信息 分配
+gErrorARRAY[123].sErrWTXT:=" Etch腔体抽气极限真空超时超时！";// Error 信息 分配
+
+gErrorARRAY[200].eErrLevel:=Error_Level_3;// Error Level 分配
+gErrorARRAY[200].sErrTXT:=' Back Of Helium MFC Set Flow Error';// Error 信息 分配
+gErrorARRAY[200].sErrWTXT:=" 背氦MFC流量设置参数异常！";// Error 信息 分配
+
+// 300-500 POU出错
+gErrorARRAY[300].eErrLevel:=Error_Level_2;// Error Level 分配
+gErrorARRAY[300].sErrTXT:='An error occurred in the status check POU.';// Error 信息 分配
+gErrorARRAY[300].sErrWTXT:=" 状态检查POU出错。";// Error 信息 分配
+
+//500-1000 电机及真空吸报错
+
+//轴数据分配在500-1499
+////////////////////////////////////////////////////////////////////////////////////////////////次要报错
+
+
+// 报错可按照上面的示例进行扩展
+
+
+Demo_ACT();
+
+]]></ST>
+    </Implementation>
+    <Method Name="assignARMError_1" Id="{64d7025f-b7e7-4a22-aa15-c31cbc2fe87b}">
+      <Declaration><![CDATA[(*
+分配气缸报错
+*)
+METHOD assignARMError_1
+VAR_INPUT
+	pPoint:POINTER TO ARMModule;
+	nBaseErrID:UDINT;
+END_VAR
+VAR
+	n1:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(*
+pCy^.errorID:=nBaseErrID;
+
+gErrorARRAY[pCy^.errID].eErrLevel:=Error_Level_3;//Error Level 分配
+gErrorARRAY[pCy^.errID].sErrTXT:=pCy^.errTXT;//Error 信息 分配
+gErrorARRAY[pCy^.errID].sErrWTXT:=pCy^.errWTXT;//Error 信息 分配
+*)
+pPoint^.errorID:=nBaseErrID;
+FOR n1:=1 TO 5 BY 1 DO
+	gErrorARRAY[pPoint^.getErrID(n1)].eErrLevel:=Error_Level_3;//Error Level 分配
+	gErrorARRAY[pPoint^.getErrID(n1)].sErrTXT:=pPoint^.getErrTXT(n1);//Error 信息 分配
+	gErrorARRAY[pPoint^.getErrID(n1)].sErrWTXT:=pPoint^.getErrWTXT(n1);//Error 信息 分配
+END_FOR
+
+IF nInit_ARM<nMaxNum_ARM THEN
+	nInit_ARM:=nInit_ARM+1;//计数
+	pARMArr[nInit_ARM]:=pPoint;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="assignAxisError" Id="{e6ebf0e3-d3d5-4f4d-b4f7-a32686c455fb}">
+      <Declaration><![CDATA[(*
+分配电机报错
+*)
+METHOD assignAxisError
+VAR_INPUT
+	pMotor:POINTER TO FB_MotorMovements;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[gErrorARRAY[pMotor^.stMotorOutput.axisErrId].eErrLevel:=Error_Level_3;//Error Level 分配 
+gErrorARRAY[pMotor^.stMotorOutput.axisErrId].sErrTXT:=pMotor^.stMotorOutput.axisErrTxt;//Error 信息 分配
+gErrorARRAY[pMotor^.stMotorOutput.axisErrId].sErrWTXT:=pMotor^.stMotorOutput.axisErrWTxt;//Error 信息 分配
+
+IF nInit_Axis<nMaxNum_Axis THEN
+	nInit_Axis:=nInit_Axis+1;//计数
+	pAxisArr[nInit_Axis]:=pMotor;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="assignAxisError_1" Id="{adea38ee-3dd2-4875-8d9b-f712f99d7444}">
+      <Declaration><![CDATA[(*
+分配电机报错
+*)
+METHOD assignAxisError_1
+VAR_INPUT
+	pMotor:POINTER TO FB_MotorMovements;
+	nBaseErrID:UDINT;
+END_VAR
+VAR
+	n1:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(*
+pMotor^.nBaseErrID:=nBaseErrID;
+
+gErrorARRAY[pMotor^.stMotorOutput.axisErrId].eErrLevel:=Error_Level_3;//Error Level 分配 
+gErrorARRAY[pMotor^.stMotorOutput.axisErrId].sErrTXT:=pMotor^.stMotorOutput.axisErrTxt;//Error 信息 分配
+gErrorARRAY[pMotor^.stMotorOutput.axisErrId].sErrWTXT:=pMotor^.stMotorOutput.axisErrWTxt;//Error 信息 分配
+*)
+pMotor^.nBaseErrID:=nBaseErrID;
+pMotor^.stMotorOutput.pMotionModule^.errorID:=nBaseErrID;
+
+FOR n1:=1 TO 16 BY 1 DO
+	gErrorARRAY[pMotor^.stMotorOutput.pMotionModule^.getErrID(n1)].eErrLevel:=Error_Level_3;//Error Level 分配 
+	gErrorARRAY[pMotor^.stMotorOutput.pMotionModule^.getErrID(n1)].sErrTXT:=pMotor^.stMotorOutput.pMotionModule^.getErrTXT(n1);//Error 信息 分配
+	gErrorARRAY[pMotor^.stMotorOutput.pMotionModule^.getErrID(n1)].sErrWTXT:=pMotor^.stMotorOutput.pMotionModule^.getErrWTXT(n1);//Error 信息 分配
+END_FOR
+
+
+IF nInit_Axis<nMaxNum_Axis THEN
+	nInit_Axis:=nInit_Axis+1;//计数
+	pAxisArr[nInit_Axis]:=pMotor;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="assignChillerError_1" Id="{e25712ef-64af-4299-a54e-bda7c560cf17}">
+      <Declaration><![CDATA[(*
+分配气缸报错
+*)
+METHOD assignChillerError_1
+VAR_INPUT
+	pPoint:POINTER TO ChillerModule_1;
+	nBaseErrID:UDINT;
+END_VAR
+VAR
+	n1:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(*
+pCy^.errorID:=nBaseErrID;
+
+gErrorARRAY[pCy^.errID].eErrLevel:=Error_Level_3;//Error Level 分配
+gErrorARRAY[pCy^.errID].sErrTXT:=pCy^.errTXT;//Error 信息 分配
+gErrorARRAY[pCy^.errID].sErrWTXT:=pCy^.errWTXT;//Error 信息 分配
+*)
+pPoint^.errorID:=nBaseErrID;
+FOR n1:=1 TO 4 BY 1 DO
+	gErrorARRAY[pPoint^.getErrID(n1)].eErrLevel:=Error_Level_3;//Error Level 分配
+	gErrorARRAY[pPoint^.getErrID(n1)].sErrTXT:=pPoint^.getErrTXT(n1);//Error 信息 分配
+	gErrorARRAY[pPoint^.getErrID(n1)].sErrWTXT:=pPoint^.getErrWTXT(n1);//Error 信息 分配
+END_FOR
+
+IF nInit_Chiller<nMaxNum_Chiller THEN
+	nInit_Chiller:=nInit_Chiller+1;//计数
+	pChillerArr[nInit_Chiller]:=pPoint;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="assignCyError" Id="{0b3cc3f4-99e2-415c-ad38-fab3faaa62f4}">
+      <Declaration><![CDATA[(*
+分配气缸报错
+*)
+METHOD assignCyError
+VAR_INPUT
+	pCy:POINTER TO CylinderModule;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[gErrorARRAY[pCy^.errID].eErrLevel:=Error_Level_3;//Error Level 分配
+gErrorARRAY[pCy^.errID].sErrTXT:=pCy^.errTXT;//Error 信息 分配
+gErrorARRAY[pCy^.errID].sErrWTXT:=pCy^.errWTXT;//Error 信息 分配
+
+IF nInit_Cy<nMaxNum_Cy THEN
+	nInit_Cy:=nInit_Cy+1;//计数
+	pCyArr[nInit_Cy]:=pCy;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="assignCyError_1" Id="{62202830-8a61-4fbe-bb50-c8b886b810d7}">
+      <Declaration><![CDATA[(*
+分配气缸报错
+*)
+METHOD assignCyError_1
+VAR_INPUT
+	pCy:POINTER TO CylinderModule;
+	nBaseErrID:UDINT;
+END_VAR
+VAR
+	n1:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(*
+pCy^.errorID:=nBaseErrID;
+
+gErrorARRAY[pCy^.errID].eErrLevel:=Error_Level_3;//Error Level 分配
+gErrorARRAY[pCy^.errID].sErrTXT:=pCy^.errTXT;//Error 信息 分配
+gErrorARRAY[pCy^.errID].sErrWTXT:=pCy^.errWTXT;//Error 信息 分配
+*)
+pCy^.errorID:=nBaseErrID;
+FOR n1:=1 TO 16 BY 1 DO
+	gErrorARRAY[pCy^.getErrID(n1)].eErrLevel:=Error_Level_3;//Error Level 分配
+	gErrorARRAY[pCy^.getErrID(n1)].sErrTXT:=pCy^.getErrTXT(n1);//Error 信息 分配
+	gErrorARRAY[pCy^.getErrID(n1)].sErrWTXT:=pCy^.getErrWTXT(n1);//Error 信息 分配
+END_FOR
+
+IF nInit_Cy<nMaxNum_Cy THEN
+	nInit_Cy:=nInit_Cy+1;//计数
+	pCyArr[nInit_Cy]:=pCy;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="assignMFCError" Id="{5787f3e2-da80-4b20-9f33-f15f1f55efc3}">
+      <Declaration><![CDATA[(*
+分配气缸报错
+*)
+METHOD assignMFCError
+VAR_INPUT
+	pMFC:POINTER TO MFCModule;
+	nBaseErrID:UDINT;
+END_VAR
+VAR
+	n1:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(*
+pCy^.errorID:=nBaseErrID;
+
+gErrorARRAY[pCy^.errID].eErrLevel:=Error_Level_3;//Error Level 分配
+gErrorARRAY[pCy^.errID].sErrTXT:=pCy^.errTXT;//Error 信息 分配
+gErrorARRAY[pCy^.errID].sErrWTXT:=pCy^.errWTXT;//Error 信息 分配
+*)
+pMFC^.errorID:=nBaseErrID;
+FOR n1:=1 TO 5 BY 1 DO
+	gErrorARRAY[pMFC^.getErrID(n1)].eErrLevel:=Error_Level_3;//Error Level 分配
+	gErrorARRAY[pMFC^.getErrID(n1)].sErrTXT:=pMFC^.getErrTXT(n1);//Error 信息 分配
+	gErrorARRAY[pMFC^.getErrID(n1)].sErrWTXT:=pMFC^.getErrWTXT(n1);//Error 信息 分配
+END_FOR
+
+IF nInit_MFC<nMaxNum_MFC THEN
+	nInit_MFC:=nInit_MFC+1;//计数
+	pMFCArr[nInit_MFC]:=pMFC;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="assignPDVError_1" Id="{2afaf747-1f6c-44b8-88a7-3fa1b58b8f60}">
+      <Declaration><![CDATA[(*
+PDV报错
+*)
+METHOD assignPDVError_1
+VAR_INPUT
+	pPoint:POINTER TO PVModule;
+	nBaseErrID:UDINT;
+END_VAR
+VAR
+	n1:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(*
+pCy^.errorID:=nBaseErrID;
+
+gErrorARRAY[pCy^.errID].eErrLevel:=Error_Level_3;//Error Level 分配
+gErrorARRAY[pCy^.errID].sErrTXT:=pCy^.errTXT;//Error 信息 分配
+gErrorARRAY[pCy^.errID].sErrWTXT:=pCy^.errWTXT;//Error 信息 分配
+*)
+pPoint^.errorID:=nBaseErrID;
+FOR n1:=1 TO 5 BY 1 DO
+	gErrorARRAY[pPoint^.getErrID(n1)].eErrLevel:=Error_Level_3;//Error Level 分配
+	gErrorARRAY[pPoint^.getErrID(n1)].sErrTXT:=pPoint^.getErrTXT(n1);//Error 信息 分配
+	gErrorARRAY[pPoint^.getErrID(n1)].sErrWTXT:=pPoint^.getErrWTXT(n1);//Error 信息 分配
+END_FOR
+
+IF nInit_PDV<nMaxNum_PDV THEN
+	nInit_PDV:=nInit_PDV+1;//计数
+	pPDVArr[nInit_PDV]:=pPoint;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="assignRFError_1" Id="{d48a96d4-326e-4dc0-9fe5-c441a6496b2d}">
+      <Declaration><![CDATA[(*
+分配气缸报错
+*)
+METHOD assignRFError_1
+VAR_INPUT
+	pPoint:POINTER TO RFModule;
+	nBaseErrID:UDINT;
+END_VAR
+VAR
+	n1:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(*
+pCy^.errorID:=nBaseErrID;
+
+gErrorARRAY[pCy^.errID].eErrLevel:=Error_Level_3;//Error Level 分配
+gErrorARRAY[pCy^.errID].sErrTXT:=pCy^.errTXT;//Error 信息 分配
+gErrorARRAY[pCy^.errID].sErrWTXT:=pCy^.errWTXT;//Error 信息 分配
+*)
+pPoint^.errorID:=nBaseErrID;
+FOR n1:=1 TO 6 BY 1 DO
+	gErrorARRAY[pPoint^.getErrID(n1)].eErrLevel:=Error_Level_3;//Error Level 分配
+	gErrorARRAY[pPoint^.getErrID(n1)].sErrTXT:=pPoint^.getErrTXT(n1);//Error 信息 分配
+	gErrorARRAY[pPoint^.getErrID(n1)].sErrWTXT:=pPoint^.getErrWTXT(n1);//Error 信息 分配
+END_FOR
+
+IF nInit_RF<nMaxNum_RF THEN
+	nInit_RF:=nInit_RF+1;//计数
+	pRFArr[nInit_RF]:=pPoint;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="assignRFError_2" Id="{16abf616-fea2-49f8-8dcf-c259ce99bc20}">
+      <Declaration><![CDATA[(*
+分配气缸报错
+*)
+METHOD assignRFError_2
+VAR_INPUT
+	pPoint:POINTER TO RFModule_Source;
+	nBaseErrID:UDINT;
+END_VAR
+VAR
+	n1:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(*
+pCy^.errorID:=nBaseErrID;
+
+gErrorARRAY[pCy^.errID].eErrLevel:=Error_Level_3;//Error Level 分配
+gErrorARRAY[pCy^.errID].sErrTXT:=pCy^.errTXT;//Error 信息 分配
+gErrorARRAY[pCy^.errID].sErrWTXT:=pCy^.errWTXT;//Error 信息 分配
+*)
+pPoint^.errorID:=nBaseErrID;
+FOR n1:=1 TO 6 BY 1 DO
+	gErrorARRAY[pPoint^.getErrID(n1)].eErrLevel:=Error_Level_3;//Error Level 分配
+	gErrorARRAY[pPoint^.getErrID(n1)].sErrTXT:=pPoint^.getErrTXT(n1);//Error 信息 分配
+	gErrorARRAY[pPoint^.getErrID(n1)].sErrWTXT:=pPoint^.getErrWTXT(n1);//Error 信息 分配
+END_FOR
+
+IF nInit_RF<nMaxNum_RF THEN
+	nInit_RF:=nInit_RF+1;//计数
+	pRFArr[nInit_RF]:=pPoint;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="assignTMPError_1" Id="{02fa9ba6-13b1-416f-806c-d382d439e466}">
+      <Declaration><![CDATA[(*
+分配气缸报错
+*)
+METHOD assignTMPError_1
+VAR_INPUT
+	pPoint:POINTER TO TMPModule;
+	nBaseErrID:UDINT;
+END_VAR
+VAR
+	n1:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(*
+pCy^.errorID:=nBaseErrID;
+
+gErrorARRAY[pCy^.errID].eErrLevel:=Error_Level_3;//Error Level 分配
+gErrorARRAY[pCy^.errID].sErrTXT:=pCy^.errTXT;//Error 信息 分配
+gErrorARRAY[pCy^.errID].sErrWTXT:=pCy^.errWTXT;//Error 信息 分配
+*)
+pPoint^.errorID:=nBaseErrID;
+FOR n1:=1 TO 6 BY 1 DO
+	gErrorARRAY[pPoint^.getErrID(n1)].eErrLevel:=Error_Level_3;//Error Level 分配
+	gErrorARRAY[pPoint^.getErrID(n1)].sErrTXT:=pPoint^.getErrTXT(n1);//Error 信息 分配
+	gErrorARRAY[pPoint^.getErrID(n1)].sErrWTXT:=pPoint^.getErrWTXT(n1);//Error 信息 分配
+END_FOR
+
+IF nInit_TMP<nMaxNum_TMP THEN
+	nInit_TMP:=nInit_TMP+1;//计数
+	pTMPArr[nInit_TMP]:=pPoint;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="assignVPEError_1" Id="{9ca7f89c-a7d0-4cbd-9db0-e4ba39bf14c6}">
+      <Declaration><![CDATA[(*
+分配气缸报错
+*)
+METHOD assignVPEError_1
+VAR_INPUT
+	pPoint:POINTER TO VPEModule;
+	nBaseErrID:UDINT;
+END_VAR
+VAR
+	n1:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(*
+pCy^.errorID:=nBaseErrID;
+
+gErrorARRAY[pCy^.errID].eErrLevel:=Error_Level_3;//Error Level 分配
+gErrorARRAY[pCy^.errID].sErrTXT:=pCy^.errTXT;//Error 信息 分配
+gErrorARRAY[pCy^.errID].sErrWTXT:=pCy^.errWTXT;//Error 信息 分配
+*)
+pPoint^.errorID:=nBaseErrID;
+FOR n1:=1 TO 8 BY 1 DO
+	gErrorARRAY[pPoint^.getErrID(n1)].eErrLevel:=Error_Level_3;//Error Level 分配
+	gErrorARRAY[pPoint^.getErrID(n1)].sErrTXT:=pPoint^.getErrTXT(n1);//Error 信息 分配
+	gErrorARRAY[pPoint^.getErrID(n1)].sErrWTXT:=pPoint^.getErrWTXT(n1);//Error 信息 分配
+END_FOR
+
+IF nInit_Vpe<nMaxNum_Vpe THEN
+	nInit_Vpe:=nInit_Vpe+1;//计数
+	pVpeArr[nInit_Vpe]:=pPoint;
+END_IF
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Demo_ACT" Id="{474d5868-8d66-4e9a-95d6-6225845b8be6}">
+      <Implementation>
+        <ST><![CDATA[// 电机
+IF NOT bInit_Axis THEN
+	nInit_Axis:=0;
+	// bInit_Axis:=TRUE;
+	
+	// 电机：(500~1499)
+//	assignAxisError_1(ADR(gLoad_AXIS.CY1Axis),500);
+//	assignAxisError_1(ADR(gUnLoad_AXIS.CY1Axis),520);
+//	assignAxisError_1(ADR(gLoad_AXIS.X1Axis),540);
+//	assignAxisError_1(ADR(gLoad_AXIS.Y1Axis),560);
+//	assignAxisError_1(ADR(gLoad_AXIS.Z1Axis),580);
+//	assignAxisError_1(ADR(gLoad_AXIS.R1Axis),600);
+	
+//	assignAxisError_1(ADR(gTestSocket_AXIS.X1AXIS),700);
+//	assignAxisError_1(ADR(gTestSocket_AXIS.Z1AXIS),720);
+//	assignAxisError_1(ADR(gTestSocket_AXIS.R1AXIS),740);
+//	assignAxisError_1(ADR(gTestSocket_AXIS.Y1AXIS),760);
+//	assignAxisError_1(ADR(gTestSocket_AXIS.UX2AXIS),780);
+//	assignAxisError_1(ADR(gTestSocket_AXIS.UY2AXIS),800);
+//	assignAxisError_1(ADR(gTestSocket_AXIS.X3AXIS),820);
+
+//	assignAxisError_1(ADR(gCoaxial_AXIS.Y1AXIS),900);
+	
+	
+//	assignAxisError_1(ADR(gRXTest_AXIS.Z1AXIS),1000);
+//	assignAxisError_1(ADR(gRXTest_AXIS.X1AXIS),1020);
+//	assignAxisError_1(ADR(gRXTest_AXIS.Y1AXIS),1040);
+//	assignAxisError_1(ADR(gRXTest_AXIS.U1AXIS),1060);
+//	assignAxisError_1(ADR(gRXTest_AXIS.Y2AXIS),1080);
+//	assignAxisError_1(ADR(gRXTest_AXIS.CZ2AXIS),1100);
+//	assignAxisError_1(ADR(gRXTest_AXIS.CZ3AXIS),1120);
+//	assignAxisError_1(ADR(gRXTest_AXIS.CY3AXIS),1140);
+	
+//	assignAxisError_1(ADR(gTXTest_AXIS.Y1AXIS),1200);
+	
+//	assignAxisError_1(ADR(gUnLoad_AXIS.X1Axis),1300);
+//	assignAxisError_1(ADR(gUnLoad_AXIS.Y1Axis),1320);
+//	assignAxisError_1(ADR(gUnLoad_AXIS.Z1Axis),1340);
+//	assignAxisError_1(ADR(gUnLoad_AXIS.R1Axis),1360);
+//	assignAxisError_1(ADR(gUnLoad_AXIS.X2Axis),1380);
+	
+END_IF
+// TMP
+// 分子泵，根据腔体总数量决定，每个腔体至少百分之60在工作；
+IF NOT bInit_TMP THEN
+	nInit_TMP:=0;
+	assignTMPError_1(ADR(gICP.TruboPum),2500);
+END_IF
+// PDV
+IF NOT bInit_PDV THEN
+	nInit_PDV:=0;
+	assignPDVError_1(ADR(gICP.PDV),2720);
+END_IF
+
+// 气缸
+IF NOT bInit_Cy THEN
+	nInit_Cy:=0;
+	assignCyError_1(ADR(gICP.ForlinLineValve),2010);
+	assignCyError_1(ADR(gICP.RoughValve),2020);
+	assignCyError_1(ADR(gICP.SlowPummingValve),2030);
+	assignCyError_1(ADR(gICP.FastPummingValve),2040);
+	assignCyError_1(ADR(gICP.ElectrodeCyl),2050);
+	assignCyError_1(ADR(gICP.LiftPinCyl),2060);
+	
+	assignCyError_1(ADR(gICP.GVA1Valve),2070);
+	assignCyError_1(ADR(gICP.GVA2Valve),2080);
+	assignCyError_1(ADR(gICP.GVA3Valve),2090);
+	assignCyError_1(ADR(gICP.GVA4Valve),2100);
+	assignCyError_1(ADR(gICP.GVA5Valve),2110);
+	assignCyError_1(ADR(gICP.GVA6Valve),2120);
+	assignCyError_1(ADR(gICP.GVA7Valve),2130);
+	assignCyError_1(ADR(gICP.GVA8Valve),2140);
+	assignCyError_1(ADR(gICP.GVA9Valve),2260);
+	assignCyError_1(ADR(gICP.GVA10Valve_Vent),2270);
+	assignCyError_1(ADR(gICP.GV20Valve_Main),2340);
+	
+	assignCyError_1(ADR(gICP.GVB1Valve),2150);
+	assignCyError_1(ADR(gICP.GVB2Valve),2160);
+	assignCyError_1(ADR(gICP.GVB3Valve),2170);
+	assignCyError_1(ADR(gICP.GVB4Valve),2180);
+	assignCyError_1(ADR(gICP.GVB5Valve),2190);
+	assignCyError_1(ADR(gICP.GVB6Valve),2200);
+	assignCyError_1(ADR(gICP.GVB7Valve),2210);
+	assignCyError_1(ADR(gICP.GVB8Valve),2280);
+	assignCyError_1(ADR(gICP.GVB9Valve),2290);
+	
+	assignCyError_1(ADR(gICP.ISOValve),2220);
+	assignCyError_1(ADR(gICP.AIMValve),2230);
+	assignCyError_1(ADR(gICP.GateDoorValve),2240);
+	assignCyError_1(ADR(gICP.VentValve),2250);
+	assignCyError_1(ADR(gICP.GASBoxVentValve),2300);
+	assignCyError_1(ADR(gICP.HeINValve),2310);
+	assignCyError_1(ADR(gICP.HePumValve),2320);
+	assignCyError_1(ADR(gICP.TBPurgeValve),2350);
+END_IF
+
+IF NOT bInit_MFC THEN
+	nInit_MFC:=0;
+	assignMFCError(ADR(gICP.MFC1),2600);
+	assignMFCError(ADR(gICP.MFC2),2610);
+	assignMFCError(ADR(gICP.MFC3),2620);
+	assignMFCError(ADR(gICP.MFC4),2630);
+	assignMFCError(ADR(gICP.MFC5),2640);
+	assignMFCError(ADR(gICP.MFC6),2650);
+	assignMFCError(ADR(gICP.MFC7),2660);
+END_IF
+IF NOT bInit_RF THEN
+	nInit_RF:=0;
+	assignRFError_1(ADR(gICP.PowerRF),2700);
+	assignRFError_2(ADR(gICP.SourceRF),2710);
+END_IF
+
+IF NOT bInit_Chiller THEN
+	nInit_Chiller:=0;
+	assignChillerError_1(ADR(gICP.Chiller),2800);
+END_IF
+
+IF NOT bInit_ARM THEN
+	nInit_ARM:=0;
+	assignARMError_1(ADR(gICP.ARM),2330);
+END_IF
+
+
+// 电机报警监控
+FOR nTemp_Axis:=1 TO nInit_Axis BY 1 DO
+	r_trig_AxisArr[nTemp_Axis](CLK:=(pAxisArr[nTemp_Axis]^.Get_Error()) AND (''<>pAxisArr[nTemp_Axis]^.Get_ErrTxt()));
+	IF r_trig_AxisArr[nTemp_Axis].Q THEN
+		error_Trigger(TO_DINT(pAxisArr[nTemp_Axis]^.Get_ErrID()));
+	END_IF
+END_FOR
+//电磁阀报警监控
+FOR nTemp_Cy:=1 TO nInit_Cy BY 1 DO
+	r_trig_CyArr[nTemp_Cy](CLK:=(pCyArr[nTemp_Cy]^.error) AND (''<>pCyArr[nTemp_Cy]^.errTXT));
+	IF r_trig_CyArr[nTemp_Cy].Q THEN
+		IF pCyArr[nTemp_Cy]^.cylinderType<>CylinderType.CylinderType_Vacuum THEN
+			error_Trigger(TO_DINT(pCyArr[nTemp_Cy]^.errID));
+		END_IF
+	END_IF
+END_FOR
+
+//MFC
+FOR nTemp_MFC:=1 TO nInit_MFC BY 1 DO
+	r_trig_MFCArr[nTemp_MFC](CLK:=(pMFCArr[nTemp_MFC]^.error) AND (''<>pMFCArr[nTemp_MFC]^.errTXT));
+	IF r_trig_MFCArr[nTemp_MFC].Q THEN
+		error_Trigger(TO_DINT(pMFCArr[nTemp_MFC]^.errID));
+	END_IF
+END_FOR
+
+//VPE
+FOR nTemp_Vpe:=1 TO nInit_Vpe BY 1 DO
+	r_trig_VpeArr[nTemp_Vpe](CLK:=(pVpeArr[nTemp_Vpe]^.error) AND (''<>pVpeArr[nTemp_Vpe]^.errTXT));
+	IF r_trig_VpeArr[nTemp_Vpe].Q THEN
+		error_Trigger(TO_DINT(pVpeArr[nTemp_Vpe]^.errID));
+	END_IF
+END_FOR
+//TMP
+FOR nTemp_TMP:=1 TO nInit_TMP BY 1 DO
+	r_trig_TMPArr[nTemp_TMP](CLK:=(pTMPArr[nTemp_TMP]^.error) AND (''<>pTMPArr[nTemp_TMP]^.errTXT));
+	IF r_trig_TMPArr[nTemp_TMP].Q THEN
+		error_Trigger(TO_DINT(pTMPArr[nTemp_TMP]^.errID));
+	END_IF
+END_FOR
+//PDV
+FOR nTemp_PDV:=1 TO nInit_PDV BY 1 DO
+	r_trig_PDVArr[nTemp_PDV](CLK:=(pPDVArr[nTemp_PDV]^.error) AND (''<>pPDVArr[nTemp_PDV]^.errTXT));
+	IF r_trig_PDVArr[nTemp_PDV].Q THEN
+		error_Trigger(TO_DINT(pPDVArr[nTemp_PDV]^.errID));
+	END_IF
+END_FOR
+//RF
+FOR nTemp_RF:=1 TO nInit_RF BY 1 DO
+	r_trig_RFArr[nTemp_RF](CLK:=(pRFArr[nTemp_RF]^.error) AND (''<>pRFArr[nTemp_RF]^.errTXT));
+	IF r_trig_RFArr[nTemp_RF].Q THEN
+		error_Trigger(TO_DINT(pRFArr[nTemp_RF]^.errID));
+	END_IF
+END_FOR
+
+//Chiller
+FOR nTemp_Chiller:=1 TO nInit_Chiller BY 1 DO
+	r_trig_ChillerArr[nTemp_Chiller](CLK:=(pChillerArr[nTemp_Chiller]^.error) AND (''<>pChillerArr[nTemp_Chiller]^.errTXT));
+	IF r_trig_ChillerArr[nTemp_Chiller].Q THEN
+		error_Trigger(TO_DINT(pChillerArr[nTemp_Chiller]^.errID));
+	END_IF
+END_FOR
+
+//ARM
+FOR nTemp_ARM:=1 TO nInit_ARM BY 1 DO
+	r_trig_ARMArr[nTemp_ARM](CLK:=(pARMArr[nTemp_ARM]^.error) AND (''<>pARMArr[nTemp_ARM]^.errTXT));
+	IF r_trig_ARMArr[nTemp_ARM].Q THEN
+		error_Trigger(TO_DINT(pARMArr[nTemp_ARM]^.errID));
+	END_IF
+END_FOR]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="Demo_Reset" Id="{2e6d175f-ce40-4e36-ad26-7e9a6cd2cd32}">
+      <Declaration><![CDATA[METHOD PRIVATE Demo_Reset : BOOL
+VAR_INPUT
+END_VAR
+VAR
+	LRobot_Index_reset:INT;
+	Test_Index_reset:INT;
+	Buff_Index_reset:INT;
+	BIN1_Index_reset:INT;
+	BIN2_Index_reset:INT;
+	ULRobot_Index_reset:INT;
+	i: INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+//(***********  ***********)
+
+// Valve
+gICP.ForlinLineValve.Act_Reset();	
+gICP.RoughValve.Act_Reset();
+gICP.SlowPummingValve.Act_Reset();
+gICP.FastPummingValve.Act_Reset();
+gICP.ElectrodeCyl.Act_Reset();
+gICP.LiftPinCyl.Act_Reset();
+
+gICP.GVA1Valve.Act_Reset();
+gICP.GVA2Valve.Act_Reset();
+gICP.GVA3Valve.Act_Reset();
+gICP.GVA4Valve.Act_Reset();
+gICP.GVA5Valve.Act_Reset();
+gICP.GVA6Valve.Act_Reset();
+gICP.GVA7Valve.Act_Reset();
+gICP.GVA8Valve.Act_Reset();
+gICP.GVA9Valve.Act_Reset();
+gICP.GVA10Valve_Vent.Act_Reset();
+
+gICP.GVB1Valve.Act_Reset();
+gICP.GVB2Valve.Act_Reset();
+gICP.GVB3Valve.Act_Reset();
+gICP.GVB4Valve.Act_Reset();
+gICP.GVB5Valve.Act_Reset();
+gICP.GVB6Valve.Act_Reset();
+gICP.GVB7Valve.Act_Reset();
+gICP.GVB8Valve.Act_Reset();
+gICP.GVB9Valve.Act_Reset();
+gICP.GV20Valve_Main.Act_Reset();
+
+
+gICP.ISOValve.Act_Reset();
+gICP.AIMValve.Act_Reset();
+gICP.GateDoorValve.Act_Reset();
+gICP.VentValve.Act_Reset();
+
+gICP.TBPurgeValve.Act_Reset();
+gICP.HeINValve.Act_Reset();
+gICP.HePumValve.Act_Reset();
+
+// MFC 
+gICP.MFC1.Act_Reset();	
+gICP.MFC2.Act_Reset();
+gICP.MFC3.Act_Reset();
+gICP.MFC4.Act_Reset();
+gICP.MFC5.Act_Reset();
+gICP.MFC6.Act_Reset();
+gICP.MFC7.Act_Reset();
+// TB
+gICP.TruboPum.Act_Reset();	
+// PDV 
+gICP.PDV.Act_Reset();
+// RF 
+gICP.SourceRF.Act_Reset();
+gICP.PowerRF.Act_Reset();
+// Chiller
+gICP.Chiller.Act_Reset();
+// Chiller
+gICP.ARM.Act_Reset();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrTXT" Id="{0da34bf8-0c42-4fa7-8821-2e197684ee54}">
+      <Declaration><![CDATA[METHOD getErrTXT : STRING(255)
+VAR_INPUT
+	errorID					:DINT;
+END_VAR
+VAR
+	sErrTXT					:STRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sErrTXT:='';
+sErrTXT:=CONCAT(sErrTXT,CONCAT('ID:',TO_STRING(gErrorARRAY[errorID].uErrID)));
+sErrTXT:=CONCAT(sErrTXT,',');
+sErrTXT:=CONCAT(sErrTXT,CONCAT('Level:',TO_STRING(gErrorARRAY[errorID].eErrLevel)));
+sErrTXT:=CONCAT(sErrTXT,',');
+sErrTXT:=CONCAT(sErrTXT,CONCAT('ErrMsg:',gErrorARRAY[errorID].sErrTXT));
+getErrTXT:=sErrTXT;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrWTXT" Id="{b2363594-6c47-4580-8df8-ec9b2f86d61c}">
+      <Declaration><![CDATA[METHOD getErrWTXT : WSTRING(255)
+VAR_INPUT
+	errorID					:DINT;
+END_VAR
+VAR
+	sErrTXT					:WSTRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sErrTXT:="";
+sErrTXT:=WCONCAT(sErrTXT,WCONCAT("ID：",TO_WSTRING(gErrorARRAY[errorID].uErrID)));
+sErrTXT:=WCONCAT(sErrTXT,"，");
+sErrTXT:=WCONCAT(sErrTXT,WCONCAT("等级：",TO_WSTRING(gErrorARRAY[errorID].eErrLevel)));
+sErrTXT:=WCONCAT(sErrTXT,"，");
+sErrTXT:=WCONCAT(sErrTXT,WCONCAT("错误信息：",gErrorARRAY[errorID].sErrWTXT));
+getErrWTXT:=sErrTXT;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="resetFunc" Id="{e2abc08f-3533-45fc-a940-7aa5e5936238}">
+      <Declaration><![CDATA[//触发各个通讯对象复位
+METHOD resetFunc : BOOL
+VAR_INPUT
+END_VAR
+VAR
+	iTempReset:DINT:=0;
+	indexArr_temp_reset:ARRAY [0..g_Max_Data_Elements] OF DINT;
+	index_temp_reset:DINT;
+	index_temp_reset_remove:DINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[(*********** DOE ***********)
+	Demo_Reset();
+
+(*********** 公共部分 ***********)
+	FOR iTempReset:=g_d_ErrorBegin TO g_d_ErrorEnd DO
+		gErrorARRAY[iTempReset].bError:=FALSE;
+	END_FOR
+	
+	index_temp_reset:=0;
+	gError_fbTable.A_GetFirst(putPosPtr:=0,hTable:=gError_hTable);
+	IF gError_fbTable.bOk THEN
+		//gError_fbTable.A_Remove(key:=gError_fbTable.getPosPtr,hTable:=gError_hTable);
+		//gError_fbTable.A_Remove(key:=gError_fbTable.getValue,hTable:=gError_hTable);
+		indexArr_temp_reset[index_temp_reset]:=TO_DINT(gError_fbTable.getValue);
+		REPEAT
+			gError_fbTable.A_GetNext(putPosPtr:=gError_fbTable.getPosPtr,hTable:=gError_hTable);
+			IF gError_fbTable.bOk THEN
+				index_temp_reset:=index_temp_reset+1;
+				indexArr_temp_reset[index_temp_reset]:=TO_DINT(gError_fbTable.getValue);
+			END_IF
+		UNTIL NOT gError_fbTable.bOk
+		END_REPEAT
+	END_IF
+	FOR index_temp_reset_remove:=0 TO index_temp_reset BY 1 DO
+		gError_fbTable.A_Remove(key:=TO_WORD(indexArr_temp_reset[index_temp_reset_remove]),hTable:=gError_hTable);
+	END_FOR
+	]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="resetFunc_1" Id="{9ac28bdc-6e89-4204-8a5f-b43b234d901f}">
+      <Declaration><![CDATA[//触发各个通讯对象复位
+METHOD resetFunc_1 : BOOL
+VAR_INPUT
+END_VAR
+VAR
+	iTempReset:DINT:=0;
+	indexArr_temp_reset:ARRAY [0..g_Max_Data_Elements] OF DINT;
+	index_temp_reset:DINT;
+	index_temp_reset_remove:DINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+
+
+(*********** 公共部分 ***********)
+	FOR iTempReset:=g_d_ErrorBegin TO g_d_ErrorEnd DO
+		gErrorARRAY[iTempReset].bError:=FALSE;
+	END_FOR
+	
+	index_temp_reset:=0;
+	gError_fbTable.A_GetFirst(putPosPtr:=0,hTable:=gError_hTable);
+	IF gError_fbTable.bOk THEN
+		//gError_fbTable.A_Remove(key:=gError_fbTable.getPosPtr,hTable:=gError_hTable);
+		//gError_fbTable.A_Remove(key:=gError_fbTable.getValue,hTable:=gError_hTable);
+		indexArr_temp_reset[index_temp_reset]:=TO_DINT(gError_fbTable.getValue);
+		REPEAT
+			gError_fbTable.A_GetNext(putPosPtr:=gError_fbTable.getPosPtr,hTable:=gError_hTable);
+			IF gError_fbTable.bOk THEN
+				index_temp_reset:=index_temp_reset+1;
+				indexArr_temp_reset[index_temp_reset]:=TO_DINT(gError_fbTable.getValue);
+			END_IF
+		UNTIL NOT gError_fbTable.bOk
+		END_REPEAT
+	END_IF
+	FOR index_temp_reset_remove:=0 TO index_temp_reset BY 1 DO
+		gError_fbTable.A_Remove(key:=TO_WORD(indexArr_temp_reset[index_temp_reset_remove]),hTable:=gError_hTable);
+	END_FOR
+	]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="errorMonitor">
+      <LineId Id="1672" Count="3" />
+      <LineId Id="4215" Count="16" />
+      <LineId Id="1690" Count="14" />
+      <LineId Id="1717" Count="3" />
+      <LineId Id="4466" Count="0" />
+      <LineId Id="4481" Count="2" />
+      <LineId Id="4480" Count="0" />
+      <LineId Id="4484" Count="0" />
+      <LineId Id="6564" Count="1" />
+      <LineId Id="5858" Count="0" />
+      <LineId Id="6567" Count="2" />
+      <LineId Id="6566" Count="0" />
+      <LineId Id="6571" Count="2" />
+      <LineId Id="6570" Count="0" />
+      <LineId Id="6575" Count="2" />
+      <LineId Id="6574" Count="0" />
+      <LineId Id="6579" Count="2" />
+      <LineId Id="6578" Count="0" />
+      <LineId Id="6583" Count="2" />
+      <LineId Id="6582" Count="0" />
+      <LineId Id="6587" Count="2" />
+      <LineId Id="6586" Count="0" />
+      <LineId Id="6591" Count="2" />
+      <LineId Id="6590" Count="0" />
+      <LineId Id="6595" Count="2" />
+      <LineId Id="6594" Count="0" />
+      <LineId Id="6599" Count="2" />
+      <LineId Id="6598" Count="0" />
+      <LineId Id="6603" Count="2" />
+      <LineId Id="6602" Count="0" />
+      <LineId Id="6607" Count="2" />
+      <LineId Id="6606" Count="0" />
+      <LineId Id="6611" Count="2" />
+      <LineId Id="6610" Count="0" />
+      <LineId Id="6615" Count="2" />
+      <LineId Id="6614" Count="0" />
+      <LineId Id="6619" Count="2" />
+      <LineId Id="6618" Count="0" />
+      <LineId Id="2333" Count="0" />
+      <LineId Id="6122" Count="0" />
+      <LineId Id="6044" Count="1" />
+      <LineId Id="5811" Count="0" />
+      <LineId Id="6124" Count="2" />
+      <LineId Id="6123" Count="0" />
+      <LineId Id="6128" Count="2" />
+      <LineId Id="6127" Count="0" />
+      <LineId Id="6132" Count="2" />
+      <LineId Id="6131" Count="0" />
+      <LineId Id="6143" Count="2" />
+      <LineId Id="6142" Count="0" />
+      <LineId Id="6147" Count="2" />
+      <LineId Id="6146" Count="0" />
+      <LineId Id="6151" Count="2" />
+      <LineId Id="6150" Count="0" />
+      <LineId Id="6155" Count="2" />
+      <LineId Id="6154" Count="0" />
+      <LineId Id="6158" Count="2" />
+      <LineId Id="6136" Count="0" />
+      <LineId Id="6244" Count="1" />
+      <LineId Id="6247" Count="1" />
+      <LineId Id="6246" Count="0" />
+      <LineId Id="6250" Count="2" />
+      <LineId Id="6249" Count="0" />
+      <LineId Id="6254" Count="2" />
+      <LineId Id="6253" Count="0" />
+      <LineId Id="6341" Count="2" />
+      <LineId Id="6340" Count="0" />
+      <LineId Id="6345" Count="2" />
+      <LineId Id="6344" Count="0" />
+      <LineId Id="6432" Count="2" />
+      <LineId Id="6431" Count="0" />
+      <LineId Id="6436" Count="2" />
+      <LineId Id="6435" Count="0" />
+      <LineId Id="6440" Count="2" />
+      <LineId Id="6439" Count="0" />
+      <LineId Id="6444" Count="2" />
+      <LineId Id="6443" Count="0" />
+      <LineId Id="6448" Count="2" />
+      <LineId Id="6447" Count="0" />
+      <LineId Id="6452" Count="2" />
+      <LineId Id="6451" Count="0" />
+      <LineId Id="6456" Count="2" />
+      <LineId Id="6455" Count="0" />
+      <LineId Id="6460" Count="2" />
+      <LineId Id="6459" Count="0" />
+      <LineId Id="6464" Count="2" />
+      <LineId Id="6463" Count="0" />
+      <LineId Id="6468" Count="2" />
+      <LineId Id="6467" Count="0" />
+      <LineId Id="6472" Count="2" />
+      <LineId Id="6471" Count="0" />
+      <LineId Id="6559" Count="0" />
+      <LineId Id="6562" Count="1" />
+      <LineId Id="6558" Count="0" />
+      <LineId Id="6626" Count="2" />
+      <LineId Id="6625" Count="0" />
+      <LineId Id="6630" Count="2" />
+      <LineId Id="6629" Count="0" />
+      <LineId Id="6717" Count="1" />
+      <LineId Id="6720" Count="0" />
+      <LineId Id="6716" Count="0" />
+      <LineId Id="6725" Count="2" />
+      <LineId Id="6724" Count="0" />
+      <LineId Id="6812" Count="2" />
+      <LineId Id="6811" Count="0" />
+      <LineId Id="6137" Count="0" />
+      <LineId Id="6135" Count="0" />
+      <LineId Id="6140" Count="1" />
+      <LineId Id="6139" Count="0" />
+      <LineId Id="6138" Count="0" />
+      <LineId Id="4308" Count="0" />
+      <LineId Id="4126" Count="0" />
+      <LineId Id="3731" Count="0" />
+      <LineId Id="3781" Count="0" />
+      <LineId Id="3734" Count="0" />
+      <LineId Id="3059" Count="0" />
+      <LineId Id="4199" Count="0" />
+      <LineId Id="2432" Count="0" />
+      <LineId Id="3140" Count="0" />
+      <LineId Id="2062" Count="1" />
+      <LineId Id="45" Count="0" />
+    </LineIds>
+    <LineIds Name="errorMonitor.assignARMError_1">
+      <LineId Id="55" Count="17" />
+      <LineId Id="21" Count="0" />
+    </LineIds>
+    <LineIds Name="errorMonitor.assignAxisError">
+      <LineId Id="7" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="18" Count="0" />
+    </LineIds>
+    <LineIds Name="errorMonitor.assignAxisError_1">
+      <LineId Id="51" Count="19" />
+      <LineId Id="18" Count="0" />
+    </LineIds>
+    <LineIds Name="errorMonitor.assignChillerError_1">
+      <LineId Id="55" Count="17" />
+      <LineId Id="21" Count="0" />
+    </LineIds>
+    <LineIds Name="errorMonitor.assignCyError">
+      <LineId Id="11" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="23" Count="1" />
+      <LineId Id="21" Count="0" />
+    </LineIds>
+    <LineIds Name="errorMonitor.assignCyError_1">
+      <LineId Id="55" Count="17" />
+      <LineId Id="21" Count="0" />
+    </LineIds>
+    <LineIds Name="errorMonitor.assignMFCError">
+      <LineId Id="55" Count="17" />
+      <LineId Id="21" Count="0" />
+    </LineIds>
+    <LineIds Name="errorMonitor.assignPDVError_1">
+      <LineId Id="55" Count="17" />
+      <LineId Id="21" Count="0" />
+    </LineIds>
+    <LineIds Name="errorMonitor.assignRFError_1">
+      <LineId Id="55" Count="17" />
+      <LineId Id="21" Count="0" />
+    </LineIds>
+    <LineIds Name="errorMonitor.assignRFError_2">
+      <LineId Id="55" Count="17" />
+      <LineId Id="21" Count="0" />
+    </LineIds>
+    <LineIds Name="errorMonitor.assignTMPError_1">
+      <LineId Id="55" Count="17" />
+      <LineId Id="21" Count="0" />
+    </LineIds>
+    <LineIds Name="errorMonitor.assignVPEError_1">
+      <LineId Id="55" Count="17" />
+      <LineId Id="21" Count="0" />
+    </LineIds>
+    <LineIds Name="errorMonitor.Demo_ACT">
+      <LineId Id="62" Count="0" />
+      <LineId Id="238" Count="0" />
+      <LineId Id="246" Count="0" />
+      <LineId Id="250" Count="0" />
+      <LineId Id="340" Count="0" />
+      <LineId Id="425" Count="0" />
+      <LineId Id="418" Count="1" />
+      <LineId Id="595" Count="3" />
+      <LineId Id="577" Count="7" />
+      <LineId Id="593" Count="0" />
+      <LineId Id="592" Count="0" />
+      <LineId Id="591" Count="0" />
+      <LineId Id="421" Count="0" />
+      <LineId Id="585" Count="5" />
+      <LineId Id="470" Count="0" />
+      <LineId Id="594" Count="0" />
+      <LineId Id="599" Count="1" />
+      <LineId Id="602" Count="0" />
+      <LineId Id="604" Count="2" />
+      <LineId Id="603" Count="0" />
+      <LineId Id="607" Count="0" />
+      <LineId Id="468" Count="0" />
+      <LineId Id="239" Count="0" />
+      <LineId Id="682" Count="3" />
+      <LineId Id="704" Count="0" />
+      <LineId Id="681" Count="0" />
+      <LineId Id="719" Count="0" />
+      <LineId Id="721" Count="2" />
+      <LineId Id="718" Count="0" />
+      <LineId Id="65" Count="0" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="248" Count="1" />
+      <LineId Id="653" Count="0" />
+      <LineId Id="655" Count="4" />
+      <LineId Id="654" Count="0" />
+      <LineId Id="558" Count="0" />
+      <LineId Id="638" Count="6" />
+      <LineId Id="773" Count="1" />
+      <LineId Id="777" Count="0" />
+      <LineId Id="645" Count="0" />
+      <LineId Id="647" Count="5" />
+      <LineId Id="646" Count="0" />
+      <LineId Id="775" Count="1" />
+      <LineId Id="661" Count="4" />
+      <LineId Id="778" Count="1" />
+      <LineId Id="666" Count="0" />
+      <LineId Id="780" Count="0" />
+      <LineId Id="241" Count="0" />
+      <LineId Id="609" Count="0" />
+      <LineId Id="612" Count="0" />
+      <LineId Id="610" Count="0" />
+      <LineId Id="614" Count="0" />
+      <LineId Id="631" Count="5" />
+      <LineId Id="613" Count="0" />
+      <LineId Id="725" Count="2" />
+      <LineId Id="733" Count="0" />
+      <LineId Id="724" Count="0" />
+      <LineId Id="750" Count="3" />
+      <LineId Id="749" Count="0" />
+      <LineId Id="769" Count="3" />
+      <LineId Id="768" Count="0" />
+      <LineId Id="608" Count="0" />
+      <LineId Id="268" Count="0" />
+      <LineId Id="253" Count="0" />
+      <LineId Id="252" Count="0" />
+      <LineId Id="254" Count="0" />
+      <LineId Id="270" Count="0" />
+      <LineId Id="261" Count="1" />
+      <LineId Id="255" Count="0" />
+      <LineId Id="564" Count="0" />
+      <LineId Id="570" Count="6" />
+      <LineId Id="563" Count="0" />
+      <LineId Id="624" Count="6" />
+      <LineId Id="623" Count="0" />
+      <LineId Id="667" Count="13" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="706" Count="5" />
+      <LineId Id="705" Count="0" />
+      <LineId Id="735" Count="5" />
+      <LineId Id="734" Count="0" />
+      <LineId Id="742" Count="6" />
+      <LineId Id="741" Count="0" />
+      <LineId Id="755" Count="6" />
+      <LineId Id="754" Count="0" />
+    </LineIds>
+    <LineIds Name="errorMonitor.Demo_Reset">
+      <LineId Id="23" Count="0" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="544" Count="0" />
+      <LineId Id="543" Count="0" />
+      <LineId Id="573" Count="3" />
+      <LineId Id="578" Count="0" />
+      <LineId Id="551" Count="0" />
+      <LineId Id="580" Count="0" />
+      <LineId Id="579" Count="0" />
+      <LineId Id="581" Count="6" />
+      <LineId Id="671" Count="1" />
+      <LineId Id="589" Count="6" />
+      <LineId Id="588" Count="0" />
+      <LineId Id="673" Count="2" />
+      <LineId Id="596" Count="4" />
+      <LineId Id="545" Count="0" />
+      <LineId Id="689" Count="0" />
+      <LineId Id="688" Count="0" />
+      <LineId Id="690" Count="1" />
+      <LineId Id="496" Count="0" />
+      <LineId Id="522" Count="0" />
+      <LineId Id="204" Count="0" />
+      <LineId Id="535" Count="5" />
+      <LineId Id="542" Count="0" />
+      <LineId Id="601" Count="0" />
+      <LineId Id="541" Count="0" />
+      <LineId Id="614" Count="0" />
+      <LineId Id="628" Count="0" />
+      <LineId Id="627" Count="0" />
+      <LineId Id="629" Count="0" />
+      <LineId Id="643" Count="0" />
+      <LineId Id="642" Count="0" />
+      <LineId Id="658" Count="0" />
+      <LineId Id="656" Count="0" />
+    </LineIds>
+    <LineIds Name="errorMonitor.getErrTXT">
+      <LineId Id="8" Count="4" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="14" Count="0" />
+    </LineIds>
+    <LineIds Name="errorMonitor.getErrWTXT">
+      <LineId Id="8" Count="4" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="14" Count="0" />
+    </LineIds>
+    <LineIds Name="errorMonitor.resetFunc">
+      <LineId Id="6" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="21" Count="3" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="58" Count="1" />
+      <LineId Id="47" Count="3" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="51" Count="2" />
+      <LineId Id="69" Count="0" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="55" Count="2" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="64" Count="0" />
+      <LineId Id="67" Count="1" />
+      <LineId Id="65" Count="0" />
+    </LineIds>
+    <LineIds Name="errorMonitor.resetFunc_1">
+      <LineId Id="80" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="21" Count="3" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="58" Count="1" />
+      <LineId Id="47" Count="3" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="51" Count="2" />
+      <LineId Id="69" Count="0" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="55" Count="2" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="64" Count="0" />
+      <LineId Id="67" Count="1" />
+      <LineId Id="65" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

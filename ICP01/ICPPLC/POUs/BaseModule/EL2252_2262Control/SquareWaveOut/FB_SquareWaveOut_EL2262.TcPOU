@@ -1,0 +1,337 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="FB_SquareWaveOut_EL2262" Id="{05161e98-1bfa-4588-adf9-f5a869f82464}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_SquareWaveOut_EL2262
+VAR_INPUT
+	bStart_ch1:BOOL;
+	nCycle_ch1:UDINT;//方波周期，需要设置为2的整数倍；单位us
+	bStart_ch2:BOOL;
+	nCycle_ch2:UDINT;//方波周期，需要设置为2的整数倍；单位us
+END_VAR
+VAR_OUTPUT
+	Io_EL2262:ST_EL2262OutData;//硬件IO，需要关联至EL2262
+END_VAR
+VAR
+	bInitValue1:BOOL;
+	nInitCount1:UDINT;
+	bInitValue2:BOOL;
+	nInitCount2:UDINT;
+	i_Temp:INT;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF bStart_ch1 AND nCycle_ch1>0 THEN
+	SetChannelData_Single(OutData:=Io_EL2262.Output0,bInitValue:=bInitValue1,nInitCount:=nInitCount1,nCycle:=nCycle_ch1);
+ELSE
+	FOR i_Temp:=0 TO 124 DO
+		Io_EL2262.Output0[i_Temp]:=0;
+	END_FOR
+	bInitValue1:=FALSE;
+	nInitCount1:=0;
+END_IF
+IF bStart_ch2 AND nCycle_ch2>0 THEN
+	SetChannelData_Single(OutData:=Io_EL2262.Output1,bInitValue:=bInitValue2,nInitCount:=nInitCount2,nCycle:=nCycle_ch2);
+ELSE
+	FOR i_Temp:=0 TO 124 DO
+		Io_EL2262.Output1[i_Temp]:=0;
+	END_FOR
+	bInitValue2:=FALSE;
+	nInitCount2:=0;
+END_IF]]></ST>
+    </Implementation>
+    <Method Name="Act_Ex_Ch1" Id="{1dac59f2-f75e-4283-af2b-1a89e2175178}">
+      <Declaration><![CDATA[METHOD Act_Ex_Ch1 : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF nCycle_ch1>0 THEN
+	bStart_ch1:=TRUE;
+	Act_Ex_Ch1:=TRUE;
+ELSE
+	Act_Ex_Ch1:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Ex_Ch2" Id="{3e8f8429-66a9-41b8-8779-056436bb7eec}">
+      <Declaration><![CDATA[METHOD Act_Ex_Ch2 : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF nCycle_ch2>0 THEN
+	bStart_ch2:=TRUE;
+	Act_Ex_Ch2:=TRUE;
+ELSE
+	Act_Ex_Ch2:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Stop_Ch1" Id="{09339725-734f-4028-91a5-440038cc9035}">
+      <Declaration><![CDATA[METHOD Act_Stop_Ch1 : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[bStart_ch1:=FALSE;
+Act_Stop_Ch1:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Stop_Ch2" Id="{25463759-4aa8-4994-85ea-c913b3d6e309}">
+      <Declaration><![CDATA[METHOD Act_Stop_Ch2 : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[bStart_ch2:=FALSE;
+Act_Stop_Ch2:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="SetChannelData_Single" Id="{d109f15b-4559-49f4-9b6f-c0db715fb3d8}">
+      <Declaration><![CDATA[METHOD PRIVATE SetChannelData_Single
+VAR_IN_OUT
+	OutData							:ARRAY[0..124] OF BYTE;
+	bInitValue						:BOOL;
+	nInitCount						:UDINT;
+END_VAR
+VAR_INPUT
+	nCycle							:UDINT;//方波周期，建议设置为2的整数倍；单位us, 最大值1000us
+END_VAR
+VAR
+	nPulsWidth						:UDINT;
+	i_Byte							:UDINT;
+	nByte							:UDINT;
+	i_Temp							:UDINT;
+	i_Temp1							:UDINT;
+	i_Count							:UDINT;
+	b_Temp							:BOOL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//计算电平脉宽
+IF nCycle<2 THEN
+	nPulsWidth:=1;
+ELSE
+	nPulsWidth:=nCycle/2;
+END_IF
+
+IF nInitCount<=0 THEN
+	i_Temp1:=0;
+ELSIF nInitCount<1000 THEN
+	FOR i_Temp:=0 TO nInitCount BY 1 DO
+		IF i_Temp>=8 THEN
+			i_Byte:=i_Temp/8;
+			nByte:=i_Temp MOD 8;
+		ELSE
+			i_Byte:=0;
+			nByte:=i_Temp;
+		END_IF
+		CASE nByte OF
+			0:
+				OutData[i_Byte].0:=bInitValue;
+			1:
+				OutData[i_Byte].1:=bInitValue;
+			2:
+				OutData[i_Byte].2:=bInitValue;
+			3:
+				OutData[i_Byte].3:=bInitValue;
+			4:
+				OutData[i_Byte].4:=bInitValue;
+			5:
+				OutData[i_Byte].5:=bInitValue;
+			6:
+				OutData[i_Byte].6:=bInitValue;
+			7:
+				OutData[i_Byte].7:=bInitValue;
+		END_CASE
+	END_FOR
+	i_Temp1:=i_Temp;
+	bInitValue:=NOT bInitValue;//状态取反
+ELSE
+	IF bInitValue THEN
+		FOR i_Temp:=0 TO 124 DO
+			OutData[i_Temp]:=255;
+		END_FOR
+	ELSE
+		FOR i_Temp:=0 TO 124 DO
+			OutData[i_Temp]:=0;
+		END_FOR
+	END_IF
+	nInitCount:=nInitCount-1000;//计算剩余值
+	IF nInitCount=0 THEN
+		bInitValue:=NOT bInitValue;//状态取反
+	END_IF
+	RETURN;
+END_IF
+nInitCount:=0;//清空剩余值
+
+//
+i_Count:=1;
+FOR i_Temp:=i_Temp1 TO 999 BY 1 DO
+	IF i_Temp>=8 THEN
+		i_Byte:=i_Temp/8;
+		nByte:=i_Temp MOD 8;
+	ELSE
+		i_Byte:=0;
+		nByte:=i_Temp;
+	END_IF
+	CASE nByte OF
+		0:
+			OutData[i_Byte].0:=bInitValue;
+		1:
+			OutData[i_Byte].1:=bInitValue;
+		2:
+			OutData[i_Byte].2:=bInitValue;
+		3:
+			OutData[i_Byte].3:=bInitValue;
+		4:
+			OutData[i_Byte].4:=bInitValue;
+		5:
+			OutData[i_Byte].5:=bInitValue;
+		6:
+			OutData[i_Byte].6:=bInitValue;
+		7:
+			OutData[i_Byte].7:=bInitValue;
+	END_CASE
+	i_Count:=i_Count+1;
+	IF i_Count>nPulsWidth THEN
+		i_Count:=1;
+		bInitValue:=NOT bInitValue;
+	END_IF
+END_FOR
+IF i_Count>1 THEN
+	nInitCount:=nPulsWidth-i_Count+1;//计算剩余值
+END_IF
+//nInitCount:=nPulsWidth-(1000 MOD nPulsWidth);//计算剩余值
+
+
+
+(*
+//初始化输出，全部置位为高电平
+nByte:=125;
+FOR i_Byte:=0 TO (nByte-1) DO
+	OutData[i_Byte]:=255;
+END_FOR
+
+//计算电平脉宽
+nPulsWidth:=nCycle/2;
+
+//
+i_Count:=1;
+b_Temp:=FALSE;
+FOR i_Temp:=1 TO 1000 BY 1 DO
+	IF i_Temp>8 THEN
+		i_Byte:=i_Temp/8;
+		nByte:=(i_Temp MOD 8)-1;
+	ELSE
+		i_Byte:=0;
+		nByte:=i_Temp-1;
+	END_IF
+	IF NOT b_Temp AND i_Count<=nPulsWidth THEN
+		CASE nByte OF
+			0:
+				OutData[i_Byte].0:=0;
+			1:
+				OutData[i_Byte].1:=0;
+			2:
+				OutData[i_Byte].2:=0;
+			3:
+				OutData[i_Byte].3:=0;
+			4:
+				OutData[i_Byte].4:=0;
+			5:
+				OutData[i_Byte].5:=0;
+			6:
+				OutData[i_Byte].6:=0;
+			7:
+				OutData[i_Byte].7:=0;
+		END_CASE
+	END_IF
+	i_Count:=i_Count+1;
+	IF i_Count>nPulsWidth THEN
+		i_Count:=1;
+		b_Temp:=NOT b_Temp;
+	END_IF
+END_FOR
+*)]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="FB_SquareWaveOut_EL2262">
+      <LineId Id="9" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="49" Count="1" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="53" Count="1" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="25" Count="1" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="51" Count="1" />
+      <LineId Id="55" Count="1" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="24" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SquareWaveOut_EL2262.Act_Ex_Ch1">
+      <LineId Id="5" Count="1" />
+      <LineId Id="8" Count="2" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SquareWaveOut_EL2262.Act_Ex_Ch2">
+      <LineId Id="6" Count="4" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SquareWaveOut_EL2262.Act_Stop_Ch1">
+      <LineId Id="6" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SquareWaveOut_EL2262.Act_Stop_Ch2">
+      <LineId Id="6" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_SquareWaveOut_EL2262.SetChannelData_Single">
+      <LineId Id="352" Count="0" />
+      <LineId Id="357" Count="1" />
+      <LineId Id="360" Count="1" />
+      <LineId Id="359" Count="0" />
+      <LineId Id="353" Count="0" />
+      <LineId Id="205" Count="0" />
+      <LineId Id="349" Count="0" />
+      <LineId Id="174" Count="0" />
+      <LineId Id="177" Count="0" />
+      <LineId Id="181" Count="5" />
+      <LineId Id="178" Count="0" />
+      <LineId Id="188" Count="16" />
+      <LineId Id="187" Count="0" />
+      <LineId Id="175" Count="0" />
+      <LineId Id="351" Count="0" />
+      <LineId Id="350" Count="0" />
+      <LineId Id="179" Count="1" />
+      <LineId Id="337" Count="1" />
+      <LineId Id="331" Count="0" />
+      <LineId Id="333" Count="0" />
+      <LineId Id="341" Count="1" />
+      <LineId Id="334" Count="0" />
+      <LineId Id="332" Count="0" />
+      <LineId Id="344" Count="0" />
+      <LineId Id="354" Count="2" />
+      <LineId Id="343" Count="0" />
+      <LineId Id="176" Count="0" />
+      <LineId Id="207" Count="0" />
+      <LineId Id="173" Count="0" />
+      <LineId Id="213" Count="0" />
+      <LineId Id="166" Count="0" />
+      <LineId Id="214" Count="7" />
+      <LineId Id="248" Count="0" />
+      <LineId Id="265" Count="14" />
+      <LineId Id="264" Count="0" />
+      <LineId Id="241" Count="5" />
+      <LineId Id="167" Count="0" />
+      <LineId Id="345" Count="2" />
+      <LineId Id="330" Count="0" />
+      <LineId Id="280" Count="3" />
+      <LineId Id="285" Count="44" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="147" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

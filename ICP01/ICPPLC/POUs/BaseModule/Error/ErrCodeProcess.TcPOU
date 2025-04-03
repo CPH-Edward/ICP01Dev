@@ -1,0 +1,66 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="ErrCodeProcess" Id="{d593f06b-963d-4d28-8d42-40a1589d00e1}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION ErrCodeProcess : LINT
+VAR_INPUT
+	errorID					:DINT;//error id
+END_VAR
+VAR
+	machineNum:INT;
+	levelNum:INT;
+	stationNum:INT;
+	
+	cal_Temp:LINT;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[machineNum:=1;
+CASE gErrorARRAY[errorID].eErrLevel OF
+	Error_Level_0:
+		levelNum:=0;
+	Error_Level_1:
+		levelNum:=1;
+	Error_Level_2:
+		levelNum:=2;
+	Error_Level_3:
+		levelNum:=3;
+	Error_Level_4:
+		levelNum:=4;
+END_CASE
+
+IF 0<=errorID AND errorID<=999 THEN// 整机
+	stationNum:=0;
+	cal_Temp:=machineNum*1000000+stationNum*10000+levelNum*1000+(errorID-0);// 1003000~1003999
+ELSIF 1000<=errorID AND errorID<=1999 THEN// 工站1
+	stationNum:=1;
+	cal_Temp:=machineNum*1000000+stationNum*10000+levelNum*1000+(errorID-1000);// 1013000~1013999
+ELSIF 2000<=errorID AND errorID<=2999 THEN// 工站2
+	stationNum:=2;
+	cal_Temp:=machineNum*1000000+stationNum*10000+levelNum*1000+(errorID-2000);// 1023000~1023999
+ELSIF 3000<=errorID AND errorID<=3999 THEN// 工站3
+	stationNum:=3;
+	cal_Temp:=machineNum*1000000+stationNum*10000+levelNum*1000+(errorID-3000);// 1033000~1033999
+ELSIF 4000<=errorID AND errorID<=4999 THEN// 工站4
+	stationNum:=4;
+	cal_Temp:=machineNum*1000000+stationNum*10000+levelNum*1000+(errorID-4000);// 1043000~1043999
+ELSIF 6000<=errorID AND errorID<=6999 THEN// 上料
+	stationNum:=6;
+	cal_Temp:=machineNum*1000000+stationNum*10000+levelNum*1000+(errorID-6000);// 1063000~1063999
+ELSIF 7000<=errorID AND errorID<=7999 THEN// 下料
+	stationNum:=7;
+	cal_Temp:=machineNum*1000000+stationNum*10000+levelNum*1000+(errorID-7000);// 1073000~1073999
+ELSE
+	cal_Temp:=0;
+END_IF
+
+ErrCodeProcess:=cal_Temp;]]></ST>
+    </Implementation>
+    <LineIds Name="ErrCodeProcess">
+      <LineId Id="3" Count="15" />
+      <LineId Id="53" Count="2" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="23" Count="18" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

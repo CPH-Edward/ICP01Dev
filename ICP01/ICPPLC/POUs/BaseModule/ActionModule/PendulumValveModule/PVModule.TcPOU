@@ -1,0 +1,2289 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="PVModule" Id="{a737b21a-10ec-48bb-9283-9cfd64993f94}" SpecialFunc="None">
+    <Declaration><![CDATA[(*
+--报错编号0: 无报错
+--报错编号1: open Error
+--报错编号2: close Error
+*)
+FUNCTION_BLOCK PVModule
+VAR_IN_OUT
+	WarmHMI					:WARMStruct;
+	NoteHMI					:NoteStruct;
+	operatorLog				:printLogModule_EX;
+	opencondition_INOUT		:BOOL;
+END_VAR
+VAR_INPUT
+	HMIItf						:PVModuleHMI;//每个PV对象都关联了一个HMI
+	pvType						:PVType:=PVType_Default;// 设置PV的类型, 可通过该变量修改为其他品牌的PV阀门
+	controlMode					:PVControlMOD:=PVControl_Default;
+	real_TimeMonitor			:BOOL:=TRUE;//实时状态检测
+	
+	openRemOK					:BOOL:=FALSE;// 腔体无传感器真空记忆标记
+	open						:BOOL:=FALSE;//打开触发信号
+	openCondition				:BOOL:=TRUE;//打开启停条件
+	close						:BOOL:=FALSE;// 关闭触发信号
+	closeCondition				:BOOL:=TRUE;// 关闭启停条件
+	mode						:BOOL:=FALSE;// 模式切换触发信号
+	modeCondition				:BOOL:=TRUE;// 打开模式切换条件
+	config						:BOOL:=FALSE;// 配置模式触发信号
+	configCondition				:BOOL:=TRUE;// 配置模式触发条件
+	reset						:BOOL:=FALSE;//复位信号
+	readCondition				:BOOL:=TRUE; // 循环读取
+	stop						:BOOL:=FALSE;//停止信号
+	power						:BOOL:=TRUE;//PV动作后是否关闭继电器得电状态, TRUE--保持得电,FALSE--断开得电
+	enable						:BOOL:=TRUE;//PV禁用条件
+	safectrlMode					:BOOL:=FALSE;//eManualCtrMode or eAutoCtrMode
+	setPressure					:REAL:=0;// 设置压力值
+	configPressure				:REAL:=0;// 配置校准压力
+	PressureOffset				:REAL:=1.0;// 压力值偏差
+	PositionOffset				:REAL:=1.0;// 位置值偏差
+	hmiEN						:BOOL:=TRUE;//HMI 启用条件
+	
+	errorDelayTime				:TIME:=T#10S;//PV感应器感应超时
+	//doneDelayTimeShort		:TIME:=T#100MS;//PV感应到位延时---取消使用
+	//doneDelayTimeLong			:TIME:=T#500MS;//无PV感应到位延时---取消使用
+	doneDelayTimeShortopen		:TIME:=T#100MS;//PV感应到位延时_打开
+	doneDelayTimeShortclose		:TIME:=T#100MS;//PV感应到位延时_关闭
+	doneDelayTimeLongopen		:TIME:=T#500MS;//无PV感应到位延时_打开
+	doneDelayTimeLongclose		:TIME:=T#500MS;//无PV感应到位延时_关闭
+	errorID						:UDINT:=0;//PV错误报警分配的起始ID
+	nameTXT						:STRING(255):='';//PV名字
+	
+	openAprSw					:BOOL:=FALSE;//PV打开感应器信号,需要链接到实际的IO点
+	closeAprSw					:BOOL:=FALSE;// PV关闭感应器信号,需要链接到实际的IO点
+	enableopenAprSw				:BOOL:=TRUE;//启用打开感应器,针对只有一个传感器的PV
+	enablecloseAprSw			:BOOL:=TRUE;// 启用关闭感应器,针对只有一个传感器的PV
+	noteWTXT_open				:WSTRING(255):="";//PV打开动作NoteTXT 中文
+	noteWTXT_close				:WSTRING(255):="";//PV关闭动作NoteTXT 中文
+	configMode					:INT:=0;// 配置模式，不能循环读取数据(0:非Config;1:ZERO;2:PRESSURE ALIGNMENT)
+	pvCloseCommunication		:BOOL;// PVClose
+	pvOpenCommunication			:BOOL;// PVOpen
+	pvPosOrPreCommunication		:BOOL;// PV Pos:=false;Pressure:True;
+END_VAR
+VAR_OUTPUT
+	openRelay				:BOOL:=FALSE;//PV打开执行继电器,需要链接到实际的IO点
+	closeRelay				:BOOL:=FALSE;//PV关闭执行继电器,需要链接到实际的IO点
+	modeRelay				:BOOL:=FALSE;// PV模式执行继电器,需要链接到实际的IO点
+	note_open				:BOOL:=FALSE;// 操作提示：true 打开、打开执行无法下发
+	note_close				:BOOL:=FALSE;// 操作提示：true 关闭、关闭执行无法下发
+	note_mode				:BOOL:=FALSE;// 操作提示：true Mode切换执行无法下发
+	note_config				:BOOL:=FALSE;// 操作提示：true config切换执行无法下发
+	busy					:BOOL;//PV动作Busy状态
+	done					:BOOL;//PV动作Done状态
+	opendone				:BOOL;//PV动作打开完成
+	closedone				:BOOL;//PV动作关闭完成
+	readdone				:BOOL;// PV读取完成
+	modechangedone			:BOOL;// PV模式切换完成
+	configdone				:BOOL;// PV配置设置完成
+	error					:BOOL;//PV动作error状态
+	errID					:UDINT;//PV动作errID
+	errTXT					:STRING(255):='';//PV动作errTXT
+	errWTXT					:WSTRING(255):="";//PV动作errTXT 中文
+	
+	serialError				:BOOL:=FALSE;
+	contrlmodeRead			:PVControlMOD:=PVControl_Default;// 串口读取回来的控制模式；或者IO都会的串口控制模式
+	actPressure				:REAL:=0;// 实际读取的压力值
+	actPos					:REAL:=0;// 实际读取的位置值
+	openISO					:BOOL;// 开阀
+END_VAR
+	
+VAR		
+	serialErrorTimes		:INT:=0;
+	readAndWriteLock:BOOL;
+	firstPower				:BOOL:=TRUE;
+	firstPowerTON			:TON;
+	openErrorDelayTon		:Ton;
+	openDoneDelayTon		:Ton;
+	closeErrorDelayTon		:Ton;
+	closeDoneDelayTon		:Ton;
+	
+	modeErrorDelayTon		:Ton;
+	modeDoneDelayTon		:Ton;
+	
+	openTrigRAlc			:R_Trig;//上升沿触发
+	
+	openTrigR1				:R_Trig;//上升沿触发
+	openTrigF1				:F_Trig;//上升沿触发
+	closeTrigR1				:R_Trig;//上升沿触发
+	closeTrigF1				:F_Trig;//上升沿触发
+	resetTrigR1				:R_Trig;//上升沿触发
+	modeTrigR1				:R_Trig;//上升沿触发
+	modeTrigF1				:F_Trig;//上升沿触发
+	stopTrigR1				:R_Trig;//上升沿触发
+	powerTrigR1				:R_Trig;//上升沿触发
+	
+	setRtrig				:R_Trig;//上升沿触发
+	clearRtrig				:R_Trig;//上升沿触发
+	configRtrig				:R_Trig;//上升沿触发
+	
+	openStep				:UINT:=0;
+	closeStep				:UINT:=0;
+	modeStep				:UINT:=0;
+	errorStep				:UINT:=0;
+	readStep				:UINT:=0;
+	configStep				:UINT:=0;
+	
+	notBusyMonitorDelayTon:TON;//动作不切换时，延迟检测
+	notBusyMonitorDelayTime:TIME:=T#2S;//动作不切换延迟检测时间
+	noteTON_P:tON;            // 操作提示标志位延时继电器
+	noteTON_N:tON;            // 操作提示标志位延时继电器
+	noteRTrig_P:R_TRIG;       // 操作提示
+	noteRTrig_N:R_TRIG;       // 操作提示
+	opencheckDelayTime	:TON; // 输出到输入检测时间
+	openRelayRecTime	:TON; // 输出维持时间
+	opencheckDelayTimeS	:TIME; // 输出到输入检测时间
+	opencheckRtrig:R_TRIG;     // 输出到输入检测
+	closecheckDelayTime	:TON; // 输出到输入检测时间
+	closeRelayRecTime	:TON; // 输出维持时间
+	closecheckDelayTimeS	:TIME; // 输出到输入检测时间
+	closecheckRtrig:R_TRIG;     // 输出到输入检测
+	
+	oldsetPressure					:REAL:=0;// 压力设置记忆值
+	setvalChange					:R_TRIG;// 设置参数变化
+	hmiflagReset					:TON;
+	readTon1:TON;
+	readTon2:TON;
+	readTon3:TON;
+	configTon1:TON;
+	configTon2:TON;
+	extRealayRtrig:R_TRIG;
+	retRealayRtrig:R_TRIG;
+	extRealayRtrig1:R_TRIG;
+	retRealayRtrig1:R_TRIG;
+	modeRealayRtrig:R_TRIG;
+	modeFaleRealayRtrig:R_TRIG;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[Init_ACT();
+Error_ACT();
+open_ACT();
+close_ACT();
+ModeChange_ACT();
+Reset_ACT();
+Error_ACT();
+SafeMonitor_ACT();
+Read_ACT();
+ConfigMode_ACT();]]></ST>
+    </Implementation>
+    <Folder Name="Error" Id="{fd1f7ef9-900e-48ce-a168-8ba39c373f96}" />
+    <Folder Name="Private" Id="{82d5d509-9203-478f-a848-d4c4c8bbe087}" />
+    <Method Name="Act_ChangePos" Id="{e8e9e106-0312-4809-a241-3fc3a2d32718}">
+      <Declaration><![CDATA[(*
+触发伸出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_ChangePos : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND modeCondition THEN// AND NOT busy
+	HMIItf.mode:=FALSE;
+	Act_ChangePos:=mode:=TRUE;
+ELSE
+	Act_ChangePos:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_ChangePre" Id="{51ed58e5-1e8a-41f0-b588-19c44d68356f}">
+      <Declaration><![CDATA[(*
+触发伸出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_ChangePre : BOOL
+VAR_INPUT
+	setpoint:REAL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND modeCondition THEN// AND NOT busy
+	HMIItf.setPressure:=setpoint;
+	setPressure:=setPressure;
+	HMIItf.mode:=TRUE;
+	Act_ChangePre:=mode:=TRUE;
+ELSE
+	Act_ChangePre:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Clear" Id="{fbf4677b-368a-4a29-a7d3-437d5b773c2c}">
+      <Declaration><![CDATA[METHOD Act_Clear : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[setPressure:=0.0;
+HMIItf.setPressure:=0.0;
+HMIItf.clearflag:=TRUE;
+mode:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Config" Id="{0f96d1d5-4df6-4e17-ad5e-1562470b3c63}">
+      <Declaration><![CDATA[(*
+触发伸出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Config : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND configCondition THEN// AND NOT busy
+	Act_Config:=config:=TRUE;
+ELSE
+	Act_Config:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Open" Id="{7bebf7a8-f746-4b24-a741-6af0704f782d}">
+      <Declaration><![CDATA[(*
+触发伸出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Open : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND openCondition THEN// AND NOT busy
+	Act_Open:=open:=TRUE;
+ELSE
+	Act_Open:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Reset" Id="{a06556da-e364-4a96-9552-3c1bbfa2a774}">
+      <Declaration><![CDATA[(*
+触发复位报警动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Reset : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Reset:=reset:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Retract" Id="{ee525eab-99a5-49f5-bf4e-747735e4d948}">
+      <Declaration><![CDATA[(*
+触发缩回动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Retract : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND closeCondition THEN// AND NOT busy
+	Act_Retract:=close:=TRUE;
+ELSE
+	Act_Retract:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Set" Id="{1fd73c50-4ebf-40df-887c-e24d7e1e4cb5}">
+      <Declaration><![CDATA[METHOD Act_Set : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[setPressure:=HMIItf.setPressure;
+HMIItf.setflag:=TRUE;
+mode:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Stop" Id="{3756ab5f-9caa-4b50-bcc8-f5129d0b1faf}">
+      <Declaration><![CDATA[(*
+触发停止输出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Stop : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Stop:=stop:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Close_ACT" Id="{aaed5443-6d54-4efc-a377-7a22db6470f5}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//气缸收回--close 触发
+IF close AND NOT closeCondition THEN
+	note_close:=TRUE;
+	note_open:=FALSE;
+	note_mode:=FALSE;
+	note_config:=FALSE;
+	NoteHMI.showFlag:=TRUE;
+	NoteHMI.showText:='';
+	HMIItf.close:=FALSE;
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,nameTXT);
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,' Close Condition Not Satisfied!');
+	operatorLog.append(CONCAT(nameTXT,' Not Close Done '));
+END_IF
+IF close AND enable AND closeCondition AND  NOT readAndWriteLock THEN// AND NOT busy
+	busy:=TRUE;
+	open:=FALSE;
+	opendone:=FALSE;
+	closedone:=FALSE;
+	mode:=FALSE;
+	modechangedone:=FALSE;
+	openStep:=0;
+	closeStep:=10;
+	modeStep:=0;
+	note_open:=FALSE;
+	note_close:=FALSE;
+	note_config:=FALSE;
+	HMIItf.open:=FALSE;
+	operatorLog.append(CONCAT(nameTXT,' Close Done '));
+	//errorStep:=0;
+END_IF
+close:=FALSE;
+CASE closeStep OF
+0:
+	//ready
+	
+10:
+	closeErrorDelayTon(IN:=FALSE);
+	closeDoneDelayTon(IN:=FALSE);
+	closeStep:=20;
+	openRelay:=FALSE;
+	closeRelay:=TRUE;
+	openISO:=FALSE;
+	modeRelay:=FALSE;
+20:
+	closeErrorDelayTon(IN:=((NOT closeAprSw)AND enablecloseAprSw),PT:=errorDelayTime);
+	IF closeErrorDelayTon.Q THEN
+		//done:=FALSE;
+		opendone:=FALSE;
+		closedone:=FALSE;
+		errorStep:=2;
+		RETURN;
+	END_IF
+	IF enablecloseAprSw THEN
+		closeDoneDelayTon(IN:=closeAprSw,PT:=doneDelayTimeShortclose);
+	ELSE
+		closeDoneDelayTon(IN:=NOT enablecloseAprSw,PT:=doneDelayTimeLongclose);
+	END_IF
+	
+	IF closeDoneDelayTon.Q THEN
+		IF NOT openAprSw AND closeAprSw THEN
+			busy:=FALSE;
+			//done:=TRUE;
+			opendone:=FALSE;
+			closedone:=TRUE;
+			errorStep:=0;
+			IF NOT power AND NOT (pvType=PVType_VAT) THEN
+				openRelay:=FALSE;
+				closeRelay:=FALSE;
+			END_IF
+			IF pvType=PVType_VAT THEN
+				closeRelay:=FALSE;
+			END_IF
+		ELSE
+			busy:=FALSE;
+			//done:=TRUE;
+			opendone:=FALSE;
+			closedone:=FALSE;
+			errorStep:=2;
+		END_IF
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ConfigMode_ACT" Id="{5bac32a0-0c14-48c3-98dd-f9b41499872d}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//PV打开--config 触发
+IF config AND (NOT configCondition OR serialError) THEN
+	note_mode:=FALSE;
+	note_close:=FALSE;
+	note_open:=FALSE;
+	note_config:=TRUE;
+	NoteHMI.showFlag:=TRUE;
+	NoteHMI.showText:='';
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,nameTXT);
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,' Config Condition Not Satisfied!');
+END_IF
+IF config AND enable AND configCondition AND NOT serialError AND configMode<>0 AND (configStep<10 OR configStep>39) THEN// AND NOT busy
+	busy:=TRUE;
+	close:=FALSE;
+	mode:=FALSE;
+	open:=FALSE;
+	configdone:=FALSE;
+	configStep:=10;
+	modeStep:=0;
+	note_open:=FALSE;
+	note_close:=FALSE;
+	note_mode:=FALSE;
+	note_config:=FALSE;
+	readAndWriteLock:=TRUE;
+	configTon1(IN:=FALSE);
+	configTon2(IN:=FALSE);
+	//errorStep:=0;
+END_IF
+
+config:=FALSE;
+CASE configStep OF
+0:
+	//ready
+	
+10:
+	configTon1(IN:=FALSE);
+	configTon2(IN:=FALSE);
+	IF (configMode=1 )THEN
+		configStep:=20;
+		PLC_PDV.WriteZero();
+	ELSIF (configMode=2) THEN
+		configStep:=30;
+		PLC_PDV.WritePressureAlignment(configPressure,2);
+	ELSE
+		configStep:=40;
+	END_IF
+20:
+	IF (NOT serialError) THEN
+		// sendControlModel
+		configStep:=22;
+	ELSE
+		errorStep:=5;
+		configStep:=50;// 报错
+	END_IF
+	configTon1(IN:=FALSE);
+	configTon2(IN:=FALSE);
+22:
+	configTon1(IN:= FALSE(*contrlmodeRead=PVControl_Pressure*),PT:=errorDelayTime);
+	IF configTon1.Q THEN
+		//done:=FALSE;
+		configdone:=FALSE;
+		errorStep:=5;
+		configTon1(IN:=FALSE);
+		configTon2(IN:=FALSE);
+		configStep:=50;
+		RETURN;
+	END_IF
+	IF enableopenAprSw THEN
+		configTon2(IN:=NOT FALSE(*contrlmodeRead=PVControl_Pressure*),PT:=doneDelayTimeShortopen);
+	ELSE
+		configTon2(IN:=NOT enableopenAprSw,PT:=doneDelayTimeLongopen);
+	END_IF
+	IF configTon2.Q THEN
+		configStep:=24;
+		configTon1(IN:=FALSE);
+		configTon2(IN:=FALSE);
+	END_IF
+24:
+	IF (NOT serialError) THEN
+		// send Pressure
+		configStep:=26;
+	ELSE
+		errorStep:=5;
+		configStep:=50;// 报错
+	END_IF
+26:
+	configTon1(IN:=NOT (TRUE),PT:=errorDelayTime);
+	IF configTon1.Q THEN
+		//done:=FALSE;
+		errorStep:=5;
+		configTon1(IN:=FALSE);
+		configTon2(IN:=FALSE);
+		configStep:=50;
+		RETURN;
+	END_IF
+	IF enableopenAprSw THEN
+		configTon2(IN:=TRUE,PT:=doneDelayTimeShortopen);
+	ELSE
+		configTon2(IN:=NOT enableopenAprSw,PT:=doneDelayTimeLongopen);
+	END_IF
+	
+	IF configTon2.Q THEN
+		busy:=FALSE;
+		//done:=TRUE;
+		configdone:=TRUE;
+		errorStep:=0;
+		configStep:=40;
+		configTon1(IN:=FALSE);
+		configTon2(IN:=FALSE);
+	END_IF
+30:
+	IF (NOT serialError) THEN
+		// sendControlModel
+		configStep:=32;
+	ELSE
+		errorStep:=5;
+		configStep:=50;// 报错
+	END_IF
+	configTon1(IN:=FALSE);
+	configTon2(IN:=FALSE);
+32:
+	configTon1(IN:= FALSE(*contrlmodeRead=PVControl_Pressure*),PT:=errorDelayTime);
+	IF configTon1.Q THEN
+		//done:=FALSE;
+		configdone:=FALSE;
+		errorStep:=5;
+		configTon1(IN:=FALSE);
+		configTon2(IN:=FALSE);
+		configStep:=50;
+		RETURN;
+	END_IF
+	IF enableopenAprSw THEN
+		configTon2(IN:=NOT FALSE(*contrlmodeRead=PVControl_Pressure*),PT:=doneDelayTimeShortopen);
+	ELSE
+		configTon2(IN:=NOT enableopenAprSw,PT:=doneDelayTimeLongopen);
+	END_IF
+	IF configTon2.Q THEN
+		configStep:=34;
+		configTon1(IN:=FALSE);
+		configTon2(IN:=FALSE);
+	END_IF
+34:
+	IF (NOT serialError) THEN
+		// send Pressure
+		configStep:=26;
+	ELSE
+		errorStep:=5;
+		configStep:=50;// 报错
+	END_IF
+36:
+	configTon1(IN:=NOT (TRUE),PT:=errorDelayTime);
+	IF configTon1.Q THEN
+		//done:=FALSE;
+		errorStep:=5;
+		configTon1(IN:=FALSE);
+		configTon2(IN:=FALSE);
+		configStep:=50;
+		RETURN;
+	END_IF
+	IF enableopenAprSw THEN
+		configTon2(IN:=TRUE,PT:=doneDelayTimeShortopen);
+	ELSE
+		configTon2(IN:=NOT enableopenAprSw,PT:=doneDelayTimeLongopen);
+	END_IF
+	
+	IF configTon2.Q THEN
+		busy:=FALSE;
+		//done:=TRUE;
+		configdone:=TRUE;
+		errorStep:=0;
+		configStep:=40;
+		configTon1(IN:=FALSE);
+		configTon2(IN:=FALSE);
+	END_IF
+40:
+	readAndWriteLock:=FALSE;
+50:
+	readAndWriteLock:=FALSE;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Error_ACT" Id="{92592425-7b64-4d51-8d3c-1213c1d26a7c}" FolderPath="Error\">
+      <Implementation>
+        <ST><![CDATA[CASE errorStep OF
+	0:
+		error:=FALSE;
+		errID:=0;
+		errTXT:='';
+ (*
+	1:
+		error:=TRUE;
+		errID:=errorID+errorStep;
+		errTXT:=CONCAT(STR1:=nameTXT,STR2:=' Extend Error!');
+		errWTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 伸出(打开)错误");
+	2:
+		error:=TRUE;
+		errID:=errorID+errorStep;
+		errTXT:=CONCAT(STR1:=nameTXT,STR2:=' Retract Error!');
+		errWTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 缩回(关闭)错误");
+		*)
+	1..5:
+		error:=TRUE;
+		errID:=getErrID(errorStep);
+		errTXT:=getErrTXT(errorStep);
+		errWTXT:=getErrWTXT(errorStep);
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="Get_Done_Ext" Id="{58e78456-2123-4928-8499-0e2f6b5ecd79}">
+      <Declaration><![CDATA[METHOD Get_Done_Ext : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_Ext:=opendone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_Done_Mode" Id="{cac561d1-3258-4e04-8672-d05ca8d79413}">
+      <Declaration><![CDATA[METHOD Get_Done_Mode : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_Mode:=modechangedone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_Done_Ret" Id="{ffa71ff5-b0ed-4896-97f6-9e5f5e393069}">
+      <Declaration><![CDATA[METHOD Get_Done_Ret : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_Ret:=closedone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrID" Id="{907c82d9-1040-49be-8e26-0972e3bd95ca}">
+      <Declaration><![CDATA[METHOD getErrID : UDINT
+VAR_INPUT
+	errID					:UDINT;//取值范围1~2
+END_VAR
+VAR
+	nErrID					:UDINT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[nErrID:=errorID+errID;
+
+getErrID:=nErrID;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrTXT" Id="{a7ad2d00-8409-4087-8191-f3a2a89d1f5a}">
+      <Declaration><![CDATA[METHOD getErrTXT : STRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~2
+END_VAR
+VAR
+	sErrTXT					:STRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Open Error!');
+	2:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Close Error!');
+	3:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' PositionControl Error!');
+	4:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' PressureControl Error!');
+	5:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Communication Error!');
+ELSE
+	sErrTXT:=CONCAT(STR1:=nameTXT,STR2:='');
+END_CASE
+getErrTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrWTXT" Id="{c4b6445f-e7ff-4712-85f6-513400813877}">
+      <Declaration><![CDATA[METHOD getErrWTXT : WSTRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~16
+END_VAR
+VAR
+	sErrTXT					:WSTRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 伸出(打开)错误");
+	2:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 缩回(关闭)错误");
+	3:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 位置控制出错");
+	4:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 压力控制出错");
+	5:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 通讯异常");
+ELSE
+	sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:="");
+END_CASE
+getErrWTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Init_ACT" Id="{85ca1a7e-d469-4f7b-91e3-9fe449d4bab9}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[done:=(opendone OR closedone);
+InitHMI_ACT();
+manualCtrl_ACT();
+
+IF serialError OR NOT readCondition AND firstPowerTON.Q THEN
+	errorStep:=5;
+END_IF
+IF (NOT (gICP.PDV.HMIItf.mode) AND ABS(gICP.PDV.HMIItf.setPressure - gICP.PDV.HMIItf.actPos)>1) OR 
+   ((gICP.PDV.HMIItf.mode) AND ABS(gICP.PDV.HMIItf.setPressure - gICP.PDV.HMIItf.actPressure)>1) THEN
+	HMIItf.setPointNotEq:=TRUE;
+ELSE
+	HMIItf.setPointNotEq:=FALSE;
+END_IF
+
+noteTON_P(IN:=note_open,PT:=T#0.1S);
+noteRTrig_P(CLK:=noteTON_P.Q);
+IF noteRTrig_P.Q THEN
+//	gLog_Note.append_EX(noteWTXT_open);
+END_IF
+noteTON_N(IN:=note_close,PT:=T#0.1S);
+noteRTrig_N(CLK:=noteTON_N.Q);
+IF noteRTrig_N.Q THEN
+//	gLog_Note.append_EX(noteWTXT_close);
+END_IF
+modeRealayRtrig(CLK:=modeRelay);
+IF modeRealayRtrig.Q THEN
+	HMIItf.mode:=TRUE;
+END_IF
+modeFaleRealayRtrig(CLK:=NOT modeRelay);
+IF modeFaleRealayRtrig.Q THEN
+	HMIItf.mode:=FALSE;
+END_IF
+
+extRealayRtrig(CLK:=openRelay);
+IF extRealayRtrig.Q THEN
+	HMIItf.open:=TRUE;
+END_IF
+retRealayRtrig(CLK:=NOT openRelay);
+IF retRealayRtrig.Q THEN
+	HMIItf.open:=FALSE;
+END_IF
+
+extRealayRtrig1(CLK:=closeRelay);
+IF extRealayRtrig1.Q THEN
+	HMIItf.close:=TRUE;
+END_IF
+retRealayRtrig1(CLK:=NOT closeRelay);
+IF retRealayRtrig1.Q THEN
+	HMIItf.close:=FALSE;
+END_IF
+
+openRelayRecTime(IN:=openRelay AND (openAprSw OR opendone),PT:=T#0.5S);
+IF openRelayRecTime.Q THEN
+	HMIItf.open:=FALSE;
+END_IF
+closeRelayRecTime(IN:=closeRelay AND (closeAprSw OR closedone),PT:=T#0.5S);
+IF closeRelayRecTime.Q THEN
+	HMIItf.close:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="InitHMI_ACT" Id="{b2e68cab-0578-43c3-8126-2caaeb5a4c3e}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[HMIItf.openAprSw:=openAprSw;
+HMIItf.closeAprSw:=closeAprSw;
+HMIItf.enableopen:=enableopenAprSw;
+HMIItf.enableclose:=enablecloseAprSw;
+HMIItf.HMIEnable:=hmiEN;
+HMIItf.enable:=enable;
+HMIItf.done:=done;
+HMIItf.busy:=busy;
+HMIItf.error:=error;
+HMIItf.errID:=UDINT_TO_DINT(errID);
+HMIItf.errTXT:=errTXT;
+HMIItf.openRelay:=openRelay;
+HMIItf.closeRelay:=closeRelay;
+HMIItf.power:=power;
+HMIItf.nameTXT:=nameTXT;
+HMIItf.openerror:=error AND errorID=1;
+HMIItf.closeerror:=error AND errorID=2;
+HMIItf.opencondition:=openCondition;
+HMIItf.closecondition:=closeCondition;
+
+HMIItf.actPos:=actPos;
+HMIItf.actPressure:=actPressure;
+
+hmiflagReset(IN:=(HMIItf.clearflag OR HMIItf.setflag),PT:=T#0.2S);
+IF hmiflagReset.Q THEN
+	HMIItf.clearflag:=FALSE;
+	HMIItf.setflag:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ManualCtrl_ACT" Id="{a87cdee3-6426-4cc1-bac6-f6bd6da93254}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//HMI手动控制
+//IF ctrlMode=eManualCtrMode THEN
+IF hmiEN THEN
+	openTrigRAlc(CLK:=HMIItf.openAndclose);
+	IF openTrigRAlc.Q THEN// AND NOT busy
+		IF openRelay THEN//如果伸出继电器或伸出传感器亮，则认为已经伸出过
+			close:=TRUE;
+		END_IF
+		IF closeRelay THEN
+			open:=TRUE;
+		END_IF
+		IF NOT openRelay AND NOT closeRelay THEN
+			IF openAprSw THEN
+				close:=TRUE;
+			END_IF
+			IF closeAprSw THEN
+				open:=TRUE;
+			END_IF
+		END_IF
+	END_IF
+	openTrigR1(CLK:=HMIItf.opentemp);
+	openTrigF1(CLK:=HMIItf.open);
+	IF openTrigR1.Q THEN// AND NOT busy
+		IF NOT HMIItf.open THEN
+			WarmHMI.showText:='';
+			WarmHMI.showFlag:=TRUE;
+			WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want to Open the');
+			WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+			WarmHMI.showText:=CONCAT(WarmHMI.showText,' ?');
+		ELSE
+			HMIItf.open:=FALSE;
+		END_IF
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Open')>0 THEN
+		IF HMIItf.open THEN
+			;
+		ELSE
+			open:=TRUE;
+			operatorLog.append(CONCAT(nameTXT,' Open'));
+		END_IF
+		HMIItf.open:=NOT HMIItf.open;
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Open')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	
+	IF openTrigF1.Q THEN// AND NOT busy
+		openStep:=0;
+		openRelay:=FALSE;
+	END_IF
+	
+	closeTrigR1(CLK:=HMIItf.closetemp);
+	closeTrigF1(CLK:=HMIItf.close);
+	IF closeTrigR1.Q THEN// AND NOT busy
+		IF NOT HMIItf.close THEN
+			WarmHMI.showText:='';
+			WarmHMI.showFlag:=TRUE;
+			WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want to Close ');
+			WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+			WarmHMI.showText:=CONCAT(WarmHMI.showText,' ?');
+		ELSE
+			HMIItf.close:=FALSE;
+		END_IF
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Close')>0 THEN
+		IF HMIItf.close THEN
+			;
+		ELSE
+			close:=TRUE;
+			operatorLog.append(CONCAT(nameTXT,' Close'));
+		END_IF
+		HMIItf.close:=NOT HMIItf.close;
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Close')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	
+	IF closeTrigF1.Q THEN// AND NOT busy
+		closeStep:=0;
+		closeRelay:=FALSE;
+	END_IF
+	
+	modeTrigR1(CLK:=HMIItf.modetemp);
+	IF modeTrigR1.Q THEN// AND NOT busy
+		HMIItf.modetemp:=FALSE;
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want to change the ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'`Mode ?');
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Mode')>0 THEN
+		mode:=TRUE;
+		IF (modeCondition AND NOT serialError) THEN
+			HMIItf.mode:=NOT HMIItf.mode;
+		END_IF
+		operatorLog.append(CONCAT(CONCAT(nameTXT,' Mode Change'),BOOL_TO_STRING(HMIItf.mode)));
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Mode')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	
+	setRtrig(CLK:=HMIItf.set);
+	IF setRtrig.Q THEN
+		HMIItf.set:=FALSE;
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want to Set the ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'`Par?');
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Set')>0 THEN
+		Act_Set();
+		operatorLog.append(CONCAT(CONCAT(nameTXT,' SetPar Change'),REAL_TO_STRING(setPressure)));
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Set')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		HMIItf.set:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	
+	
+	
+	clearRtrig(CLK:=HMIItf.clear);
+	IF clearRtrig.Q THEN
+		HMIItf.clear:=FALSE;
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want to Clear the ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'`Par?');
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Clear')>0 THEN
+		Act_Clear();
+		operatorLog.append(CONCAT(nameTXT,' Clear'));
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Clear')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		HMIItf.clear:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	
+	configRtrig(CLK:=HMIItf.config);
+	IF configRtrig.Q THEN
+		HMIItf.config:=FALSE;
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want to Config the ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,' ?');
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Config')>0 THEN
+		Act_Config();
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Config')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		HMIItf.config:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	
+	resetTrigR1(CLK:=HMIItf.reset);
+	IF resetTrigR1.Q THEN// AND NOT busy
+		reset:=TRUE;
+	END_IF
+	
+	stopTrigR1(CLK:=HMIItf.stop);
+	IF stopTrigR1.Q THEN// AND NOT busy
+		stop:=TRUE;
+	END_IF
+	
+	powerTrigR1(CLK:=HMIItf.power);
+	IF powerTrigR1.Q THEN// AND NOT busy
+		IF power THEN
+			power:=FALSE;
+		ELSE
+			power:=TRUE;
+		END_IF
+	END_IF
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ModeChange_ACT" Id="{ecf3a4f2-d752-4288-9f4b-d8409e444b9f}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//PV打开--mode 触发
+IF mode AND (NOT modeCondition OR serialError)  THEN
+	note_mode:=TRUE;
+	note_close:=FALSE;
+	note_open:=FALSE;
+	note_config:=FALSE;
+	NoteHMI.showFlag:=TRUE;
+	NoteHMI.showText:='';
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,nameTXT);
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,' Mode Change Condition Not Satisfied!');
+	operatorLog.append(CONCAT(nameTXT,' ModeChange Not Done '));
+END_IF
+IF mode AND enable AND modeCondition AND NOT serialError AND configMode=0 THEN// AND NOT busy
+	busy:=TRUE;
+	close:=FALSE;
+	mode:=FALSE;
+	modechangedone:=FALSE;
+	modechangedone:=FALSE;
+	IF (actPos<1.0 OR closeAprSw) AND safectrlMode AND openRemOK THEN
+		modeStep:=5;
+		opencondition_INOUT:=TRUE;
+	ELSE
+		modeStep:=10;
+	END_IF
+	note_open:=FALSE;
+	note_close:=FALSE;
+	note_mode:=FALSE;
+	note_config:=FALSE;
+	readAndWriteLock:=TRUE;
+	operatorLog.append(CONCAT(nameTXT,' ModeChange Done '));
+	IF (HMIItf.mode) THEN
+		controlMode:=PVControl_Pressure;
+	ELSE
+		controlMode:=PVControl_Default;
+	END_IF
+	modeErrorDelayTon(IN:=FALSE);
+	modeDoneDelayTon(IN:=FALSE);
+	//errorStep:=0;
+END_IF
+setvalChange(CLK:=oldsetPressure<>setPressure);
+oldsetPressure:=setPressure;
+mode:=FALSE;
+CASE modeStep OF
+0:
+	//ready
+5:
+	IF NOT opencondition_INOUT THEN
+		opencondition_INOUT:=FALSE;
+		modeStep:=10;
+	END_IF	
+10:
+	modeErrorDelayTon(IN:=FALSE);
+	modeDoneDelayTon(IN:=FALSE);
+	IF (controlMode=PVControl_Default )THEN
+		modeRelay:=FALSE;
+		modeStep:=20;
+		PLC_PDV.WritePositionControl(setPressure,0);
+		openISO:=FALSE;
+	ELSIF (controlMode=PVControl_Pressure) THEN
+		openRelay:=FALSE;
+		closeRelay:=FALSE;
+		modeRelay:=TRUE;
+		PLC_PDV.WritePressureControl(setPressure,0);
+		openISO:=TRUE;
+		modeStep:=30;
+	ELSE
+		openRelay:=FALSE;
+		closeRelay:=FALSE;
+		modeStep:=40;
+	END_IF
+20:
+	IF (NOT serialError) THEN
+		// sendControlModel
+		modeStep:=22;
+	ELSE
+		errorStep:=3;
+		modeStep:=50;// 报错
+	END_IF
+	modeErrorDelayTon(IN:=FALSE);
+	modeDoneDelayTon(IN:=FALSE);
+22:
+	modeErrorDelayTon(IN:= modeRelay(*contrlmodeRead=PVControl_Pressure*),PT:=errorDelayTime);
+	IF modeErrorDelayTon.Q THEN
+		//done:=FALSE;
+		opendone:=FALSE;
+		closedone:=FALSE;
+		errorStep:=3;
+		modeErrorDelayTon(IN:=FALSE);
+		modeDoneDelayTon(IN:=FALSE);
+		modeStep:=50;
+		RETURN;
+	END_IF
+	IF enableopenAprSw THEN
+		modeDoneDelayTon(IN:=NOT modeRelay(*contrlmodeRead=PVControl_Pressure*),PT:=doneDelayTimeShortopen);
+	ELSE
+		modeDoneDelayTon(IN:=NOT enableopenAprSw,PT:=doneDelayTimeLongopen);
+	END_IF
+	IF modeDoneDelayTon.Q THEN
+		modeStep:=24;
+		modeErrorDelayTon(IN:=FALSE);
+		modeDoneDelayTon(IN:=FALSE);
+	END_IF
+24:
+	IF (NOT serialError) THEN
+		// send Pressure
+		modeStep:=26;
+		readAndWriteLock:=FALSE;
+	ELSE
+		errorStep:=3;
+		modeStep:=50;// 报错
+	END_IF
+26:
+	modeErrorDelayTon(IN:=NOT (ABS(setPressure-actPos)<=PositionOffset),PT:=errorDelayTime);
+	IF modeErrorDelayTon.Q THEN
+		//done:=FALSE;
+		opendone:=FALSE;
+		closedone:=FALSE;
+		modechangedone:=FALSE;
+		errorStep:=3;
+		modeStep:=50;
+		RETURN;
+	END_IF
+	IF enableopenAprSw THEN
+		modeDoneDelayTon(IN:=ABS(setPressure-actPos)<=PositionOffset,PT:=doneDelayTimeShortopen);
+	ELSE
+		modeDoneDelayTon(IN:=NOT enableopenAprSw,PT:=doneDelayTimeLongopen);
+	END_IF
+	
+	IF modeDoneDelayTon.Q THEN
+		busy:=FALSE;
+		//done:=TRUE;
+		opendone:=FALSE;
+		closedone:=FALSE;
+		modechangedone:=TRUE;
+		errorStep:=0;
+		modeStep:=40;
+		modeErrorDelayTon(IN:=FALSE);
+		modeDoneDelayTon(IN:=FALSE);
+	END_IF
+30:
+	IF (NOT serialError) THEN
+		// sendControlModel
+		modeStep:=32;
+	ELSE
+		errorStep:=4;
+		modeStep:=50;// 报错
+	END_IF
+	modeErrorDelayTon(IN:=FALSE);
+	modeDoneDelayTon(IN:=FALSE);
+32:
+	modeErrorDelayTon(IN:=NOT  modeRelay(*contrlmodeRead=PVControl_Pressure*),PT:=errorDelayTime);
+	IF modeErrorDelayTon.Q THEN
+		//done:=FALSE;
+		opendone:=FALSE;
+		closedone:=FALSE;
+		errorStep:=4;
+		modeErrorDelayTon(IN:=FALSE);
+		modeDoneDelayTon(IN:=FALSE);
+		modeStep:=50;
+		RETURN;
+	END_IF
+	IF enableopenAprSw THEN
+		modeDoneDelayTon(IN:=modeRelay(*contrlmodeRead=PVControl_Pressure*),PT:=doneDelayTimeShortopen);
+	ELSE
+		modeDoneDelayTon(IN:=NOT enableopenAprSw,PT:=doneDelayTimeLongopen);
+	END_IF
+	IF modeDoneDelayTon.Q THEN
+		modeStep:=34;
+		modeErrorDelayTon(IN:=FALSE);
+		modeDoneDelayTon(IN:=FALSE);
+	END_IF
+34:
+	IF (NOT serialError) THEN
+		// send Pressure
+		modeStep:=36;
+		readAndWriteLock:=FALSE;
+	ELSE
+		errorStep:=4;
+		modeStep:=50;// 报错
+	END_IF
+36:
+	modeErrorDelayTon(IN:=NOT (ABS(setPressure-actPressure)<=PressureOffset),PT:=errorDelayTime);
+	IF modeErrorDelayTon.Q THEN
+		//done:=FALSE;
+		opendone:=FALSE;
+		closedone:=FALSE;
+		modechangedone:=FALSE;
+		errorStep:=4;
+		modeStep:=50;
+		RETURN;
+	END_IF
+	IF enableopenAprSw THEN
+		modeDoneDelayTon(IN:=ABS(setPressure-actPressure)<=PressureOffset,PT:=doneDelayTimeShortopen);
+	ELSE
+		modeDoneDelayTon(IN:=NOT enableopenAprSw,PT:=doneDelayTimeLongopen);
+	END_IF
+	
+	IF modeDoneDelayTon.Q THEN
+		busy:=FALSE;
+		//done:=TRUE;
+		opendone:=FALSE;
+		closedone:=FALSE;
+		modechangedone:=TRUE;
+		errorStep:=0;
+		modeStep:=40;
+		modeErrorDelayTon(IN:=FALSE);
+		modeDoneDelayTon(IN:=FALSE);
+	END_IF
+40:
+	readAndWriteLock:=FALSE;
+50:
+	readAndWriteLock:=FALSE;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Open_ACT" Id="{08ed5d53-0bdf-46f3-aaf7-6fe5695ec235}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//PV打开--open 触发
+IF open AND NOT openCondition THEN
+	note_open:=TRUE;
+	note_close:=FALSE;
+	note_mode:=FALSE;
+	note_config:=FALSE;
+	NoteHMI.showFlag:=TRUE;
+	HMIItf.open:=FALSE;
+	NoteHMI.showText:='';
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,nameTXT);
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,' Open Condition Not Satisfied!');
+	operatorLog.append(CONCAT(nameTXT,' Not Open Done'));
+END_IF
+IF open AND enable AND openCondition AND NOT readAndWriteLock THEN// AND NOT busy
+	busy:=TRUE;
+	close:=FALSE;
+	opendone:=FALSE;
+	closedone:=FALSE;
+	mode:=FALSE;
+	modechangedone:=FALSE;
+	IF (actPos<1.0 OR closeAprSw) AND safectrlMode AND NOT openRemOK THEN
+		openStep:=5;
+		opencondition_INOUT:=TRUE;
+	ELSE
+		openStep:=10;
+	END_IF
+	closeStep:=0;
+	modeStep:=0;
+	HMIItf.close:=FALSE;
+	note_open:=FALSE;
+	note_close:=FALSE;
+	note_mode:=FALSE;
+	note_config:=FALSE;
+	operatorLog.append(CONCAT(nameTXT,' Open Done'));
+	//errorStep:=0;
+END_IF
+open:=FALSE;
+opencheckDelayTime(IN:=openStep>10 AND NOT opencheckRtrig.Q,PT:=T#60S);
+opencheckRtrig(CLK:=openAprSw);
+IF opencheckRtrig.Q THEN
+	opencheckDelayTimeS:=opencheckDelayTime.ET;
+END_IF
+CASE openStep OF
+0:
+	//ready
+5:
+	IF NOT opencondition_INOUT THEN
+		opencondition_INOUT:=FALSE;
+		openStep:=10;
+	END_IF
+10:
+	openErrorDelayTon(IN:=FALSE);
+	openDoneDelayTon(IN:=FALSE);
+	IF (controlMode=PVControl_Default )THEN
+		openRelay:=TRUE;
+		openISO:=FALSE;
+		closeRelay:=FALSE;
+		openStep:=20;
+	ELSIF (controlMode=PVControl_Pressure) THEN
+		openRelay:=FALSE;
+		closeRelay:=FALSE;
+		openStep:=30;
+	ELSE
+		openRelay:=FALSE;
+		closeRelay:=FALSE;
+		openStep:=40;
+	END_IF
+20:// 位置模式
+	openErrorDelayTon(IN:=(((NOT openAprSw OR actPos<99.0) AND controlMode=PVControl_Default) AND enableopenAprSw),PT:=errorDelayTime);
+	IF openErrorDelayTon.Q THEN
+		//done:=FALSE;
+		opendone:=FALSE;
+		closedone:=FALSE;
+		errorStep:=1;
+		RETURN;
+	END_IF
+	IF enableopenAprSw THEN
+		openDoneDelayTon(IN:=(openAprSw AND actPos>99.0 AND controlMode=PVControl_Default) OR controlMode<>PVControl_Default,PT:=doneDelayTimeShortopen);
+	ELSE
+		openDoneDelayTon(IN:=NOT enableopenAprSw,PT:=doneDelayTimeLongopen);
+	END_IF
+	
+	IF openDoneDelayTon.Q THEN
+		IF NOT closeAprSw THEN
+			busy:=FALSE;
+			//done:=TRUE;
+			opendone:=TRUE;
+			busy:=FALSE;
+			closedone:=FALSE;
+			errorStep:=0;
+			IF NOT power AND NOT (PVType_VAT=PVType_Default) THEN
+				openRelay:=FALSE;
+				closeRelay:=FALSE;
+			END_IF
+			openStep:=40;
+			openErrorDelayTon(IN:=FALSE);
+			openDoneDelayTon(IN:=FALSE);
+		ELSE
+			busy:=FALSE;
+			//done:=TRUE;
+			opendone:=FALSE;
+			closedone:=FALSE;
+			errorStep:=1;
+		END_IF
+	END_IF
+30:
+	IF (NOT serialError) THEN
+		// sendControlModel
+		openStep:=32;
+	ELSE
+		errorStep:=5;
+		openStep:=50;// 报错
+	END_IF
+32:
+	openErrorDelayTon(IN:=NOT (contrlmodeRead=PVControl_Pressure),PT:=errorDelayTime);
+	IF openErrorDelayTon.Q THEN
+		//done:=FALSE;
+		opendone:=FALSE;
+		closedone:=FALSE;
+		errorStep:=1;
+		openErrorDelayTon(IN:=FALSE);
+		openDoneDelayTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	IF enableopenAprSw THEN
+		openDoneDelayTon(IN:=(contrlmodeRead=PVControl_Pressure),PT:=doneDelayTimeShortopen);
+	ELSE
+		openDoneDelayTon(IN:=NOT enableopenAprSw,PT:=doneDelayTimeLongopen);
+	END_IF
+	IF openDoneDelayTon.Q THEN
+		openStep:=34;
+		openErrorDelayTon(IN:=FALSE);
+		openDoneDelayTon(IN:=FALSE);
+	END_IF
+34:
+	IF (NOT serialError) THEN
+		// send Pressure
+		openStep:=36;
+	ELSE
+		errorStep:=5;
+		openStep:=50;// 报错
+	END_IF
+36:
+	openErrorDelayTon(IN:=NOT (ABS(setPressure-actPressure)<PressureOffset AND actPos>0.01),PT:=errorDelayTime);
+	IF openErrorDelayTon.Q THEN
+		//done:=FALSE;
+		opendone:=FALSE;
+		closedone:=FALSE;
+		errorStep:=1;
+		openStep:=50;// 报错
+		RETURN;
+	END_IF
+	IF enableopenAprSw THEN
+		openDoneDelayTon(IN:=ABS(setPressure-actPressure)<PressureOffset AND actPos>0.01,PT:=doneDelayTimeShortopen);
+	ELSE
+		openDoneDelayTon(IN:=NOT enableopenAprSw,PT:=doneDelayTimeLongopen);
+	END_IF
+	
+	IF openDoneDelayTon.Q THEN
+		IF NOT closeAprSw THEN
+			busy:=FALSE;
+			//done:=TRUE;
+			opendone:=TRUE;
+			closedone:=FALSE;
+			errorStep:=0;
+			openStep:=40;
+			openErrorDelayTon(IN:=FALSE);
+			openDoneDelayTon(IN:=FALSE);
+		ELSE
+			busy:=FALSE;
+			//done:=TRUE;
+			opendone:=FALSE;
+			closedone:=FALSE;
+			errorStep:=1;
+			openStep:=50;// 报错
+			openErrorDelayTon(IN:=FALSE);
+			openDoneDelayTon(IN:=FALSE);
+		END_IF
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Read_ACT" Id="{52951848-65c0-4ffe-9321-964da2660663}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//气缸收回--read 触发
+firstPowerTON(IN:=firstPower,PT:=T#10S);
+IF NOT readAndWriteLock AND readStep=0 AND readCondition AND configMode=0 THEN// AND NOT busy
+	readdone:=FALSE;
+	readStep:=10;
+END_IF
+CASE readStep OF
+0:
+	//ready
+	readTon1(IN:=FALSE);
+	readTon2(IN:=FALSE);
+	readTon3(IN:=FALSE);
+10:// State
+	IF readAndWriteLock THEN
+		readStep:=5000;
+	ELSE
+		PLC_PDV.readStateFlag:=FALSE;
+		PLC_PDV.ReadState();
+		readStep:=readStep+10;
+	END_IF
+20:
+	IF readAndWriteLock THEN
+		readStep:=5000;
+	ELSE
+		IF PLC_PDV.readStateFlag THEN
+			PLC_PDV.readStateFlag:=FALSE;
+			// 数据处理
+			readTon1(IN:=FALSE);
+			readStep:=readStep+10;
+			pvCloseCommunication:=PLC_PDV.pvCloseCommunication;
+			pvOpenCommunication:=PLC_PDV.pvOpenCommunication;
+			pvPosOrPreCommunication:=PLC_PDV.pvPosOrPreCommunication;
+			serialErrorTimes:=0;
+			serialError:=FALSE;
+			RETURN;
+		END_IF
+		readTon1(IN:=TRUE,PT:=T#500MS);// 超时
+		IF readTon1.Q THEN
+			readStep:=6000;
+			readTon1(IN:=FALSE);
+			readTon2(IN:=FALSE);
+			serialErrorTimes:=serialErrorTimes+1;
+			RETURN;
+		END_IF
+		;
+	END_IF
+30:
+	readTon3(IN:=TRUE,PT:=T#50MS);
+	IF readTon3.Q THEN
+		readTon1(IN:=FALSE);
+		readTon2(IN:=FALSE);
+		readTon3(IN:=FALSE);
+		IF serialErrorTimes>10 THEN
+			serialErrorTimes:=0;
+			serialError:=TRUE;
+		END_IF
+		readStep:=100;
+	END_IF
+100:// Internal Pressure
+	IF readAndWriteLock THEN
+		readStep:=5000;
+	ELSE
+		PLC_PDV.readPressureFlag:=FALSE;
+		PLC_PDV.ReadPressure();
+		readStep:=readStep+10;
+	END_IF	
+110:
+	IF readAndWriteLock THEN
+		readStep:=5000;
+	ELSE
+		IF PLC_PDV.readPressureFlag THEN
+			PLC_PDV.readPressureFlag:=FALSE;
+			// 数据处理
+			readTon1(IN:=FALSE);
+			readStep:=readStep+10;
+			actPressure:=INT_TO_REAL(PLC_PDV.pvReadPre);
+			serialErrorTimes:=0;
+			serialError:=FALSE;
+			RETURN;
+		END_IF
+		readTon1(IN:=TRUE,PT:=T#500MS);// 超时
+		IF readTon1.Q THEN
+			readStep:=6000;
+			readTon1(IN:=FALSE);
+			readTon2(IN:=FALSE);
+			serialErrorTimes:=serialErrorTimes+1;
+			RETURN;
+		END_IF
+		;
+	END_IF
+120:
+	readTon3(IN:=TRUE,PT:=T#50MS);
+	IF readTon3.Q THEN
+		readTon1(IN:=FALSE);
+		readTon2(IN:=FALSE);
+		readTon3(IN:=FALSE);
+		IF serialErrorTimes>10 THEN
+			serialErrorTimes:=0;
+			serialError:=TRUE;
+		END_IF
+		readStep:=200;
+	END_IF
+	
+200:// External ReadPosition
+	IF readAndWriteLock THEN
+		readStep:=5000;
+	ELSE
+		PLC_PDV.readPostitionFlag:=FALSE;
+		PLC_PDV.ReadPosition();
+		readStep:=readStep+10;
+	END_IF
+210:
+	IF readAndWriteLock THEN
+		readStep:=5000;
+	ELSE
+		IF PLC_PDV.readPostitionFlag THEN
+			PLC_PDV.readPostitionFlag:=FALSE;
+			// 数据处理
+			readTon1(IN:=FALSE);
+			readStep:=readStep+10;
+			actPos:=INT_TO_REAL(PLC_PDV.pvReadPos);
+			serialErrorTimes:=0;
+			serialError:=FALSE;
+			RETURN;
+		END_IF
+		readTon1(IN:=TRUE,PT:=T#500MS);// 超时
+		IF readTon1.Q THEN
+			readStep:=6000;
+			readTon1(IN:=FALSE);
+			readTon2(IN:=FALSE);
+			serialErrorTimes:=serialErrorTimes+1;
+			RETURN;
+		END_IF
+		;
+	END_IF
+220:
+	readTon3(IN:=TRUE,PT:=T#50MS);
+	IF readTon3.Q THEN
+		readTon1(IN:=FALSE);
+		readTon2(IN:=FALSE);
+		readTon3(IN:=FALSE);
+		IF serialErrorTimes>10 THEN
+			serialErrorTimes:=0;
+			serialError:=TRUE;
+		END_IF
+		readStep:=5000;
+	END_IF
+5000:
+	readdone:=TRUE;
+	readStep:=0;
+	IF serialErrorTimes>10 THEN
+		serialErrorTimes:=0;
+		serialError:=TRUE;
+	END_IF
+6000:
+	readdone:=TRUE;
+	readStep:=0;
+	IF serialErrorTimes>10 THEN
+		serialErrorTimes:=0;
+		serialError:=TRUE;
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Reset_ACT" Id="{be408a47-c025-4d1d-9f23-dbd7a44555d5}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[IF reset THEN
+	IF NOT power THEN
+		openRelay:=FALSE;
+		closeRelay:=FALSE;
+	END_IF
+	busy:=FALSE;
+	//done:=FALSE;
+	//opendone:=FALSE;
+	//closedone:=FALSE;
+	errorStep:=0;
+	IF error THEN
+		IF opencondition_INOUT THEN
+			openStep:=0;
+			opencondition_INOUT:=FALSE;
+		END_IF
+	END_IF
+	note_open:=FALSE;
+	note_close:=FALSE;
+	reset:=FALSE;
+END_IF
+
+IF stop AND error THEN
+	stop:=FALSE;
+	openRelay:=FALSE;
+	closeRelay:=FALSE;
+	// 控制模式是否需要清除归零
+	note_open:=FALSE;
+	note_close:=FALSE;
+	//无自锁检测说法，直接停
+//	openStep:=0;
+//	closeStep:=0;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="SafeMonitor_ACT" Id="{d96fc973-73f9-4568-8027-e25d81198fc5}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[notBusyMonitorDelayTon(IN:=NOT busy,PT:=notBusyMonitorDelayTime);
+IF real_TimeMonitor THEN
+	IF notBusyMonitorDelayTon.Q AND contrlmodeRead=PVControl_Default THEN
+		//伸出实时检测
+		IF (enableopenAprSw AND NOT openAprSw) AND openRelay THEN
+			errorStep:=1;
+		END_IF
+	
+		//缩回实时检测	
+		IF (enablecloseAprSw AND NOT closeAprSw) AND closeRelay  THEN
+			errorStep:=2;
+		END_IF
+		IF PVType=PVType_Other THEN
+			;// 其他PV类型的关注点
+		END_IF
+	END_IF
+END_IF
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="VersionLog" Id="{146935da-3e6c-44aa-91f4-31908681dd1a}">
+      <Implementation>
+        <ST><![CDATA[(*
+版本: V1.0.0.0
+说明:
+	1. 首个版本
+	2. 含普通PV类型的控制
+	3. 可配置是否有到位信号, 以及到位稳定时间
+(--------------------------------------------------)
+新版本: V1.0.1.0
+更新时间: 2019/11/20 19:00
+更新说明:
+	1. 优化编写方式
+	2. 修改错误编码起始位，现改为从1开始
+(--------------------------------------------------)
+新版本: V1.0.1.1
+更新时间: 2020/03/23 23:00
+更新说明:
+	1. 优化报错方式
+	2. 增加打开、关闭、复位和停止触发函数
+(--------------------------------------------------)
+新版本: V1.0.1.2
+更新时间: 2020/04/22 09:50
+更新说明:
+	1. 增加中文报警输出
+(--------------------------------------------------)
+新版本: V1.0.1.3
+更新时间: 2020/09/16
+更新说明:
+	1. 开放错误ID、错误文本信息获取接口
+(--------------------------------------------------)
+新版本: V1.0.1.4
+更新时间: 2020/10/06
+更新说明:
+	1. 移除控制模式变量，增加HMI启用条件
+	2. 增加外部获取打开关闭完成信号接口函数
+(--------------------------------------------------)
+新版本: V1.0.1.5
+更新时间: 2020/10/14
+更新说明:
+	1. 优化代码
+(--------------------------------------------------)
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="PVModule">
+      <LineId Id="65" Count="0" />
+      <LineId Id="135" Count="0" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="485" Count="0" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="68" Count="0" />
+      <LineId Id="212" Count="0" />
+      <LineId Id="600" Count="0" />
+      <LineId Id="607" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.Act_ChangePos">
+      <LineId Id="35" Count="0" />
+      <LineId Id="38" Count="3" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.Act_ChangePre">
+      <LineId Id="35" Count="6" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.Act_Clear">
+      <LineId Id="9" Count="1" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="11" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.Act_Config">
+      <LineId Id="5" Count="1" />
+      <LineId Id="8" Count="1" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.Act_Open">
+      <LineId Id="5" Count="1" />
+      <LineId Id="8" Count="1" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.Act_Reset">
+      <LineId Id="5" Count="1" />
+    </LineIds>
+    <LineIds Name="PVModule.Act_Retract">
+      <LineId Id="6" Count="3" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.Act_Set">
+      <LineId Id="7" Count="1" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.Act_Stop">
+      <LineId Id="6" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.Close_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="81" Count="2" />
+      <LineId Id="184" Count="0" />
+      <LineId Id="201" Count="0" />
+      <LineId Id="206" Count="1" />
+      <LineId Id="213" Count="0" />
+      <LineId Id="208" Count="0" />
+      <LineId Id="205" Count="0" />
+      <LineId Id="210" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="3" Count="4" />
+      <LineId Id="185" Count="1" />
+      <LineId Id="8" Count="1" />
+      <LineId Id="187" Count="0" />
+      <LineId Id="78" Count="1" />
+      <LineId Id="197" Count="0" />
+      <LineId Id="192" Count="0" />
+      <LineId Id="211" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="13" Count="2" />
+      <LineId Id="194" Count="0" />
+      <LineId Id="17" Count="1" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="189" Count="1" />
+      <LineId Id="212" Count="0" />
+      <LineId Id="209" Count="0" />
+      <LineId Id="191" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="25" Count="4" />
+      <LineId Id="32" Count="9" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="61" Count="10" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="72" Count="0" />
+      <LineId Id="74" Count="3" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="104" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.ConfigMode_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="114" Count="1" />
+      <LineId Id="119" Count="0" />
+      <LineId Id="243" Count="0" />
+      <LineId Id="366" Count="0" />
+      <LineId Id="441" Count="2" />
+      <LineId Id="440" Count="0" />
+      <LineId Id="113" Count="0" />
+      <LineId Id="3" Count="2" />
+      <LineId Id="244" Count="0" />
+      <LineId Id="362" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="367" Count="0" />
+      <LineId Id="247" Count="0" />
+      <LineId Id="363" Count="2" />
+      <LineId Id="259" Count="0" />
+      <LineId Id="267" Count="0" />
+      <LineId Id="360" Count="1" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="125" Count="0" />
+      <LineId Id="13" Count="5" />
+      <LineId Id="368" Count="0" />
+      <LineId Id="136" Count="0" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="274" Count="0" />
+      <LineId Id="134" Count="0" />
+      <LineId Id="133" Count="0" />
+      <LineId Id="370" Count="0" />
+      <LineId Id="140" Count="0" />
+      <LineId Id="138" Count="0" />
+      <LineId Id="128" Count="0" />
+      <LineId Id="279" Count="6" />
+      <LineId Id="371" Count="1" />
+      <LineId Id="288" Count="5" />
+      <LineId Id="295" Count="1" />
+      <LineId Id="373" Count="0" />
+      <LineId Id="298" Count="23" />
+      <LineId Id="324" Count="0" />
+      <LineId Id="326" Count="0" />
+      <LineId Id="374" Count="1" />
+      <LineId Id="327" Count="10" />
+      <LineId Id="340" Count="2" />
+      <LineId Id="351" Count="1" />
+      <LineId Id="376" Count="0" />
+      <LineId Id="278" Count="0" />
+      <LineId Id="377" Count="62" />
+      <LineId Id="197" Count="0" />
+      <LineId Id="356" Count="0" />
+      <LineId Id="359" Count="0" />
+      <LineId Id="357" Count="1" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.Error_ACT">
+      <LineId Id="1" Count="0" />
+      <LineId Id="15" Count="2" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="12" Count="2" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="18" Count="2" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="27" Count="4" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="3" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.Get_Done_Ext">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.Get_Done_Mode">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.Get_Done_Ret">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.getErrID">
+      <LineId Id="22" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="PVModule.getErrTXT">
+      <LineId Id="22" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="66" Count="1" />
+      <LineId Id="74" Count="3" />
+      <LineId Id="40" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="PVModule.getErrWTXT">
+      <LineId Id="21" Count="2" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="81" Count="1" />
+      <LineId Id="89" Count="3" />
+      <LineId Id="55" Count="3" />
+      <LineId Id="14" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.Init_ACT">
+      <LineId Id="2" Count="1" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="51" Count="3" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="58" Count="1" />
+      <LineId Id="56" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="6" Count="3" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="17" Count="6" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="25" Count="7" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="34" Count="7" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="45" Count="2" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="49" Count="1" />
+      <LineId Id="48" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.InitHMI_ACT">
+      <LineId Id="2" Count="3" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="6" Count="8" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="16" Count="4" />
+      <LineId Id="22" Count="1" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="28" Count="2" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="31" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.ManualCtrl_ACT">
+      <LineId Id="2" Count="1" />
+      <LineId Id="32" Count="1" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="45" Count="1" />
+      <LineId Id="48" Count="4" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="235" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="247" Count="0" />
+      <LineId Id="250" Count="3" />
+      <LineId Id="248" Count="0" />
+      <LineId Id="254" Count="1" />
+      <LineId Id="249" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="148" Count="1" />
+      <LineId Id="237" Count="0" />
+      <LineId Id="239" Count="1" />
+      <LineId Id="269" Count="0" />
+      <LineId Id="238" Count="0" />
+      <LineId Id="278" Count="0" />
+      <LineId Id="150" Count="4" />
+      <LineId Id="156" Count="0" />
+      <LineId Id="145" Count="1" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="56" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="8" Count="1" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="256" Count="0" />
+      <LineId Id="261" Count="3" />
+      <LineId Id="260" Count="0" />
+      <LineId Id="257" Count="0" />
+      <LineId Id="259" Count="0" />
+      <LineId Id="258" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="162" Count="0" />
+      <LineId Id="242" Count="3" />
+      <LineId Id="270" Count="0" />
+      <LineId Id="246" Count="0" />
+      <LineId Id="277" Count="0" />
+      <LineId Id="164" Count="4" />
+      <LineId Id="170" Count="0" />
+      <LineId Id="157" Count="0" />
+      <LineId Id="161" Count="0" />
+      <LineId Id="60" Count="2" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="230" Count="1" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="232" Count="0" />
+      <LineId Id="94" Count="3" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="226" Count="0" />
+      <LineId Id="173" Count="1" />
+      <LineId Id="266" Count="2" />
+      <LineId Id="271" Count="0" />
+      <LineId Id="175" Count="4" />
+      <LineId Id="181" Count="0" />
+      <LineId Id="172" Count="0" />
+      <LineId Id="102" Count="2" />
+      <LineId Id="233" Count="0" />
+      <LineId Id="109" Count="3" />
+      <LineId Id="107" Count="1" />
+      <LineId Id="185" Count="1" />
+      <LineId Id="274" Count="0" />
+      <LineId Id="187" Count="6" />
+      <LineId Id="182" Count="2" />
+      <LineId Id="116" Count="0" />
+      <LineId Id="118" Count="1" />
+      <LineId Id="215" Count="0" />
+      <LineId Id="120" Count="5" />
+      <LineId Id="195" Count="1" />
+      <LineId Id="273" Count="0" />
+      <LineId Id="197" Count="6" />
+      <LineId Id="194" Count="0" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="131" Count="1" />
+      <LineId Id="214" Count="0" />
+      <LineId Id="133" Count="5" />
+      <LineId Id="205" Count="8" />
+      <LineId Id="204" Count="0" />
+      <LineId Id="106" Count="0" />
+      <LineId Id="14" Count="17" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.ModeChange_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="114" Count="1" />
+      <LineId Id="119" Count="0" />
+      <LineId Id="243" Count="0" />
+      <LineId Id="362" Count="0" />
+      <LineId Id="367" Count="2" />
+      <LineId Id="366" Count="0" />
+      <LineId Id="373" Count="0" />
+      <LineId Id="113" Count="0" />
+      <LineId Id="3" Count="2" />
+      <LineId Id="244" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="375" Count="4" />
+      <LineId Id="374" Count="0" />
+      <LineId Id="108" Count="1" />
+      <LineId Id="259" Count="0" />
+      <LineId Id="363" Count="0" />
+      <LineId Id="267" Count="0" />
+      <LineId Id="372" Count="0" />
+      <LineId Id="251" Count="1" />
+      <LineId Id="254" Count="1" />
+      <LineId Id="253" Count="0" />
+      <LineId Id="360" Count="1" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="232" Count="0" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="125" Count="0" />
+      <LineId Id="13" Count="3" />
+      <LineId Id="381" Count="2" />
+      <LineId Id="380" Count="0" />
+      <LineId Id="17" Count="2" />
+      <LineId Id="136" Count="0" />
+      <LineId Id="250" Count="0" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="274" Count="0" />
+      <LineId Id="371" Count="0" />
+      <LineId Id="131" Count="1" />
+      <LineId Id="134" Count="0" />
+      <LineId Id="256" Count="0" />
+      <LineId Id="273" Count="0" />
+      <LineId Id="370" Count="0" />
+      <LineId Id="133" Count="0" />
+      <LineId Id="137" Count="0" />
+      <LineId Id="139" Count="1" />
+      <LineId Id="138" Count="0" />
+      <LineId Id="128" Count="0" />
+      <LineId Id="279" Count="35" />
+      <LineId Id="364" Count="0" />
+      <LineId Id="315" Count="27" />
+      <LineId Id="351" Count="2" />
+      <LineId Id="278" Count="0" />
+      <LineId Id="141" Count="1" />
+      <LineId Id="150" Count="0" />
+      <LineId Id="147" Count="0" />
+      <LineId Id="144" Count="0" />
+      <LineId Id="146" Count="0" />
+      <LineId Id="149" Count="0" />
+      <LineId Id="145" Count="0" />
+      <LineId Id="276" Count="1" />
+      <LineId Id="151" Count="0" />
+      <LineId Id="153" Count="5" />
+      <LineId Id="192" Count="1" />
+      <LineId Id="271" Count="0" />
+      <LineId Id="159" Count="0" />
+      <LineId Id="152" Count="0" />
+      <LineId Id="161" Count="3" />
+      <LineId Id="160" Count="0" />
+      <LineId Id="166" Count="0" />
+      <LineId Id="183" Count="0" />
+      <LineId Id="194" Count="1" />
+      <LineId Id="165" Count="0" />
+      <LineId Id="184" Count="0" />
+      <LineId Id="186" Count="2" />
+      <LineId Id="365" Count="0" />
+      <LineId Id="189" Count="2" />
+      <LineId Id="185" Count="0" />
+      <LineId Id="196" Count="0" />
+      <LineId Id="198" Count="4" />
+      <LineId Id="260" Count="0" />
+      <LineId Id="203" Count="0" />
+      <LineId Id="272" Count="0" />
+      <LineId Id="204" Count="8" />
+      <LineId Id="214" Count="1" />
+      <LineId Id="261" Count="1" />
+      <LineId Id="216" Count="0" />
+      <LineId Id="218" Count="0" />
+      <LineId Id="354" Count="1" />
+      <LineId Id="229" Count="0" />
+      <LineId Id="197" Count="0" />
+      <LineId Id="356" Count="0" />
+      <LineId Id="359" Count="0" />
+      <LineId Id="357" Count="1" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.Open_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="114" Count="1" />
+      <LineId Id="119" Count="0" />
+      <LineId Id="243" Count="0" />
+      <LineId Id="355" Count="0" />
+      <LineId Id="357" Count="0" />
+      <LineId Id="375" Count="0" />
+      <LineId Id="358" Count="1" />
+      <LineId Id="356" Count="0" />
+      <LineId Id="362" Count="0" />
+      <LineId Id="113" Count="0" />
+      <LineId Id="3" Count="4" />
+      <LineId Id="244" Count="1" />
+      <LineId Id="363" Count="0" />
+      <LineId Id="367" Count="1" />
+      <LineId Id="364" Count="0" />
+      <LineId Id="366" Count="0" />
+      <LineId Id="365" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="246" Count="1" />
+      <LineId Id="108" Count="1" />
+      <LineId Id="353" Count="1" />
+      <LineId Id="361" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="11" Count="1" />
+      <LineId Id="122" Count="3" />
+      <LineId Id="13" Count="1" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="369" Count="2" />
+      <LineId Id="373" Count="0" />
+      <LineId Id="372" Count="0" />
+      <LineId Id="17" Count="2" />
+      <LineId Id="335" Count="1" />
+      <LineId Id="360" Count="0" />
+      <LineId Id="337" Count="9" />
+      <LineId Id="128" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="25" Count="4" />
+      <LineId Id="32" Count="6" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="91" Count="0" />
+      <LineId Id="94" Count="2" />
+      <LineId Id="251" Count="0" />
+      <LineId Id="97" Count="4" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="351" Count="1" />
+      <LineId Id="350" Count="0" />
+      <LineId Id="102" Count="0" />
+      <LineId Id="104" Count="3" />
+      <LineId Id="117" Count="0" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="255" Count="60" />
+      <LineId Id="347" Count="1" />
+      <LineId Id="323" Count="10" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.Read_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="328" Count="0" />
+      <LineId Id="3" Count="0" />
+      <LineId Id="94" Count="0" />
+      <LineId Id="100" Count="0" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="13" Count="2" />
+      <LineId Id="113" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="291" Count="0" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="201" Count="1" />
+      <LineId Id="200" Count="0" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="261" Count="0" />
+      <LineId Id="114" Count="0" />
+      <LineId Id="204" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="181" Count="1" />
+      <LineId Id="184" Count="0" />
+      <LineId Id="186" Count="4" />
+      <LineId Id="292" Count="0" />
+      <LineId Id="294" Count="1" />
+      <LineId Id="298" Count="0" />
+      <LineId Id="325" Count="0" />
+      <LineId Id="191" Count="6" />
+      <LineId Id="301" Count="0" />
+      <LineId Id="198" Count="1" />
+      <LineId Id="185" Count="0" />
+      <LineId Id="183" Count="0" />
+      <LineId Id="266" Count="3" />
+      <LineId Id="271" Count="1" />
+      <LineId Id="305" Count="1" />
+      <LineId Id="308" Count="0" />
+      <LineId Id="307" Count="0" />
+      <LineId Id="273" Count="0" />
+      <LineId Id="270" Count="0" />
+      <LineId Id="132" Count="0" />
+      <LineId Id="206" Count="1" />
+      <LineId Id="205" Count="0" />
+      <LineId Id="210" Count="0" />
+      <LineId Id="262" Count="0" />
+      <LineId Id="211" Count="0" />
+      <LineId Id="208" Count="0" />
+      <LineId Id="139" Count="0" />
+      <LineId Id="213" Count="1" />
+      <LineId Id="212" Count="0" />
+      <LineId Id="217" Count="4" />
+      <LineId Id="296" Count="0" />
+      <LineId Id="299" Count="0" />
+      <LineId Id="326" Count="0" />
+      <LineId Id="222" Count="6" />
+      <LineId Id="302" Count="0" />
+      <LineId Id="229" Count="1" />
+      <LineId Id="216" Count="0" />
+      <LineId Id="215" Count="0" />
+      <LineId Id="274" Count="0" />
+      <LineId Id="277" Count="4" />
+      <LineId Id="310" Count="2" />
+      <LineId Id="309" Count="0" />
+      <LineId Id="282" Count="0" />
+      <LineId Id="275" Count="0" />
+      <LineId Id="133" Count="1" />
+      <LineId Id="232" Count="1" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="236" Count="1" />
+      <LineId Id="263" Count="0" />
+      <LineId Id="234" Count="0" />
+      <LineId Id="157" Count="0" />
+      <LineId Id="239" Count="1" />
+      <LineId Id="238" Count="0" />
+      <LineId Id="243" Count="4" />
+      <LineId Id="297" Count="0" />
+      <LineId Id="300" Count="0" />
+      <LineId Id="327" Count="0" />
+      <LineId Id="248" Count="6" />
+      <LineId Id="304" Count="0" />
+      <LineId Id="255" Count="1" />
+      <LineId Id="242" Count="0" />
+      <LineId Id="241" Count="0" />
+      <LineId Id="284" Count="5" />
+      <LineId Id="314" Count="2" />
+      <LineId Id="313" Count="0" />
+      <LineId Id="290" Count="0" />
+      <LineId Id="283" Count="0" />
+      <LineId Id="172" Count="0" />
+      <LineId Id="175" Count="0" />
+      <LineId Id="179" Count="0" />
+      <LineId Id="322" Count="2" />
+      <LineId Id="321" Count="0" />
+      <LineId Id="173" Count="1" />
+      <LineId Id="180" Count="0" />
+      <LineId Id="318" Count="2" />
+      <LineId Id="317" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.Reset_ACT">
+      <LineId Id="2" Count="8" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="33" Count="1" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="15" Count="6" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="25" Count="1" />
+      <LineId Id="23" Count="1" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.SafeMonitor_ACT">
+      <LineId Id="6" Count="0" />
+      <LineId Id="36" Count="10" />
+      <LineId Id="54" Count="2" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="51" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="PVModule.VersionLog">
+      <LineId Id="49" Count="16" />
+      <LineId Id="67" Count="7" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="76" Count="1" />
+      <LineId Id="79" Count="10" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="MFCStruct" Id="{7b2402aa-2c9b-497b-afb8-e7d9a666dbe0}">
+    <Declaration><![CDATA[{attribute 'pack_mode' := 1}
+TYPE MFCStruct :
+STRUCT
+	set:BOOL;
+	clear:BOOL;
+END_STRUCT
+END_TYPE
+(*
+按照字节对齐规则，将变量按字节大小按顺序定义，用于ADS读取
+*)
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

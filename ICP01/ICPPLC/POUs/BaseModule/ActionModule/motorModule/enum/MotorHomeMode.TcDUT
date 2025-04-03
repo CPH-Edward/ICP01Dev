@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="MotorHomeMode" Id="{7e6e4b9b-4ae0-428e-adc6-8ff186da7c4c}">
+    <Declaration><![CDATA[TYPE MotorHomeMode :
+(
+	MotorHomeMode_Default	 				:= 0, 	//电机Home模式 默认有正负限位/原点信号
+	MotorHomeMode_PLimitSwitch_To_DOG 		:= 1,	//电机Home模式 正限位做零点信号
+	MotorHomeMode_NLimitSwitch_To_DOG		:= 2,	//电机Home模式 负限位做零点信号
+	MotorHomeMode_OnlyDOGPointSwitch		:= 3	//电机Home模式 只有原点信号, 执行往复搜寻动作
+)UINT;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

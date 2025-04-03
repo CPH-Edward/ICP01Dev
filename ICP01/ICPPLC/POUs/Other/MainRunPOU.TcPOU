@@ -1,0 +1,394 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="MainRunPOU" Id="{da506808-d6f8-489a-9b09-e019d9268a9c}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM MainRunPOU
+VAR_INPUT
+	HomeInit:BOOL;
+	AllInit:BOOL;
+	AllPause:BOOL;
+	AllAbort:BOOL;
+	stopToClear:BOOL;
+	warningCount:BOOL;
+	tempLoadNumber:UDINT;
+	bigCamRatio:REAL;
+	smallCamRatio:REAL;
+	canModify:BOOL;
+	testLog:BOOL;
+END_VAR
+
+VAR 
+	DelayStart:TON;
+	DelayFlag:BOOL:=TRUE;	
+
+	autoRun_R_Trig:R_TRIG;
+	autoRun_F_Trig:F_TRIG;
+	autoRun_F_Trig1:F_TRIG;
+	pause1_R_Trig:R_TRIG;
+	pause2_R_Trig:R_TRIG;
+	
+	
+	StartRunTon:TON;
+	StartRunR:R_TRIG;
+	ResetButR:R_trig;
+	
+	
+	fAxisOverride:LREAL;
+	fAxisOverride1:LREAL;
+	
+	quitAutoRun:BOOL:=FALSE;
+	stop_F_Trig:F_Trig;
+	stop_F_Trig1:F_Trig;
+	itemp: INT;
+	testpp:BOOL;
+	stopToClearTON:TON;
+	useWarningRtrig:R_TRIG;
+	WarningRtrig:R_TRIG;
+	fFtrigSW:F_TRIG;
+	nCfgSlaveCount AT%I*:UINT;//绑定，Device 1:Input : SlaveCount
+	nSlaveCount AT%I*:UINT;//绑定，Device 1:InfoData : CfgSlaveCount
+	ErrorR_Trig							:R_Trig;
+	ErrorF_Trig							:F_Trig;
+	testTON:TON;
+	notbusyTON							:TON;
+	testLogRtrig:R_TRIG;
+	testLogTimes:UINT:=0;
+	forceEnableRecovery:TON;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[gVersion:='V1.0.29';// 
+//gPosDeviation:=0.001; // 位置偏差
+	(* Other *) 
+ 	//Instance 对象的实例化最好先执行
+//	gEnablePDVSWConnect:=TRUE;
+//	gEnableSRFSWConnect:=TRUE;
+//	gEnablePRFSWConnect:=TRUE;
+//	gEnableHeGSWConnect:=TRUE;
+ 	InstanceUtility();
+	//加入该延迟目的是为了使系统时钟初始化后能被正确调用。
+	DelayStart(IN:=DelayFlag , PT:=T#5S , Q=> , ET=> );
+	IF DelayStart.Q THEN
+		DelayFlag:=FALSE;
+		gRecipeNameMax:=gRecipeNameMax;
+		gRead:=TRUE;//读取
+		gCNErrShow:=FALSE;
+	END_IF
+	IF DelayFlag THEN
+		RETURN;
+	END_IF
+	instance();//轴、气缸、电磁阀实例化
+ 	//MachineState机台状态刷新
+	MachineStatePOU();
+	otherMachineState();
+	PRG_ADS_Comm_ByName_A2B();// ADS通讯刷新
+	// 通讯
+	FuncModule_RS232_SRF();
+	FuncModule_RS232_ARM();
+	FuncModule_RS485_MFC();
+//	FuncModule_RS232_TBP();
+//	FuncModule_RS232_ARM();
+	errorMonitor();
+	ACT_ErrorMonitor();
+	//DownTimeRecord宕机时间记录
+	DownTimeRecordPOU();
+	
+	ACT_LogTest();
+(* 半自动动作复位、暂停处理*)
+	S_CO_ControlRF(bInit:=AllInit, bPause:=AllPause, bAbort:=AllAbort);
+	S_PDVSafeCtr(bInit:=AllInit, bPause:=AllPause, bAbort:=AllAbort);
+	S_ActuatorRecoveryPOU(bInit:=AllInit, bPause:=AllPause, bAbort:=AllAbort);
+	S_BackOfHeliumClear(bInit:=AllInit, bPause:=AllPause, bAbort:=AllAbort);
+	S_RoughPumping(bInit:=AllInit, bPause:=AllPause, bAbort:=AllAbort);
+	
+	S_LoadLockVent(bInit:=AllInit, bPause:=AllPause, bAbort:=AllAbort);
+	S_ChamberLLVent(bInit:=AllInit, bPause:=AllPause, bAbort:=AllAbort);
+	S_MachineVent(bInit:=AllInit, bPause:=AllPause, bAbort:=AllAbort);
+	
+	S_LoadWafer(bInit:=AllInit, bPause:=AllPause, bAbort:=AllAbort);
+	S_Etching(bInit:=AllInit, bPause:=AllPause, bAbort:=AllAbort);
+	S_UnLoadWafer(bInit:=AllInit, bPause:=AllPause, bAbort:=AllAbort);
+	
+	MainPOU(bInit:=AllInit, bPause:=AllPause, bAbort:=AllAbort);
+	IF HomeInit THEN
+		HomeInit:=FALSE;
+	END_IF
+	IF AllInit THEN
+		AllInit:=FALSE;
+	END_IF
+	IF AllAbort THEN
+		AllAbort:=FALSE;
+	END_IF
+	IF gErrorAbort THEN
+		AllAbort:=TRUE;
+		HomeInit:=TRUE;
+		AllInit:=TRUE;
+		AllPause:=FALSE;
+	END_IF
+	
+ (* 进入自动*)
+	autoRun_R_Trig(CLK:=gAutoRunningFlag);
+	IF autoRun_R_Trig.Q THEN
+		HomeInit:=TRUE;
+		AllInit:=TRUE;
+		AllAbort:=TRUE;
+		AllPause:=FALSE;
+		gLog.append_EX(" 进入自动");
+		gDataChangeLog.append_EX("进入自动");
+		fb_systemTimeModule.startTime(14);//总时间开始计时
+	END_IF
+	StartRunTon(IN:=gAutoRunningFlag,PT:=T#1000MS);// 等待各个模组复位完成
+	StartRunR(CLK:=StartRunTon.Q);
+	IF StartRunR.Q THEN
+		MainPOU.Act_init_status();
+		MainPOU.Act_Ex();
+		MainPOU.bTrig:=TRUE;//暂时屏蔽
+	END_IF
+ (* 退出自动*)
+ 	notbusyTON(IN:=NOT gSPOUBusy AND gCtrlMode=ControlMode.eAutoCtrMode,PT:=T#2S);
+ 	IF notbusyTON.Q THEN
+		gAutoRunningFlag:=FALSE;
+		gCtrlMode:=ControlMode.eManualCtrMode;
+		HomeInit:=TRUE;
+		AllInit:=TRUE;
+		AllAbort:=TRUE;
+		AllPause:=FALSE;
+	END_IF
+ 	autoRun_F_Trig(CLK:=gAutoRunningFlag);
+	IF autoRun_F_Trig.Q THEN		
+		HomeInit:=TRUE;
+		AllInit:=TRUE;
+		AllAbort:=TRUE;
+		AllPause:=FALSE;
+		gDataChangeLog.append_EX(" 退出自动");
+	END_IF
+ (* 进入暂停*)
+	pause1_R_Trig(CLK:=(gAutoRunningFlag AND (gRunningState=RunningStatus.eErrorState) OR (gRunningState=RunningStatus.ePauseState)));
+	IF pause1_R_Trig.Q THEN
+		AllPause:=TRUE;
+	END_IF
+ (* 退出暂停*)
+	pause2_R_Trig(CLK:=(gAutoRunningFlag AND (gRunningState=RunningStatus.eAutoState)));
+	IF pause2_R_Trig.Q THEN
+		AllPause:=FALSE;
+	END_IF
+ (*复位按钮动作*)
+ 	ResetButR(CLK:=fbMachineState.Reset , Q=> );
+	IF ResetButR.Q THEN
+		;
+	END_IF
+IF nCfgSlaveCount<>nSlaveCount THEN//nSlaveCount在Device1的Inputs_SlaveCount中；nCfgSlaveCount在Device1中的InfoData中的CfgSlaveCount中
+	error_Trigger(5);// 报警提示有从站掉线
+END_IF
+ErrorR_Trig(CLK:=(gRunningState=RunningStatus.eErrorState) AND (gCtrlMode=3 OR ((gRunningState<>RunningStatus.eHomeState)) AND NOT gAutoRunningFlag), Q=> );//
+ErrorF_Trig(CLK:=(gRunningState=RunningStatus.eErrorState) AND (gCtrlMode=3 OR ((gRunningState<>RunningStatus.eHomeState)) AND NOT gAutoRunningFlag), Q=> );//
+forceEnableRecovery(IN:=gEnablePDVOpenClose OR gEnableGDOpenClose OR gEnableHeInOpenClose,PT:=T#20S);
+IF forceEnableRecovery.Q THEN
+	gEnablePDVOpenClose:=FALSE;
+	gEnableGDOpenClose:=FALSE;
+	gEnableHeInOpenClose:=FALSE;
+END_IF
+//IF ErrorR_Trig.Q THEN//报错停止操作
+//	AllPause:=TRUE;
+//END_IF
+//IF ErrorF_Trig.Q THEN
+//	AllPause:=FALSE;
+//END_IF]]></ST>
+    </Implementation>
+    <Action Name="ACT_ErrorMonitor" Id="{d4dac8cb-fcb7-46d7-a601-2f8877623b46}">
+      <Implementation>
+        <ST><![CDATA[IF NOT gDisablePressureCheck THEN
+	IF gICP.I_PressureCheck THEN
+		error_Trigger(50);
+	END_IF
+END_IF
+
+IF NOT gDisableWaterFloweCheck THEN
+	IF gICP.I_WaterFlowCheck THEN
+		error_Trigger(51);
+	END_IF
+END_IF
+
+IF NOT gDisableWaterTemCheck THEN
+	IF gICP.I_WaterTemperatureCheck THEN
+		error_Trigger(51);
+	END_IF
+END_IF
+
+IF gICP.ForeLineGauge.error THEN
+	error_Trigger(53);
+END_IF
+IF gICP.LoadLockGauge.error THEN
+	error_Trigger(54);
+END_IF
+IF gICP.AIMGauge.error THEN
+	error_Trigger(55);
+END_IF
+IF gICP.ChamberGauge.error THEN
+	error_Trigger(56);
+END_IF
+IF gICP.TBGauge.error THEN
+	error_Trigger(58);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ACT_LogTest" Id="{63571235-45a1-4852-8cab-0d3f11cd17b2}">
+      <Implementation>
+        <ST><![CDATA[testLogRtrig(CLK:=testLog);
+IF testLogRtrig.Q THEN
+	gDataChangeLog.append(CONCAT('Pressure is:',REAL_TO_STRING(gICP.HeCheckGaugeReal)));
+	gDataChangeLog.append(CONCAT('MFC flow is:',REAL_TO_STRING(gICP.HeMFC_SetFlowHMI)));
+END_IF
+testTON(IN:=NOT testTON.Q AND testLog, PT:= T#1S, Q=> , ET=> );
+IF testTON.Q THEN
+	testLogTimes:=testLogTimes+1;
+	gDataChangeLog.append(CONCAT('Pressure is:',REAL_TO_STRING(gICP.HeCheckGaugeReal)));
+	IF testLogTimes>=29 THEN
+		testLogTimes:=0;
+		testLog:=FALSE;
+	END_IF
+END_IF
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="allAxisStop" Id="{5bbc23f9-ebb7-43d1-a1c9-365851895536}">
+      <Implementation>
+        <ST><![CDATA[//临时使用，当做停机使用
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="VersonRecord" Id="{f83d3022-0364-4d5e-8656-53feacac98cd}">
+      <Implementation>
+        <ST><![CDATA[//硬件 配置更新，需更改加减速度\IO 还核定
+//上料逻辑已完成，下料逻辑差POU以及Other Cal吸嘴距离的计算等内容
+
+//1.0.0 第一次调试
+//1.0.2 Recipe测试基本满足需求 20241028
+//1.0.3 TB GASLINE界面、底层块操作验证
+//1.0.4 除了RF、Load外，其余已经与UI同步
+//1.0.5 UI除了LoadLock没操作，其余已同步完成；IO硬件绑定盒信号关联已完成
+//1.0.6 RS232 通讯测试-字符串测试已完成
+//1.0.7 RS232 通讯测试-RR匹配器通讯测试，当前位置匹配不正确
+//1.0.8 RS232 TB只是预先编写完成，还未进行测试；  Chiller的通讯底层已经完成，还未进行验证测试
+//1.0.9	Chiller的网口通讯测试完成
+//1.0.10	Chiller的网口通讯测试完成;PDV测试完成，但是对于Pressure Aligment的时候，存在小数点的向上向下取整的问题；
+//1.0.11	带操作提示；--下一版本需求，操作确认提示为可选项
+//1.0.12	带操作提示完善；--下一版本需求，操作确认提示为可选项;
+//1.0.13	GAS BOX Valve 等控件组合状态及控制
+//1.0.14	操作提示、二次确认、半自动
+//1.0.15	ADS通讯变量
+//1.0.20    PDV、ARM、LoadLock、Valve等都已调试
+//1.0.21    GAS BOX、分子泵等都已调试；测试没问题
+//1.0.22   差RF的起破测试
+//1.0.23   下电极RF Power正常起破::::晶圆进入腔体内记忆状态需写步骤方式完成;
+//1.0.24   完善互锁（PDV的压力控制模式需要谨慎考虑，特别是没有气体进入的时候）;
+//1.0.25   操作提示完善
+//1.0.26   互锁条件完善
+//1.0.27   互锁条件完善,POU完善
+//1.0.28   互锁完善
+//1.0.29   程序逻辑进一步完善]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="MainRunPOU">
+      <LineId Id="10805" Count="2" />
+      <LineId Id="10811" Count="0" />
+      <LineId Id="11734" Count="1" />
+      <LineId Id="11733" Count="0" />
+      <LineId Id="11833" Count="0" />
+      <LineId Id="10812" Count="4" />
+      <LineId Id="11194" Count="0" />
+      <LineId Id="10817" Count="0" />
+      <LineId Id="12037" Count="0" />
+      <LineId Id="10822" Count="5" />
+      <LineId Id="10829" Count="0" />
+      <LineId Id="11981" Count="0" />
+      <LineId Id="11438" Count="0" />
+      <LineId Id="11243" Count="0" />
+      <LineId Id="11293" Count="0" />
+      <LineId Id="11537" Count="0" />
+      <LineId Id="11341" Count="0" />
+      <LineId Id="11389" Count="1" />
+      <LineId Id="11244" Count="0" />
+      <LineId Id="12149" Count="0" />
+      <LineId Id="10985" Count="1" />
+      <LineId Id="11487" Count="1" />
+      <LineId Id="10999" Count="0" />
+      <LineId Id="11784" Count="0" />
+      <LineId Id="11882" Count="0" />
+      <LineId Id="11931" Count="0" />
+      <LineId Id="12153" Count="0" />
+      <LineId Id="11932" Count="0" />
+      <LineId Id="11982" Count="5" />
+      <LineId Id="12086" Count="0" />
+      <LineId Id="12036" Count="0" />
+      <LineId Id="12088" Count="1" />
+      <LineId Id="11000" Count="24" />
+      <LineId Id="11038" Count="0" />
+      <LineId Id="11040" Count="4" />
+      <LineId Id="12087" Count="0" />
+      <LineId Id="11045" Count="0" />
+      <LineId Id="11047" Count="1" />
+      <LineId Id="12094" Count="0" />
+      <LineId Id="12090" Count="1" />
+      <LineId Id="12095" Count="0" />
+      <LineId Id="12097" Count="2" />
+      <LineId Id="12096" Count="0" />
+      <LineId Id="12092" Count="0" />
+      <LineId Id="11049" Count="5" />
+      <LineId Id="11059" Count="0" />
+      <LineId Id="11064" Count="4" />
+      <LineId Id="11070" Count="4" />
+      <LineId Id="11076" Count="5" />
+      <LineId Id="11128" Count="0" />
+      <LineId Id="11137" Count="4" />
+      <LineId Id="12208" Count="1" />
+      <LineId Id="12211" Count="1" />
+      <LineId Id="12210" Count="0" />
+      <LineId Id="11142" Count="4" />
+      <LineId Id="8112" Count="0" />
+    </LineIds>
+    <LineIds Name="MainRunPOU.ACT_ErrorMonitor">
+      <LineId Id="7" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="8" Count="1" />
+      <LineId Id="12" Count="4" />
+      <LineId Id="3" Count="0" />
+      <LineId Id="18" Count="4" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="27" Count="2" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="31" Count="1" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="34" Count="1" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="38" Count="1" />
+      <LineId Id="37" Count="0" />
+    </LineIds>
+    <LineIds Name="MainRunPOU.ACT_LogTest">
+      <LineId Id="9" Count="0" />
+      <LineId Id="6" Count="1" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="1" Count="1" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="3" Count="0" />
+      <LineId Id="13" Count="1" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="12" Count="0" />
+    </LineIds>
+    <LineIds Name="MainRunPOU.allAxisStop">
+      <LineId Id="2" Count="0" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="34" Count="0" />
+    </LineIds>
+    <LineIds Name="MainRunPOU.VersonRecord">
+      <LineId Id="90" Count="3" />
+      <LineId Id="179" Count="23" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

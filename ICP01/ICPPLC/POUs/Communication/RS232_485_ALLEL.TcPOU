@@ -1,0 +1,118 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="RS232_485_ALLEL" Id="{360978b3-ad97-492e-a44e-6e4ce5355147}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM RS232_485_ALLEL
+VAR
+	(*
+	 *xBuffer 的作用是，在 PLC 要发送的数据和串行通讯的硬件 Process Data 之间设置一个缓存区。
+	 *比如 KL6outData22B 类型的接口，每个 PLC 周期只能发送 22 字节。假如程序需要发送的数据为 100 个，
+	 *那么实际上 PLC 程序是把这些数据放到 TxBuffer 中，再由硬件分几个 PLC 周期发送出去
+	*)
+
+	SRF_COMin				AT%I*		:KL6inData22B;		
+	SRF_COMout				AT%Q*		:KL6outData22B;
+	SRF_Error				:BOOL;
+		
+	SRF_COMportControl					:SerialLineControl;
+	
+	MFC_COMin				AT%I*		:KL6inData22B;		
+	MFC_COMout				AT%Q*		:KL6outData22B;
+	MFC_Error				:BOOL;
+		
+	MFC_COMportControl					:SerialLineControl;
+	
+	ARM_COMin				AT%I*		:KL6inData22B;		
+	ARM_COMout				AT%Q*		:KL6outData22B;
+	ARM_Error				:BOOL;
+		
+	ARM_COMportControl					:SerialLineControl;
+	
+	TBP_COMin				AT%I*		:KL6inData22B;		
+	TBP_COMout				AT%Q*		:KL6outData22B;
+	TBP_Error				:BOOL;
+		
+	TBP_COMportControl					:SerialLineControl;
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(*
+ *功能块的作用，把 TxBuffer 缓存区的数据经过 Process Data 的 ComOut 发送出去，
+ *而把 ComIn 中的数据接收到 RxBuffer。引用这个功能块的程序执行周期越短，
+ *数据交换的效率就越高，所以这段程序应该放在快速任务中作为 Backgroud 代码无条件执行。
+*)
+SRF_COMportControl(
+	Mode:= SERIALLINEMODE_KL6_22B_STANDARD, 
+	pComIn:= ADR(SRF_COMin), 
+	pComOut:= ADR(SRF_COMout), 
+	SizeComIn:= SIZEOF(SRF_COMin), 
+	Error=> , 
+	ErrorID=> , 
+	TxBuffer:= gTxBuffer_SRF, 
+	RxBuffer:= gRxBuffer_SRF );
+IF SRF_COMportControl.Error THEN
+	SRF_Error:=TRUE;
+ELSE
+	SRF_Error:=FALSE;
+END_IF
+
+MFC_COMportControl(
+	Mode:= SERIALLINEMODE_KL6_22B_STANDARD, 
+	pComIn:= ADR(MFC_COMin), 
+	pComOut:= ADR(MFC_COMout), 
+	SizeComIn:= SIZEOF(MFC_COMin), 
+	Error=> , 
+	ErrorID=> , 
+	TxBuffer:= gTxBuffer_MFC, 
+	RxBuffer:= gRxBuffer_MFC );
+IF MFC_COMportControl.Error THEN
+	MFC_Error:=TRUE;
+ELSE
+	MFC_Error:=FALSE;
+END_IF
+
+ARM_COMportControl(
+	Mode:= SERIALLINEMODE_KL6_22B_STANDARD, 
+	pComIn:= ADR(ARM_COMin), 
+	pComOut:= ADR(ARM_COMout), 
+	SizeComIn:= SIZEOF(ARM_COMin), 
+	Error=> , 
+	ErrorID=> , 
+	TxBuffer:= gTxBuffer_ARM, 
+	RxBuffer:= gRxBuffer_ARM );
+IF ARM_COMportControl.Error THEN
+	ARM_Error:=TRUE;
+ELSE
+	ARM_Error:=FALSE;
+END_IF
+
+TBP_COMportControl(
+	Mode:= SERIALLINEMODE_KL6_22B_STANDARD, 
+	pComIn:= ADR(TBP_COMin), 
+	pComOut:= ADR(TBP_COMout), 
+	SizeComIn:= SIZEOF(TBP_COMin), 
+	Error=> , 
+	ErrorID=> , 
+	TxBuffer:= gTxBuffer_TBP, 
+	RxBuffer:= gRxBuffer_TBP );
+IF TBP_COMportControl.Error THEN
+	TBP_Error:=TRUE;
+ELSE
+	TBP_Error:=FALSE;
+END_IF
+ ]]></ST>
+    </Implementation>
+    <LineIds Name="RS232_485_ALLEL">
+      <LineId Id="402" Count="15" />
+      <LineId Id="1510" Count="1" />
+      <LineId Id="564" Count="0" />
+      <LineId Id="1534" Count="13" />
+      <LineId Id="1533" Count="0" />
+      <LineId Id="1570" Count="13" />
+      <LineId Id="1569" Count="0" />
+      <LineId Id="1618" Count="13" />
+      <LineId Id="1617" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

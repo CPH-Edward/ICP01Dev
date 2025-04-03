@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="ST_HaveDUTState" Id="{7a50f21d-afb3-401b-9506-62dc0c691cf7}">
+    <Declaration><![CDATA[TYPE ST_HaveDUTState :
+STRUCT
+	haveDUT:BOOL;
+	DutCheckDone:BOOL;
+	DutCheckRuslut:BOOL;
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -1,0 +1,787 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="PLC_PDV" Id="{eb59bc8c-154d-4447-b6bc-54b73d8d29c6}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM PLC_PDV
+VAR_INPUT
+	nSocketType:UINT:=0;// socket 类型; 0 表示 server; 1 表示 client;
+	sTerminalName:STRING;// 通讯对方名称 自定义
+	sHost:STRING(20):='127.0.0.1';// 通讯IP地址; server时表示本地host; client时表示远程host
+	nPort:UDINT:=8900;// 通讯端口号;
+	bEnable:BOOL:=TRUE;// 通讯启用\禁用连接
+	sSendSuffix:STRING:='';//此处可统一添加发送后缀字符 $R$N
+	nQueueInterval:UDINT:=50;// 发送队列时间间隔 单位ms
+	logHandleArray:ARRAY [1..5] OF POINTER TO printLogModule_EX;// log 操作 handle 数组
+	logHandleArrayLength:UINT:=0;// log 操作 handle 数组长度, 不超过5
+	readStateFlag:BOOL;
+	readPressureFlag:BOOL;
+	readPostitionFlag:BOOL;
+	readSetVal:BOOL;
+	pvCloseCommunication		:BOOL;// PVClose
+	pvOpenCommunication			:BOOL;// PVOpen
+	pvPosOrPreCommunication		:BOOL;// PV Pos:=false;Pressure:True;
+	pvReadPos:INT;// 位置
+	pvReadPre:INT;// 压力
+END_VAR
+VAR_OUTPUT
+	bSendCondition	:BOOL;//可发送条件
+	bSocketConnected:BOOL;//连接状态
+END_VAR
+VAR CONSTANT
+	cNumBegin		:DINT:=1;
+	cNumEnd			:DINT:=100;
+END_VAR
+VAR
+	sendDataArray	:ARRAY [cNumBegin..cNumEnd] OF STRING(255);
+	length			:DINT:=0;
+	endPoint		:DINT:=cNumBegin;
+	popupSendData	:STRING(255);
+	//popup
+	popupStep		:UINT:=0;
+	popupTON1		:TON;
+	popupTON2		:TON;
+	iPopup			:DINT:=0;
+	_PopupLength	:DINT:=0;
+END_VAR
+VAR
+	tcpipClient					:tcpipClientModule_EX;
+	tcpipServer					:tcpipServerModule_EX;////定义服务器对象
+	
+	tcpipSendDataBuff_Server	:STRING(255);//发送数据 Buff server
+	tcpipSendDataBuff_Client	:STRING(255);//发送数据 Buff client
+	
+	tcpipSendDataClear			:STRING(255);//发送数据 清空
+	tcpipSendData				:STRING(255);//发送数据
+	
+	tcpipRecDataBuff_Server		:STRING(255);//已接收数据 Buff server
+	tcpipRecDataBuff_Client		:STRING(255);//已接收数据 Buff client
+	
+	tcpipRecDataClear			:STRING(255);//已接收数据 清空
+	tcpipRecData				:STRING(255);//已接收数据
+	
+	tcpConnectR_Trig			:R_Trig;//初始连接上升沿
+	tcpConnectF_Trig			:F_Trig;//初始连接下降沿
+	registerStep				:UDINT;//ALC注册控制步
+	registerTON					:TON;//ALC注册延时
+	
+	logHandleArray_index		:UINT:=1;
+END_VAR
+VAR
+	bTrig_Start:BOOL;
+	rTrig_Start:R_TRIG;
+	tTrig_Start:TON;
+	
+	bTrig_Stop:BOOL;
+	rTrig_Stop:R_TRIG;
+	tTrig_Stop:TON;
+	
+	bTrig_Reset:BOOL;
+	rTrig_Reset:R_TRIG;
+	tTrig_Reset:TON;
+	
+	
+	bTrig_Init:BOOL;
+	rTrig_Init:R_TRIG;
+	
+	bTrig_All_Home:BOOL;
+	rTrig_All_Home:R_TRIG;
+	
+	bTrig_Z_Safe:BOOL;
+	rTrig_Z_Safe:R_TRIG;
+	
+	bTrig_P_Pos_:BOOL;
+	rTrig_P_Pos_:R_TRIG;
+	nTrig_P_Pos_TrayNum:UINT:=1;
+	nTrig_P_Pos_RowNum:UINT:=1;
+	
+	bTrig_Move_P_:BOOL;
+	rTrig_Move_P_:R_TRIG;
+	nTrig_Move_P_TrayNum:UINT:=1;
+	nTrig_Move_P_RowNum:UINT:=1;
+	nTrig_Move_P_PosNum:UINT:=1;
+	findposstart	:INT;
+	findposend		:INT;
+	find_pos		:INT;
+	recStrTemp		:STRING(255);
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+CASE nSocketType OF
+0://TCPIP server
+	tcpipServer(
+		sSrvNetId:= , 
+		sLocalHost:=sHost , 
+		nLocalPort:=nPort , 
+		bStartConnect:=bEnable , 
+		tcpipSDataLen:=TO_UDINT(LEN(tcpipSendDataBuff_Server)) , 
+		tcpipSData:=ADR(tcpipSendDataBuff_Server) , 
+		bSend:= , 
+		tcpipRecDataLen:=SIZEOF(tcpipRecDataBuff_Server) , 
+		tcpipRecData:=ADR(tcpipRecDataBuff_Server) , 
+		bAccepted=> , 
+		bSendBusy=> , 
+		bRecData=> );
+	bSendCondition:=tcpipServer.bAccepted AND NOT tcpipServer.bSendBusy;
+	//TCPIP连接
+	bSocketConnected:=tcpipServer.bAccepted;
+	IF NOT tcpipServer.bAccepted THEN
+		length:=0;
+		endPoint:=cNumBegin;
+	END_IF
+	tcpConnectR_Trig(CLK:=tcpipServer.bAccepted);
+	tcpConnectF_Trig(CLK:=tcpipServer.bAccepted);
+
+1://TCPIP client
+	tcpipClient(
+		sSrvNetId:= , 
+		sRemoteHost:=sHost , 
+		nRemotePort:=nPort , 
+		bStartConnect:=bEnable , 
+		tcpipSDataLen:=TO_UDINT(LEN(tcpipSendDataBuff_Client)) , 
+		tcpipSData:=ADR(tcpipSendDataBuff_Client) , 
+		bSend:= , 
+		tcpipRecDataLen:=SIZEOF(tcpipRecDataBuff_Client) , 
+		tcpipRecData:=ADR(tcpipRecDataBuff_Client) , 
+		bConnected=> , 
+		bSendBusy=> , 
+		bRecData=> );
+	bSendCondition:=tcpipClient.bConnected AND NOT tcpipClient.bSendBusy;
+	//TCPIP连接
+	bSocketConnected:=tcpipClient.bConnected;
+	IF NOT tcpipClient.bConnected THEN
+		length:=0;
+		endPoint:=cNumBegin;
+	END_IF
+	tcpConnectR_Trig(CLK:=tcpipClient.bConnected);
+	tcpConnectF_Trig(CLK:=tcpipClient.bConnected);
+END_CASE
+
+IF tcpConnectR_Trig.Q THEN
+	FOR logHandleArray_index:=1 TO logHandleArrayLength DO
+		logHandleArray[logHandleArray_index]^.append(CONCAT(sTerminalName, ' has been connected'));
+	END_FOR
+	registerStep:=10;
+END_IF
+IF tcpConnectF_Trig.Q THEN
+	FOR logHandleArray_index:=1 TO logHandleArrayLength DO
+		logHandleArray[logHandleArray_index]^.append(CONCAT(sTerminalName, ' has been disconnected'));
+	END_FOR
+	registerStep:=0;
+END_IF
+//数据接收处理
+CASE nSocketType OF
+0://TCPIP server
+	IF tcpipServer.bRecData THEN
+		tcpipRecData:=tcpipRecDataBuff_Server;//buff转存
+		tcpipRecDataBuff_Server:=tcpipRecDataClear;//转存之后清空buff
+		dataProcessing();
+	END_IF
+1://TCPIP client
+	IF tcpipClient.bRecData THEN
+		tcpipRecData:=tcpipRecDataBuff_Client;//buff转存
+		tcpipRecDataBuff_Client:=tcpipRecDataClear;//转存之后清空buff
+		dataProcessing();
+	END_IF
+END_CASE
+
+
+popup();
+
+CASE registerStep OF
+0:
+	//Ready
+END_CASE
+
+]]></ST>
+    </Implementation>
+    <Folder Name="CMD" Id="{c60c3a61-34ea-4f12-af4d-15a4f49a08e4}" />
+    <Folder Name="Recevie" Id="{4ed7d1d3-3ae8-473b-b7cb-8cf1f4a16ec7}" />
+    <Folder Name="Send" Id="{9804396b-ae39-4fea-a81f-bf04e11f6d75}">
+      <Folder Name="Private" Id="{cab79ece-6fbd-497a-8aaa-349209bb24f1}" />
+    </Folder>
+    <Method Name="appendSend" Id="{86a072ec-23e1-463e-bde1-d057f4df8ef5}" FolderPath="Send\">
+      <Declaration><![CDATA[METHOD appendSend : BOOL
+VAR_INPUT
+	str			:STRING(255);
+END_VAR
+VAR
+	suffix					:STRING;
+	strTemp_appendSend		:STRING(255);
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+IF endPoint>(cNumEnd-1) THEN
+	RETURN;
+END_IF
+suffix:=sSendSuffix;//此处可统一添加发送后缀字符 $R$N
+
+strTemp_appendSend:=CONCAT(str,suffix);
+sendDataArray[endPoint]:=strTemp_appendSend;
+
+endPoint:=endPoint+1;
+length:=endPoint-cNumBegin;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="dataProcessing" Id="{e8899b76-c1c4-4553-bb40-7f93450185b0}" FolderPath="Recevie\">
+      <Declaration><![CDATA[METHOD dataProcessing : BOOL
+VAR_INPUT
+END_VAR
+VAR
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[FOR logHandleArray_index:=1 TO logHandleArrayLength DO
+	CASE nSocketType OF
+	0://TCPIP server
+	//	logHandleArray[logHandleArray_index]^.append(CONCAT(CONCAT(CONCAT('Recevie From ', sTerminalName), ' -- '),tcpipRecData));
+	1://TCPIP client
+	//	logHandleArray[logHandleArray_index]^.append(CONCAT(CONCAT(CONCAT('Recevie From ', sTerminalName), ' -- '),tcpipRecData));
+	END_CASE
+END_FOR
+findposend:=0;
+find_pos:=0;
+IF MID(tcpipRecData,4,1)='i:30' THEN
+	readStateFlag:=TRUE;
+	CASE STRING_TO_INT(MID(tcpipRecData,1,6)) OF // 2:Pos 3:Close 4:Open 5:Pressur 6:Hold 7:Learn 8:interlock Open 9:interLock Closed
+		2:
+			pvPosOrPreCommunication:=FALSE;
+			pvCloseCommunication:=FALSE;
+			pvOpenCommunication:=FALSE;
+		3:
+			pvPosOrPreCommunication:=FALSE;
+			pvCloseCommunication:=TRUE;
+			pvOpenCommunication:=FALSE;
+		4:
+			pvPosOrPreCommunication:=FALSE;
+			pvCloseCommunication:=FALSE;
+			pvOpenCommunication:=TRUE;
+		5:
+			pvPosOrPreCommunication:=TRUE;
+			pvCloseCommunication:=FALSE;
+			pvOpenCommunication:=FALSE;
+		ELSE
+			pvPosOrPreCommunication:=FALSE;
+			pvCloseCommunication:=FALSE;
+			pvOpenCommunication:=FALSE;
+	END_CASE
+END_IF
+IF MID(tcpipRecData,2,1)='A:' THEN
+	readPostitionFlag:=TRUE;
+	pvReadPos:=STRING_TO_INT(MID(tcpipRecData,6,3));
+END_IF
+IF MID(tcpipRecData,2,1)='P:' THEN
+	readPressureFlag:=TRUE;
+	pvReadPre:=STRING_TO_INT(MID(tcpipRecData,8,3));
+	IF pvReadPre<0 THEN
+		pvReadPre:=0;
+	END_IF
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="popup" Id="{7b5d0e37-6603-4de7-99f6-d8eeb234957f}" FolderPath="Send\Private\">
+      <Declaration><![CDATA[METHOD PRIVATE popup : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[CASE popupStep OF
+0:
+	IF length>0 AND bSendCondition THEN
+		_PopupLength:=length;
+		popupSendData:=sendDataArray[cNumBegin];
+		FOR iPopup:=cNumBegin TO (_PopupLength-1) DO
+			sendDataArray[iPopup]:=sendDataArray[iPopup+1];
+		END_FOR
+		endPoint:=endPoint-1;
+		length:=endPoint-cNumBegin;
+		sendData(popupSendData);//此处是调用信息发送
+		popupStep:=10;
+	END_IF
+10:
+	popupTON2(IN:=NOT popupTON2.Q, PT:=T#2S);
+	IF NOT bSendCondition OR popupTON2.Q THEN
+		popupTON2(IN:=FALSE);
+		popupStep:=11;
+	END_IF
+11:
+	IF bSendCondition THEN
+		popupStep:=12;
+	END_IF
+	popupTON1(IN:=FALSE);
+12:
+	//popupTON1(IN:=NOT popupTON1.Q,PT:=T#10MS);
+	popupTON1(IN:=NOT popupTON1.Q,PT:=TO_TIME(nQueueInterval));
+	IF popupTON1.Q THEN
+		popupStep:=0;
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ReadPosition" Id="{0bce7351-8351-4e2f-ae63-0b509ac89fee}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD ReadPosition : BOOL
+VAR_INPUT
+END_VAR
+VAR
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[appendSend('A:$N');]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ReadPressure" Id="{645baa24-64d1-40bc-9f0a-c60c78a0bcf5}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD ReadPressure : BOOL
+VAR_INPUT
+END_VAR
+VAR
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[appendSend('P:$N');]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ReadSetVal" Id="{1e5af4cb-8c01-48e3-96b4-b8be455359d9}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD ReadSetVal : BOOL
+VAR_INPUT
+END_VAR
+VAR
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[appendSend('i:38$N');]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ReadState" Id="{440e6c75-5c6c-4888-8771-968fb60e7bf8}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD ReadState : BOOL
+VAR_INPUT
+END_VAR
+VAR
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[appendSend('i:30$N');]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="sendData" Id="{e1fb475d-7428-4b04-8791-ee511eda319a}" FolderPath="Send\Private\">
+      <Declaration><![CDATA[METHOD PRIVATE sendData : BOOL
+VAR_INPUT
+	dataStruct	:STRING(255);
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF bSendCondition AND bEnable THEN
+	tcpipSendData:=dataStruct;
+	
+	CASE nSocketType OF
+	0://TCPIP server
+		tcpipSendDataBuff_Server:=tcpipSendData;
+		tcpipSendData:=tcpipSendDataClear;	
+		tcpipServer.bSend:=TRUE;
+	1://TCPIP client
+		tcpipSendDataBuff_Client:=tcpipSendData;
+		tcpipSendData:=tcpipSendDataClear;	
+		tcpipClient.bSend:=TRUE;
+	END_CASE
+	
+	FOR logHandleArray_index:=1 TO logHandleArrayLength DO
+		CASE nSocketType OF
+		0://TCPIP server
+			//logHandleArray[logHandleArray_index]^.append(CONCAT(CONCAT(CONCAT('Send To ', sTerminalName), ' -- '),tcpipSendDataBuff_Server));
+		1://TCPIP client
+			//logHandleArray[logHandleArray_index]^.append(CONCAT(CONCAT(CONCAT('Send To ', sTerminalName), ' -- '),tcpipSendDataBuff_Client));
+		END_CASE
+	END_FOR
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="WriteAccessMode" Id="{81a1ff2a-241b-43bf-b6d9-20a7f3b01b38}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD WriteAccessMode : BOOL
+VAR_INPUT
+	mode:INT;// 0:Local  1:Remote  2:锁定远程操作，无法通过服务端口更改为本地
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[CASE mode OF
+	0:
+		appendSend('c:0100$N');
+	1:
+		appendSend('c:0101$N');
+	2:
+		appendSend('c:0102$N');
+	ELSE
+		appendSend('c:0102$N');
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="WriteCloseValve" Id="{ced8df31-a4da-4ad9-a667-202bfcc5de9b}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD WriteCloseValve : BOOL
+VAR_INPUT
+
+END_VAR
+VAR
+
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+appendSend('C:$N');]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="WriteHold" Id="{59fc3c4c-58ed-4a41-996b-71c8a2bb7794}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD WriteHold : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[appendSend('O:$N');]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="WriteLearn" Id="{a9a4890c-8f91-4dd1-8776-97a35bb2cc2e}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD WriteLearn : BOOL
+VAR_INPUT
+	positon:REAL;
+	point:INT;
+END_VAR
+VAR
+	intTemp:DINT;
+	intTemp1:DINT;
+	intTemp2:DINT;
+	intTemp3:DINT;
+	intTemp4:DINT;
+	intTemp5:DINT;
+	intTemp6:DINT;
+	intTemp7:DINT;
+	intTemp8:DINT;
+	str:STRING;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[str:='L:';
+intTemp:=LREAL_TO_DINT(positon*EXPT(10,point));
+intTemp8:=LREAL_TO_INT(FLOOR(intTemp/10000000));
+str:=CONCAT(str,DINT_TO_STRING(intTemp8));
+intTemp7:=LREAL_TO_INT(FLOOR(intTemp/1000000 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp7));
+intTemp6:=LREAL_TO_INT(FLOOR(intTemp/100000 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp6));
+intTemp5:=LREAL_TO_INT(FLOOR(intTemp/10000 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp5));
+intTemp4:=LREAL_TO_INT(FLOOR(intTemp/1000 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp4));
+intTemp3:=LREAL_TO_INT(FLOOR(intTemp/100 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp3));
+intTemp2:=LREAL_TO_INT(FLOOR(intTemp/10 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp2));
+intTemp1:=LREAL_TO_INT(FLOOR(intTemp MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp1));
+str:=CONCAT(str,'$N');
+appendSend(str);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="WriteOpenValve" Id="{4de3ded4-aa7c-489c-816e-bc511586722d}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD WriteOpenValve : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[appendSend('O:$N');]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="WritePositionControl" Id="{90861e3e-e889-4daa-b0d0-50eefe49736e}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD WritePositionControl : BOOL
+VAR_INPUT
+	pressure:REAL;
+	point:INT;
+END_VAR
+VAR
+	intTemp:DINT;
+	intTemp1:DINT;
+	intTemp2:DINT;
+	intTemp3:DINT;
+	intTemp4:DINT;
+	intTemp5:DINT;
+	intTemp6:DINT;
+	str:STRING;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[str:='R:';
+intTemp:=LREAL_TO_DINT(pressure*EXPT(10,point));
+intTemp6:=LREAL_TO_INT(FLOOR(intTemp/100000 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp6));
+intTemp5:=LREAL_TO_INT(FLOOR(intTemp/10000 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp5));
+intTemp4:=LREAL_TO_INT(FLOOR(intTemp/1000 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp4));
+intTemp3:=LREAL_TO_INT(FLOOR(intTemp/100 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp3));
+intTemp2:=LREAL_TO_INT(FLOOR(intTemp/10 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp2));
+intTemp1:=LREAL_TO_INT(FLOOR(intTemp MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp1));
+str:=CONCAT(str,'$N');
+appendSend(str);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="WritePressureAlignment" Id="{6aac31e4-af46-4fb6-a1ba-29f213c37f42}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD WritePressureAlignment : BOOL
+VAR_INPUT
+	pressure:REAL;
+	point:INT;
+END_VAR
+VAR
+	intTemp:DINT;
+	intTemp1:DINT;
+	intTemp2:DINT;
+	intTemp3:DINT;
+	intTemp4:DINT;
+	intTemp5:DINT;
+	intTemp6:DINT;
+	intTemp7:DINT;
+	intTemp8:DINT;
+	str:STRING;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[str:='c:6002';
+intTemp:=LREAL_TO_DINT(pressure*EXPT(10,point));
+intTemp8:=LREAL_TO_INT(FLOOR(intTemp/10000000));
+str:=CONCAT(str,DINT_TO_STRING(intTemp8));
+intTemp7:=LREAL_TO_INT(FLOOR(intTemp/1000000 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp7));
+intTemp6:=LREAL_TO_INT(FLOOR(intTemp/100000 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp6));
+intTemp5:=LREAL_TO_INT(FLOOR(intTemp/10000 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp5));
+intTemp4:=LREAL_TO_INT(FLOOR(intTemp/1000 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp4));
+intTemp3:=LREAL_TO_INT(FLOOR(intTemp/100 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp3));
+intTemp2:=LREAL_TO_INT(FLOOR(intTemp/10 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp2));
+intTemp1:=LREAL_TO_INT(FLOOR(intTemp MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp1));
+str:=CONCAT(str,'$N');
+appendSend(str);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="WritePressureControl" Id="{7cf6367a-fbfd-4666-af77-50b925ce84f1}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD WritePressureControl : BOOL
+VAR_INPUT
+	pressure:REAL;
+	point:INT;
+END_VAR
+VAR
+	intTemp:DINT;
+	intTemp1:DINT;
+	intTemp2:DINT;
+	intTemp3:DINT;
+	intTemp4:DINT;
+	intTemp5:DINT;
+	intTemp6:DINT;
+	intTemp7:DINT;
+	intTemp8:DINT;
+	str:STRING;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[str:='S:';
+intTemp:=LREAL_TO_DINT(pressure*EXPT(10,point));
+intTemp8:=LREAL_TO_INT(FLOOR(intTemp/10000000));
+str:=CONCAT(str,DINT_TO_STRING(intTemp8));
+intTemp7:=LREAL_TO_INT(FLOOR(intTemp/1000000 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp7));
+intTemp6:=LREAL_TO_INT(FLOOR(intTemp/100000 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp6));
+intTemp5:=LREAL_TO_INT(FLOOR(intTemp/10000 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp5));
+intTemp4:=LREAL_TO_INT(FLOOR(intTemp/1000 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp4));
+intTemp3:=LREAL_TO_INT(FLOOR(intTemp/100 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp3));
+intTemp2:=LREAL_TO_INT(FLOOR(intTemp/10 MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp2));
+intTemp1:=LREAL_TO_INT(FLOOR(intTemp MOD 10));
+str:=CONCAT(str,DINT_TO_STRING(intTemp1));
+str:=CONCAT(str,'$N');
+appendSend(str);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="WriteZero" Id="{b57ac14f-3788-4b91-a97d-0726baf72aa1}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD WriteZero : BOOL
+VAR_INPUT
+		
+
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[appendSend('Z:$N');]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="PLC_PDV">
+      <LineId Id="54" Count="0" />
+      <LineId Id="92" Count="1" />
+      <LineId Id="97" Count="11" />
+      <LineId Id="96" Count="0" />
+      <LineId Id="154" Count="0" />
+      <LineId Id="168" Count="0" />
+      <LineId Id="155" Count="0" />
+      <LineId Id="159" Count="2" />
+      <LineId Id="158" Count="0" />
+      <LineId Id="169" Count="0" />
+      <LineId Id="171" Count="0" />
+      <LineId Id="194" Count="0" />
+      <LineId Id="95" Count="0" />
+      <LineId Id="112" Count="11" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="156" Count="0" />
+      <LineId Id="167" Count="0" />
+      <LineId Id="157" Count="0" />
+      <LineId Id="163" Count="2" />
+      <LineId Id="162" Count="0" />
+      <LineId Id="170" Count="0" />
+      <LineId Id="173" Count="0" />
+      <LineId Id="94" Count="0" />
+      <LineId Id="64" Count="1" />
+      <LineId Id="199" Count="0" />
+      <LineId Id="202" Count="0" />
+      <LineId Id="67" Count="2" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="205" Count="1" />
+      <LineId Id="73" Count="1" />
+      <LineId Id="79" Count="1" />
+      <LineId Id="181" Count="0" />
+      <LineId Id="180" Count="0" />
+      <LineId Id="185" Count="3" />
+      <LineId Id="184" Count="0" />
+      <LineId Id="182" Count="0" />
+      <LineId Id="190" Count="3" />
+      <LineId Id="189" Count="0" />
+      <LineId Id="183" Count="0" />
+      <LineId Id="85" Count="1" />
+      <LineId Id="175" Count="4" />
+      <LineId Id="284" Count="1" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_PDV.appendSend">
+      <LineId Id="17" Count="2" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="50" Count="1" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="31" Count="2" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_PDV.dataProcessing">
+      <LineId Id="65" Count="0" />
+      <LineId Id="67" Count="4" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="64" Count="0" />
+      <LineId Id="394" Count="0" />
+      <LineId Id="200" Count="0" />
+      <LineId Id="419" Count="0" />
+      <LineId Id="425" Count="0" />
+      <LineId Id="427" Count="1" />
+      <LineId Id="430" Count="0" />
+      <LineId Id="440" Count="1" />
+      <LineId Id="432" Count="0" />
+      <LineId Id="442" Count="1" />
+      <LineId Id="433" Count="1" />
+      <LineId Id="444" Count="1" />
+      <LineId Id="435" Count="1" />
+      <LineId Id="446" Count="1" />
+      <LineId Id="437" Count="1" />
+      <LineId Id="448" Count="1" />
+      <LineId Id="439" Count="0" />
+      <LineId Id="429" Count="0" />
+      <LineId Id="426" Count="0" />
+      <LineId Id="451" Count="1" />
+      <LineId Id="474" Count="0" />
+      <LineId Id="450" Count="0" />
+      <LineId Id="476" Count="2" />
+      <LineId Id="484" Count="1" />
+      <LineId Id="487" Count="0" />
+      <LineId Id="475" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_PDV.popup">
+      <LineId Id="6" Count="25" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="32" Count="2" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_PDV.ReadPosition">
+      <LineId Id="92" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_PDV.ReadPressure">
+      <LineId Id="92" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_PDV.ReadSetVal">
+      <LineId Id="92" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_PDV.ReadState">
+      <LineId Id="92" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_PDV.sendData">
+      <LineId Id="15" Count="2" />
+      <LineId Id="29" Count="1" />
+      <LineId Id="42" Count="1" />
+      <LineId Id="35" Count="1" />
+      <LineId Id="44" Count="1" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="51" Count="1" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_PDV.WriteAccessMode">
+      <LineId Id="13" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="21" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="15" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_PDV.WriteCloseValve">
+      <LineId Id="20" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_PDV.WriteHold">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_PDV.WriteLearn">
+      <LineId Id="35" Count="0" />
+      <LineId Id="75" Count="16" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_PDV.WriteOpenValve">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_PDV.WritePositionControl">
+      <LineId Id="52" Count="1" />
+      <LineId Id="67" Count="11" />
+      <LineId Id="95" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_PDV.WritePressureAlignment">
+      <LineId Id="84" Count="0" />
+      <LineId Id="120" Count="16" />
+      <LineId Id="155" Count="0" />
+      <LineId Id="137" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_PDV.WritePressureControl">
+      <LineId Id="124" Count="18" />
+      <LineId Id="52" Count="0" />
+    </LineIds>
+    <LineIds Name="PLC_PDV.WriteZero">
+      <LineId Id="15" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

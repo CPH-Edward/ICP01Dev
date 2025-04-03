@@ -1,0 +1,47 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="chillerModuleHMI" Id="{f8b9eafa-f049-4fe1-82a9-c495912bb5a1}">
+    <Declaration><![CDATA[{attribute 'pack_mode' := 1}
+TYPE chillerModuleHMI :
+STRUCT
+//control signal or data
+	extendAndretract: BOOL:=FALSE;//单控件触发信号
+	singleControl	: BOOL:=FALSE;//单一信号控制
+	singleControltemp: BOOL:=FALSE;//单一信号控制
+	extend			: BOOL:=FALSE;//伸出触发信号
+	retract			: BOOL:=FALSE;//收回触发信号
+	reset			: BOOL:=FALSE;//复位信号
+	stop			: BOOL:=FALSE;//停止信号
+	set				: BOOL:=false;// 参数设定
+	power			: BOOL:=TRUE;//no power, two relay will lost power
+	setpointVal		:REAL;
+//monitor
+	extAprSw		: BOOL:=FALSE;//HW: cylinder extent approach switch
+	retAprSw		: BOOL:=FALSE;//HW: cylinder retract approach switch	
+	extRelay		: BOOL:=FALSE;//HW: cylinder extent action relay
+	retRelay		: BOOL:=FALSE;//HW: cylinder retract action relay	
+
+	enableExt		: BOOL:=TRUE;//for outside control instance
+	enableRet		: BOOL:=TRUE;//for outside control instance
+//state
+	HMIEnable		: BOOL:=TRUE;
+	enable			: BOOL;
+	busy			: BOOL;
+	done			: BOOL;
+	error			: BOOL;
+	extenderror		: BOOL;
+	retracterror	: BOOL;
+	errID			: DINT;
+	nameTXT			: STRING;//气缸名字
+	errTXT			: STRING;
+	sensorShow		: STRING;
+	extcondition	: BOOL;// 开条件
+	retcondition	: BOOL;// 关条件
+END_STRUCT
+END_TYPE
+(*
+按照字节对齐规则，将变量按字节大小按顺序定义，用于ADS读取
+*)
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

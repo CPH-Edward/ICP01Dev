@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="printLogModule_EX_DataHMI" Id="{f43e7454-7fc9-4949-9abb-daeadf51eea4}">
+    <Declaration><![CDATA[{attribute 'pack mode' := 1}
+TYPE printLogModule_EX_DataHMI :
+STRUCT
+	logStrData			:ARRAY [cNumBegin_showInof..cNumLength_showInof] OF printLogModule_EX_DataST;
+	enableSave			:BOOL:=FALSE;
+	enableSaveShowLog	:BOOL:=FALSE;
+	clearInformation	:BOOL:=FALSE;
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -1,0 +1,433 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="FB_WStringSave" Id="{ae06398f-9dba-4e24-848d-12fea09431a1}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM FB_WStringSave
+VAR CONSTANT
+	Maxlenght:INT:=100;
+END_VAR
+
+VAR_INPUT
+	filter:WSTRING:=",";
+	readTrig:BOOL;
+	writeTrig:BOOL;
+	savePath : T_MaxString;
+END_VAR
+VAR_OUTPUT
+	nErrorId : UDINT;
+	bError : BOOL;
+	readDone:BOOL;
+	saveDone:BOOL;
+	readError:BOOL;
+	saveError:BOOL;
+END_VAR
+VAR
+	fbFileOpen:FB_FILEOPEN;
+	fbFileClose:FB_FILECLOSE;
+	fbFileGet:FB_FILEGETS;
+	fbFilePut:FB_FILEPUTS;
+	fbWriter:FB_FILEWRITE;
+
+	hFile : UINT;
+	sReadLine : T_MaxString;
+	wsWriteLine : WSTRING(255); 
+	sWriteLine : T_MaxString;
+	wsReadLine : WSTRING(255);
+	wsReadTemp : WSTRING(255);
+	itemp:INT;
+	inputArry: ARRAY [1..Maxlenght] OF WSTRING;
+	outputArry: ARRAY [1..Maxlenght] OF WSTRING;
+	findposstart	:INT;
+	findposend		:INT;
+	find_pos		:INT;
+	recStrTemp		:WSTRING(255);
+	nReadStep : UINT;
+	nWriteStep : UINT;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[readDone:=FALSE;
+fbFileOpen(
+	sNetId:= , 
+	sPathName:= , 
+	nMode:= , 
+	ePath:= , 
+	bExecute:= , 
+	tTimeout:= , 
+	bBusy=> , 
+	bError=> , 
+	nErrId=> , 
+	hFile=>hFile );
+	
+fbFileClose(
+	sNetId:= , 
+	hFile:= hFile, 
+	bExecute:= , 
+	tTimeout:= , 
+	bBusy=> , 
+	bError=> , 
+	nErrId=> );
+
+fbFileGet(
+	sNetId:= , 
+	hFile:= hFile, 
+	bExecute:= , 
+	tTimeout:= , 
+	bBusy=> , 
+	bError=> , 
+	nErrId=> , 
+	sLine=> , 
+	bEOF=> );
+	
+fbFilePut(
+	sNetId:= , 
+	hFile:= hFile, 
+	sLine:= , 
+	bExecute:= , 
+	tTimeout:= , 
+	bBusy=> , 
+	bError=> , 
+	nErrId=> );
+IF readTrig THEN
+	nReadStep:=10;
+	readTrig:=FALSE;
+END_IF
+IF writeTrig THEN
+	nWriteStep:=10;
+	writeTrig:=FALSE;
+END_IF
+Act_Read();
+Act_Write();]]></ST>
+    </Implementation>
+    <Action Name="Act_Read" Id="{fe972068-f74a-4854-b392-0946a0fa7290}">
+      <Implementation>
+        <ST><![CDATA[CASE nReadStep OF
+	0:
+	;
+	10:
+		//复位状态
+		bError := FALSE;
+		nErrorId := 0;
+		fbFileopen(bExecute:= FALSE);
+		fbFileclose(bExecute:= FALSE);
+		fbFileGet(bExecute:= FALSE);
+		readError:=FALSE;
+		nReadStep := 20;
+		fbFileopen(sNetId:= , sPathName:= savePath,ePath:= PATH_GENERIC, bExecute:= TRUE, nMode:=FOPEN_MODEREAD ,hFile=>hFile );
+	20:	
+		IF NOT fbFileopen.bBusy THEN
+			fbFileopen(bExecute:= FALSE);
+			IF fbFileopen.bError THEN//出错
+				bError := TRUE;
+				nErrorId := fbFileopen.nErrId;
+				nReadStep := 200;
+				readError:=TRUE;
+			ELSE //正常
+				
+				nReadStep := 30;
+			
+			END_IF
+		END_IF
+	30:
+		nReadStep := 40;
+	40:
+		nReadStep := 100;
+	100:
+		fbFileGet(hFile:= hFile, bExecute:= TRUE, sLine=>sReadLine);
+		UTF8_TO_WSTRING(ADR(wsReadLine),ADR(sReadLine),SIZEOF(sReadLine));
+		IF NOT fbFileGet.bBusy THEN
+			fbFileGet(bExecute:= FALSE);
+			IF fbFileGet.bError THEN//出错
+				bError := TRUE;
+				nErrorId := fbFileGet.nErrId;
+				nReadStep := 200;
+				readError:=TRUE;
+			ELSE //正常
+				IF NOT fbFileGet.bEOF THEN //继续读取
+					nReadStep := 110;
+				ELSE
+					//读取完成
+					nReadStep := 110;
+				END_IF
+				
+				
+			
+			END_IF
+		END_IF
+		
+	110:
+		wsReadTemp:=wsReadLine;
+		ReadToOut();
+		nReadStep := 200;		
+		;
+	200:
+		fbFileClose( hFile:= hFile, bExecute:= TRUE ,nErrId=> );
+		IF NOT fbFileClose.bBusy THEN
+			fbFileClose(bExecute:= FALSE);
+			IF fbFileClose.bError THEN//出错
+				bError := TRUE;
+				nErrorId := fbFileClose.nErrId;
+				nReadStep := 1000;
+			ELSE //正常
+				
+				nReadStep := 2000;
+			
+			END_IF
+		END_IF
+		
+	1000:
+		//报错
+		nReadStep := 0;
+		
+	2000:
+		//完成
+		nReadStep := 0;
+		readDone:=TRUE;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Act_Write" Id="{798c25cc-2fcb-4107-ac10-be0f71e82396}">
+      <Implementation>
+        <ST><![CDATA[CASE nWriteStep OF
+	0:
+	;
+	10:
+		//复位状态
+		bError := FALSE;
+		nErrorId := 0;
+		fbFileOpen(bExecute:= FALSE);
+		fbFileClose(bExecute:= FALSE);
+		fbFilePut(bExecute:= FALSE);
+		saveError:=FALSE;
+		nWriteStep := 20;
+	20:
+		fbFileOpen(sNetId:= , sPathName:= savePath, nMode:= FOPEN_MODEWRITE, ePath:= , bExecute:= TRUE,hFile=>hFile );		
+		IF NOT fbFileOpen.bBusy THEN
+			fbFileOpen(bExecute:= FALSE);
+			IF fbFileOpen.bError THEN//出错
+				bError := TRUE;
+				nErrorId := fbFileOpen.nErrId;
+				nWriteStep := 200;
+				saveError:=TRUE;
+			ELSE //正常
+				
+				nWriteStep := 100;
+			
+			END_IF
+		END_IF
+
+	100:
+		InToWrite();
+		nWriteStep := 110;
+	110:
+		WSTRING_TO_UTF8(ADR(sWriteLine),ADR(wsWriteLine),SIZEOF(wsWriteLine));
+		fbFilePut(hFile:= hFile, bExecute:= TRUE, sLine:=sWriteLine);
+		
+		IF NOT fbFilePut.bBusy THEN
+			fbFilePut(bExecute:= FALSE);
+			IF fbFilePut.bError THEN//出错
+				bError := TRUE;
+				nErrorId := fbFilePut.nErrId;
+				nWriteStep := 200;
+				saveError:=TRUE;
+			ELSE //正常
+				//写入完成
+				nWriteStep := 200;	
+			END_IF
+		END_IF
+		wsWriteLine:="";
+				
+		;
+	200:
+		fbFileClose( hFile:= hFile, bExecute:= TRUE ,nErrId=> );
+		IF NOT fbFileClose.bBusy THEN
+			fbFileClose(bExecute:= FALSE);
+			IF fbFileClose.bError THEN//出错
+				bError := TRUE;
+				nErrorId := fbFileClose.nErrId;
+				nWriteStep := 1000;
+				saveError:=TRUE;
+			ELSE //正常
+				
+				nWriteStep := 2000;
+			
+			END_IF
+		END_IF
+		
+	1000:
+		//报错
+		nWriteStep := 0;
+		
+	2000:
+		//完成
+		nWriteStep := 0;
+		
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="getWString" Id="{bdb1afe9-1356-4fd1-9d67-5bcf0e619a56}">
+      <Declaration><![CDATA[METHOD getWString : BOOL
+VAR_IN_OUT
+	value:WSTRING;
+END_VAR
+VAR_INPUT
+	num:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF 0<=num AND UDINT_TO_INT(num)<=Maxlenght THEN
+	value:=outputArry[num];
+	getWString:=TRUE;
+ELSE
+	value:="";
+	getWString:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="InToWrite" Id="{bafeb3b2-94e8-4070-92e1-57c71b0419f7}">
+      <Implementation>
+        <ST><![CDATA[FOR itemp:=1 TO Maxlenght DO
+	wsWriteLine:=WCONCAT(wsWriteLine,inputArry[itemp]);
+	wsWriteLine:=WCONCAT(wsWriteLine,filter);
+END_FOR]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ReadToOut" Id="{6e07ecc6-8ddf-4bd0-81ff-4b6a6086c04f}">
+      <Implementation>
+        <ST><![CDATA[FOR itemp:=1 TO Maxlenght DO
+	find_pos:=wFIND(wsReadTemp, filter);
+	IF find_pos>0 THEN
+		findposstart:=find_pos;
+		outputArry[itemp]:=WMID(wsReadTemp,find_pos-1,1);
+		wsReadTemp:=WDELETE(wsReadTemp,find_pos,1);
+		find_pos:=0;
+	END_IF
+END_FOR]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="setWString" Id="{8ee77dc2-bed2-446c-aa8f-1babf6546e43}">
+      <Declaration><![CDATA[METHOD setWString : BOOL
+VAR_INPUT
+	value:WSTRING;
+END_VAR
+VAR_INPUT
+	num:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF 0<=num AND uDINT_TO_INT(num)<=Maxlenght THEN
+	inputArry[num]:=value;
+	setWString:=TRUE;
+ELSE
+	setWString:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="FB_WStringSave">
+      <LineId Id="168" Count="0" />
+      <LineId Id="75" Count="41" />
+      <LineId Id="123" Count="0" />
+      <LineId Id="125" Count="0" />
+      <LineId Id="124" Count="0" />
+      <LineId Id="127" Count="2" />
+      <LineId Id="126" Count="0" />
+      <LineId Id="117" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_WStringSave.Act_Read">
+      <LineId Id="1" Count="1" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="40" Count="1" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="57" Count="2" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="164" Count="0" />
+      <LineId Id="140" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="176" Count="0" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="48" Count="1" />
+      <LineId Id="34" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="151" Count="0" />
+      <LineId Id="124" Count="1" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="166" Count="0" />
+      <LineId Id="109" Count="0" />
+      <LineId Id="69" Count="5" />
+      <LineId Id="175" Count="0" />
+      <LineId Id="75" Count="1" />
+      <LineId Id="84" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="83" Count="0" />
+      <LineId Id="85" Count="0" />
+      <LineId Id="81" Count="1" />
+      <LineId Id="77" Count="2" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="68" Count="0" />
+      <LineId Id="172" Count="1" />
+      <LineId Id="51" Count="1" />
+      <LineId Id="87" Count="0" />
+      <LineId Id="95" Count="10" />
+      <LineId Id="86" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="45" Count="1" />
+      <LineId Id="38" Count="1" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="174" Count="0" />
+      <LineId Id="3" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_WStringSave.Act_Write">
+      <LineId Id="2" Count="19" />
+      <LineId Id="105" Count="0" />
+      <LineId Id="22" Count="7" />
+      <LineId Id="104" Count="0" />
+      <LineId Id="102" Count="0" />
+      <LineId Id="98" Count="0" />
+      <LineId Id="96" Count="0" />
+      <LineId Id="30" Count="7" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="42" Count="1" />
+      <LineId Id="48" Count="2" />
+      <LineId Id="52" Count="9" />
+      <LineId Id="106" Count="0" />
+      <LineId Id="62" Count="12" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="75" Count="1" />
+    </LineIds>
+    <LineIds Name="FB_WStringSave.getWString">
+      <LineId Id="14" Count="5" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_WStringSave.InToWrite">
+      <LineId Id="1" Count="1" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="3" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_WStringSave.ReadToOut">
+      <LineId Id="2" Count="0" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="13" Count="2" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_WStringSave.setWString">
+      <LineId Id="11" Count="4" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

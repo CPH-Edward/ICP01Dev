@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="VPETestStruts530" Id="{d1fdb876-dc47-4dd9-854d-096bd4c6d179}">
+    <Declaration><![CDATA[{attribute 'pack_mode' := 1}
+TYPE VPETestStruts530 :
+STRUCT
+	nouseData:DWORD;//报文头1 前4字节
+	nouseData1:DWORD;//报文头2 后4字节
+	nouseData4:BYTE;// 无用
+	DryPumpState:DWORD;
+	BoosteState:DWORD;
+	FastStopState:DWORD;
+	nouseData3:DWORD;// 无用
+	DryPumpAlarm1:DWORD;
+	BoosterAlarm1:DWORD;
+	DryPumpAlarm2:DWORD;
+	BoosterAlarm2:DWORD;
+	DryPumpSpeed:DWORD;
+	BoosterSpeed:DWORD;
+END_STRUCT
+END_TYPE
+(*
+按照字节对齐规则，将变量按字节大小按顺序定义，用于ADS读取
+*)
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

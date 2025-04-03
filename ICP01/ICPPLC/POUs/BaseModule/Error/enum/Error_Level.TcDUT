@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="Error_Level" Id="{a099637c-4036-44bc-9d59-f4a0c2b2d079}">
+    <Declaration><![CDATA[//{attribute 'qualified_only'}
+//{attribute 'strict'}
+TYPE Error_Level ://报错等级 
+(
+	//Error_Level_Def		:= -1,//不上报ALC，仅在PLC打印显示
+	Error_Level_0		:= 0,//报错等级 0 设备不暂停，ALC仅仅做记录，不提示
+	Error_Level_1		:= 1,//报错等级 1 设备不暂停，ALC仅仅做记录，不提示
+	Error_Level_2		:= 2,//报错等级 2 设备不暂停，ALC弹框提示，不会触发PLC做任何处理
+	Error_Level_3		:= 3,//报错等级 3 设备暂停，ALC弹框提示，可以选择继续或停机
+	Error_Level_4		:= 4 //报错等级 4 设备退出运行，ALC弹框提示
+)INT;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

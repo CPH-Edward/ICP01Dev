@@ -1,0 +1,23 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="ST_ActStep_State" Id="{f7edaf92-4e8f-469b-8bb8-b70657a37e37}">
+    <Declaration><![CDATA[TYPE ST_ActStep_State :
+STRUCT
+	step:DINT;//当前运行的step
+	errStep:DINT;//跳转到error状态的step
+	nextStep:DINT;//paused解除之后的下一步step
+	
+	ex:BOOL;//执行触发
+	pause:BOOL;//暂停触发，效果：不跳转到下一步
+	paused:BOOL;//paused 状态
+	
+	busy:BOOL;//busy 状态
+	done:BOOL;//done 状态
+	error:BOOL;//error 状态
+	errID:DINT;//error ID
+	errMsg:STRING(255);//error 信息
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

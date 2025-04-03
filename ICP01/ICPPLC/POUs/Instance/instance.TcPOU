@@ -1,0 +1,3324 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="instance" Id="{24151028-4d10-43d1-96c4-09a2f6f9ee30}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM instance
+VAR
+	testbool:BOOL;
+	test:struct_byte;
+	
+	arryRtrig:ARRAY [1..10] OF  R_TRIG;
+	allMFCSetStep:UINT;
+	setTon:TON;
+	setTimeOut:BOOL;
+	allMFCClearStep:UINT;
+	clearTON:TON;
+	clearTimeOut:BOOL;
+	timeOutTime:TIME:=T#5S;
+	setdoneRecoveryTON:TON;
+	cleardoneRecoveryTON:TON;
+	setEqualTON:TON;
+	gvaOpenRtrig:R_TRIG;
+	gvaCloseRtrig:R_TRIG;
+	gvbOpenRtrig:R_TRIG;
+	gvbCloseRtrig:R_TRIG;
+	mfcSetRtrig:R_TRIG;
+	mfcClearRtrig:R_TRIG;
+	conditionTon:ARRAY [1..10] OF  TON;
+	conditionTonRTrig:ARRAY [1..10] OF  R_TRIG;
+	heinStep:INT:=0;
+	heoutStep:INT:=0;
+	heOldset:REAL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+	PLC_SW1.logHandleArray[1]:=ADR(gLog);
+	PLC_SW1.logHandleArrayLength:=1;
+	PLC_SW1(
+		nSocketType:=1 , //配置Server\Client
+		sTerminalName:='PLC_SW1' , 
+		sHost:=gRemoteHostIp , //gRemoteHost, gLocalHost, '127.0.0.1',
+		nPort:=gRemoteHostPort , 
+		bEnable:=gEnableSWConnect , 
+		sSendSuffix:='$R$N',
+		nQueueInterval:=10 , //配置发送队列间隔时间 单位ms
+		logHandleArray:= , 
+		logHandleArrayLength:= , 
+		bSendCondition=> , 
+		bSocketConnected=>gSWConnected );
+		
+	PLC_Chiller.logHandleArray[1]:=ADR(gLog);
+	PLC_Chiller.logHandleArrayLength:=1;
+	PLC_Chiller(
+		nSocketType:=1 , //配置Server\Client
+		sTerminalName:='PLC_Chiller' , 
+		sHost:='192.168.1.253' , ////192.168.1.15,
+		nPort:=5200 , 
+		bEnable:=gEnableChillerSWConnect , 
+		sSendSuffix:='$R$N',
+		nQueueInterval:=10 , //配置发送队列间隔时间 单位ms
+		logHandleArray:= , 
+		logHandleArrayLength:= , 
+		bSendCondition=> , 
+		bSocketConnected=>gChillerConnected );
+	PLC_PDV.logHandleArray[1]:=ADR(gLog);
+	PLC_PDV.logHandleArrayLength:=1;
+	PLC_PDV(
+		nSocketType:=0 , //配置Server\Client
+		sTerminalName:='PLC_PDV' , 
+		sHost:='192.168.1.254' , //192.168.1.12,   115200
+		nPort:=5110 , 
+		bEnable:=gEnablePDVSWConnect , 
+		sSendSuffix:=,
+		nQueueInterval:=100 , //配置发送队列间隔时间 单位ms
+		logHandleArray:= , 
+		logHandleArrayLength:= , 
+		bSendCondition=> , 
+		bSocketConnected=>gPDVConnected );	
+	PLC_PowerRF.logHandleArray[1]:=ADR(gLog);
+	PLC_PowerRF.logHandleArrayLength:=1;
+	PLC_PowerRF(
+		nSocketType:=0 , //配置Server\Client
+		sTerminalName:='PLC_PowerRF' , 
+		sHost:='192.168.1.254' , ////192.168.1.14,
+		nPort:=5120 , 
+		bEnable:=gEnablePRFSWConnect , 
+		sSendSuffix:=,
+		nQueueInterval:=100 , //配置发送队列间隔时间 单位ms
+		logHandleArray:= , 
+		logHandleArrayLength:= , 
+		bSendCondition=> , 
+		bSocketConnected=>gPowerRFConnected );	
+		
+	PLC_SourceRF.logHandleArray[1]:=ADR(gLog);
+	PLC_SourceRF.logHandleArrayLength:=1;
+	PLC_SourceRF(
+		nSocketType:=0 , //配置Server\Client
+		sTerminalName:='PLC_SourceRF' , 
+		sHost:='192.168.1.254' , ////192.168.1.14,
+		nPort:=5130 , 
+		bEnable:=gEnableSRFSWConnect , 
+		sSendSuffix:=,
+		nQueueInterval:=100 , //配置发送队列间隔时间 单位ms
+		logHandleArray:= , 
+		logHandleArrayLength:= , 
+		bSendCondition=> , 
+		bSocketConnected=>gSourceRFConnected );	
+	PLC_HeliumPressure.logHandleArray[1]:=ADR(gLog);
+	PLC_HeliumPressure.logHandleArrayLength:=1;
+	PLC_HeliumPressure(
+		nSocketType:=0 , //配置Server\Client
+		sTerminalName:='PLC_HeliumPressure' , 
+		sHost:='192.168.1.254' , ////192.168.1.15,
+		nPort:=5140 , 
+		bEnable:=gEnableHeGSWConnect , 
+		sSendSuffix:=,
+		nQueueInterval:=100 , //配置发送队列间隔时间 单位ms
+		logHandleArray:= , 
+		logHandleArrayLength:= , 
+		bSendCondition=> , 
+		bSocketConnected=>gHeliumGaugeConnected );	
+	PLC_AMX_AI.logHandleArray[1]:=ADR(gLog);
+	PLC_AMX_AI.logHandleArrayLength:=1;
+	PLC_AMX_AI(
+		nSocketType:=1 , //配置Server\Client
+		sTerminalName:='PLC_AMX_AI' , 
+		sHost:='192.168.1.16' , ////192.168.1.16,
+		nPort:=502 , 
+		bEnable:=EnableAMXAISWConnect , 
+		sSendSuffix:=,
+		nQueueInterval:=100 , //配置发送队列间隔时间 单位ms
+		logHandleArray:= , 
+		logHandleArrayLength:= , 
+		bSendCondition=> , 
+		bSocketConnected=>gAMXAIConnected );	
+//	IF testbool THEN
+//		testbool:=FALSE;
+//		PLC_FreeByte.appendSend(test);
+//		PLC_String.appendSend('dwwds');
+//	END_IF
+	PLC_String.logHandleArray[1]:=ADR(gLog);
+	PLC_String.logHandleArrayLength:=1;
+	PLC_String(
+		nSocketType:=0 , //配置Server\Client
+		sTerminalName:='PLC_LCCD1' , 
+		sHost:='192.168.1.254' , //gRemoteHost, gLocalHost, '127.0.0.1',
+		nPort:=7920 , 
+		bEnable:=gEnableSWConnect , 
+		sSendSuffix:='',
+		nQueueInterval:=10 , //配置发送队列间隔时间 单位ms
+		logHandleArray:= , 
+		logHandleArrayLength:= , 
+		bSendCondition=> , 
+		bSocketConnected=>gSWStringConnected );	
+	ICP();
+	HeInOut_Act();
+	CombinationSignals_Valve();]]></ST>
+    </Implementation>
+    <Action Name="CombinationSignals_Valve" Id="{f1d5ea72-9dfb-4301-bc67-85157bb77f35}">
+      <Implementation>
+        <ST><![CDATA[// 状态组合反馈
+IF  (NOT gICP.GVA1ExtRelay OR gICP.GVA1Valve.Get_Done_Ret()) AND
+	(NOT gICP.GVA2ExtRelay OR gICP.GVA2Valve.Get_Done_Ret()) AND
+	(NOT gICP.GVA3ExtRelay OR gICP.GVA3Valve.Get_Done_Ret()) AND
+	(NOT gICP.GVA4ExtRelay OR gICP.GVA4Valve.Get_Done_Ret()) AND
+	(NOT gICP.GVA5ExtRelay OR gICP.GVA5Valve.Get_Done_Ret()) AND
+	(NOT gICP.GVA6ExtRelay OR gICP.GVA6Valve.Get_Done_Ret()) AND
+	(NOT gICP.GVA7ExtRelay OR gICP.GVA7Valve.Get_Done_Ret()) AND
+	(NOT gICP.GVA8ExtRelay OR gICP.GVA8Valve.Get_Done_Ret()) AND
+	(NOT gICP.GVA9ExtRelay OR gICP.GVA9Valve.Get_Done_Ret()) AND
+	(NOT gICP.GV20ExtRelay_Main OR gICP.GV20Valve_Main.Get_Done_Ret()) THEN
+	gICP.S_GASBOX_AllGVAClose:=TRUE;
+ELSE
+	gICP.S_GASBOX_AllGVAClose:=FALSE;
+END_IF
+
+IF	(NOT gICP.GVB1ExtRelay OR gICP.GVB1Valve.Get_Done_Ret()) AND
+	(NOT gICP.GVB2ExtRelay OR gICP.GVB2Valve.Get_Done_Ret()) AND
+	(NOT gICP.GVB3ExtRelay OR gICP.GVB3Valve.Get_Done_Ret()) AND
+	(NOT gICP.GVB4ExtRelay OR gICP.GVB4Valve.Get_Done_Ret()) AND
+	(NOT gICP.GVB5ExtRelay OR gICP.GVB5Valve.Get_Done_Ret()) AND
+	(NOT gICP.GVB6ExtRelay OR gICP.GVB6Valve.Get_Done_Ret()) AND
+	(NOT gICP.GVB7ExtRelay OR gICP.GVB7Valve.Get_Done_Ret()) AND
+	(NOT gICP.GVB8ExtRelay OR gICP.GVB8Valve.Get_Done_Ret()) AND
+	(NOT gICP.GVB9ExtRelay OR gICP.GVB9Valve.Get_Done_Ret())  THEN
+	gICP.S_GASBOX_AllGVBClose:=TRUE;
+ELSE
+	gICP.S_GASBOX_AllGVBClose:=FALSE;
+END_IF
+
+IF  ((gICP.GVA1ExtRelay AND gICP.GVA1Valve.Get_Done_Ext() AND gICP.MFC1.setFlow>0) OR gICP.MFC1.setFlow<1) AND
+	((gICP.GVA2ExtRelay AND gICP.GVA2Valve.Get_Done_Ext() AND gICP.MFC2.setFlow>0) OR gICP.MFC2.setFlow<1) AND
+	((gICP.GVA3ExtRelay AND gICP.GVA3Valve.Get_Done_Ext() AND gICP.MFC3.setFlow>0) OR gICP.MFC3.setFlow<1) AND
+	((gICP.GVA4ExtRelay AND gICP.GVA4Valve.Get_Done_Ext() AND gICP.MFC4.setFlow>0) OR gICP.MFC4.setFlow<1) AND
+	((gICP.GVA5ExtRelay AND gICP.GVA5Valve.Get_Done_Ext() AND gICP.MFC5.setFlow>0) OR gICP.MFC5.setFlow<1) AND
+	((gICP.GVA6ExtRelay AND gICP.GVA6Valve.Get_Done_Ext() AND gICP.MFC6.setFlow>0) OR gICP.MFC6.setFlow<1) AND
+	((gICP.GVA7ExtRelay AND gICP.GVA7Valve.Get_Done_Ext() AND gICP.MFC7.setFlow>0) OR gICP.MFC7.setFlow<1) AND
+	((gICP.GVA8ExtRelay AND gICP.GVA8Valve.Get_Done_Ext() AND gICP.MFC8.setFlow>0) OR gICP.MFC8.setFlow<1) AND
+	((gICP.GVA9ExtRelay AND gICP.GVA9Valve.Get_Done_Ext() AND gICP.MFC9.setFlow>0) OR gICP.MFC9.setFlow<1) AND
+	(gICP.GV20ExtRelay_Main AND gICP.GV20Valve_Main.Get_Done_Ext()) AND
+	NOT (gICP.MFC1.setFlow<1 AND gICP.MFC2.setFlow<1 AND gICP.MFC3.setFlow<1 AND gICP.MFC4.setFlow<1 AND gICP.MFC5.setFlow<1 AND
+	gICP.MFC6.setFlow<1 AND gICP.MFC7.setFlow<1 AND gICP.MFC8.setFlow<1 AND gICP.MFC9.setFlow<1) THEN
+	gICP.S_GASBOX_AllGVAOpen:=TRUE;
+ELSE
+	gICP.S_GASBOX_AllGVAOpen:=FALSE;
+END_IF
+
+IF	((gICP.GVB1ExtRelay AND gICP.GVB1Valve.Get_Done_Ext() AND gICP.MFC1.setFlow>0) OR gICP.MFC1.setFlow<1) AND
+	((gICP.GVB2ExtRelay AND gICP.GVB2Valve.Get_Done_Ext() AND gICP.MFC2.setFlow>0) OR gICP.MFC2.setFlow<1) AND
+	((gICP.GVB3ExtRelay AND gICP.GVB3Valve.Get_Done_Ext() AND gICP.MFC3.setFlow>0) OR gICP.MFC3.setFlow<1) AND
+	((gICP.GVB4ExtRelay AND gICP.GVB4Valve.Get_Done_Ext() AND gICP.MFC4.setFlow>0) OR gICP.MFC4.setFlow<1) AND
+	((gICP.GVB5ExtRelay AND gICP.GVB5Valve.Get_Done_Ext() AND gICP.MFC5.setFlow>0) OR gICP.MFC5.setFlow<1) AND
+	((gICP.GVB6ExtRelay AND gICP.GVB6Valve.Get_Done_Ext() AND gICP.MFC6.setFlow>0) OR gICP.MFC6.setFlow<1) AND
+	((gICP.GVB7ExtRelay AND gICP.GVB7Valve.Get_Done_Ext() AND gICP.MFC7.setFlow>0) OR gICP.MFC7.setFlow<1) AND
+	((gICP.GVB8ExtRelay AND gICP.GVB8Valve.Get_Done_Ext() AND gICP.MFC8.setFlow>0) OR gICP.MFC8.setFlow<1) AND
+	((gICP.GVB9ExtRelay AND gICP.GVB9Valve.Get_Done_Ext() AND gICP.MFC9.setFlow>0) OR gICP.MFC9.setFlow<1) AND
+	NOT (gICP.MFC1.setFlow<1 AND gICP.MFC2.setFlow<1 AND gICP.MFC3.setFlow<1 AND gICP.MFC4.setFlow<1 AND gICP.MFC5.setFlow<1 AND
+	gICP.MFC6.setFlow<1 AND gICP.MFC7.setFlow<1 AND gICP.MFC8.setFlow<1 AND gICP.MFC9.setFlow<1) THEN
+	gICP.S_GASBOX_AllGVBOpen:=TRUE;
+ELSE
+	gICP.S_GASBOX_AllGVBOpen:=FALSE;
+END_IF
+
+
+
+IF gICP.S_GASBOX_AllGVAOpen AND gICP.S_GASBOX_AllGVBOpen THEN
+	gICP.S_GASBOX_AllGVOpen:=TRUE;
+ELSE
+	gICP.S_GASBOX_AllGVOpen:=FALSE;
+END_IF
+
+IF gICP.S_GASBOX_AllGVAClose AND gICP.S_GASBOX_AllGVBClose THEN
+	gICP.S_GASBOX_AllGVClose:=TRUE;
+ELSE
+	gICP.S_GASBOX_AllGVClose:=FALSE;
+END_IF
+// 指令组合下达
+arryRtrig[1](CLK:=gICP.C_GASBOX_AllGVAClose);
+IF arryRtrig[1].Q THEN
+	gICP.GVA1Valve.Act_Retract();
+	gICP.GVA2Valve.Act_Retract();
+	gICP.GVA3Valve.Act_Retract();
+	gICP.GVA4Valve.Act_Retract();
+	gICP.GVA5Valve.Act_Retract();
+	gICP.GVA6Valve.Act_Retract();
+	gICP.GVA7Valve.Act_Retract();
+	gICP.GVA8Valve.Act_Retract();
+	gICP.GVA9Valve.Act_Retract();
+	gICP.GV20Valve_Main.Act_Retract();
+	gICP.C_GASBOX_AllGVAClose:=FALSE;
+END_IF
+
+
+arryRtrig[2](CLK:=gICP.C_GASBOX_AllGVBClose);
+IF arryRtrig[2].Q THEN
+	gICP.GVB1Valve.Act_Retract();
+	gICP.GVB2Valve.Act_Retract();
+	gICP.GVB3Valve.Act_Retract();
+	gICP.GVB4Valve.Act_Retract();
+	gICP.GVB5Valve.Act_Retract();
+	gICP.GVB6Valve.Act_Retract();
+	gICP.GVB7Valve.Act_Retract();
+	gICP.GVB8Valve.Act_Retract();
+	gICP.GVB9Valve.Act_Retract();
+	gICP.C_GASBOX_AllGVBClose:=FALSE;
+END_IF
+
+arryRtrig[3](CLK:=gICP.C_GASBOX_AllGVAOpen);
+IF arryRtrig[3].Q THEN
+	IF gICP.MFC1.setFlow>0 THEN
+		gICP.GVA1Valve.Act_Extend();
+	END_IF
+	IF gICP.MFC2.setFlow>0 THEN
+		gICP.GVA2Valve.Act_Extend();
+	END_IF
+	IF gICP.MFC3.setFlow>0 THEN
+		gICP.GVA3Valve.Act_Extend();
+	END_IF
+	IF gICP.MFC4.setFlow>0 THEN
+		gICP.GVA4Valve.Act_Extend();
+	END_IF
+	IF gICP.MFC5.setFlow>0 THEN
+		gICP.GVA5Valve.Act_Extend();
+	END_IF
+	IF gICP.MFC6.setFlow>0 THEN
+		gICP.GVA6Valve.Act_Extend();
+	END_IF
+	IF gICP.MFC7.setFlow>0 THEN
+		gICP.GVA7Valve.Act_Extend();
+	END_IF
+	IF gICP.MFC8.setFlow>0 THEN
+		gICP.GVA8Valve.Act_Extend();
+	END_IF
+	IF gICP.MFC9.setFlow>0 THEN
+		gICP.GVA9Valve.Act_Extend();
+	END_IF
+	gICP.GV20Valve_Main.Act_Extend();
+	gICP.C_GASBOX_AllGVAOpen:=FALSE;
+END_IF
+
+arryRtrig[4](CLK:=gICP.C_GASBOX_AllGVBOpen);
+IF arryRtrig[4].Q THEN
+	IF gICP.MFC1.setFlow>0 THEN
+		gICP.GVB1Valve.Act_Extend();
+	END_IF
+	IF gICP.MFC2.setFlow>0 THEN
+		gICP.GVB2Valve.Act_Extend();
+	END_IF
+	IF gICP.MFC3.setFlow>0 THEN
+		gICP.GVB3Valve.Act_Extend();
+	END_IF
+	IF gICP.MFC4.setFlow>0 THEN
+		gICP.GVB4Valve.Act_Extend();
+	END_IF
+	IF gICP.MFC5.setFlow>0 THEN
+		gICP.GVB5Valve.Act_Extend();
+	END_IF
+	IF gICP.MFC6.setFlow>0 THEN
+		gICP.GVB6Valve.Act_Extend();
+	END_IF
+	IF gICP.MFC7.setFlow>0 THEN
+		gICP.GVB7Valve.Act_Extend();
+	END_IF
+	IF gICP.MFC8.setFlow>0 THEN
+		gICP.GVB8Valve.Act_Extend();
+	END_IF
+	IF gICP.MFC9.setFlow>0 THEN
+		gICP.GVB9Valve.Act_Extend();
+	END_IF
+	gICP.C_GASBOX_AllGVBOpen:=FALSE;
+END_IF
+
+arryRtrig[5](CLK:=gICP.C_GASBOX_AllGVOpen);
+IF arryRtrig[5].Q THEN
+	gICP.C_GASBOX_AllGVAOpen:=TRUE;
+	gICP.C_GASBOX_AllGVBOpen:=TRUE;
+	gICP.C_GASBOX_AllGVOpen:=FALSE;
+END_IF
+
+arryRtrig[6](CLK:=gICP.C_GASBOX_AllGVClose);
+IF arryRtrig[6].Q THEN
+	gICP.C_GASBOX_AllGVAClose:=TRUE;
+	gICP.C_GASBOX_AllGVBClose:=TRUE;
+	gICP.C_GASBOX_AllGVClose:=FALSE;
+END_IF
+setEqualTON(IN:=ABS(gICP.MFC1.actflow-gICP.MFC1.setFlow)<1 AND  
+				ABS(gICP.MFC2.actflow-gICP.MFC2.setFlow)<1 AND 
+				ABS(gICP.MFC3.actflow-gICP.MFC3.setFlow)<1 AND 
+				ABS(gICP.MFC4.actflow-gICP.MFC4.setFlow)<1 AND 
+				ABS(gICP.MFC5.actflow-gICP.MFC5.setFlow)<1 AND 
+				ABS(gICP.MFC6.actflow-gICP.MFC6.setFlow)<1 AND 
+				ABS(gICP.MFC7.actflow-gICP.MFC7.setFlow)<1 AND 
+				ABS(gICP.MFC8.actflow-gICP.MFC8.setFlow)<1 AND 
+				ABS(gICP.MFC9.actflow-gICP.MFC9.setFlow)<1 ,
+				PT:=T#0.2S);
+IF setEqualTON.Q THEN
+	gICP.S_GASBOX_AllMFCSetEqual:=TRUE;
+ELSE
+	gICP.S_GASBOX_AllMFCSetEqual:=FALSE;
+END_IF
+
+IF gICP.MFC1.actflow<1 AND gICP.MFC2.actflow<1 AND gICP.MFC3.actflow<1 AND gICP.MFC4.actflow<1 AND gICP.MFC5.actflow<1 AND
+	gICP.MFC6.actflow<1 AND gICP.MFC7.actflow<1 AND gICP.MFC8.actflow<1 AND gICP.MFC9.actflow<1 THEN
+	gICP.S_GASBOX_AllMFCClearDone:=TRUE;
+ELSE
+	gICP.S_GASBOX_AllMFCClearDone:=FALSE;
+END_IF
+
+gvaOpenRtrig(CLK:=gICP.C_GASBOX_AllGVAOpenTemp);
+IF gvaOpenRtrig.Q THEN// AND NOT busy
+	gWarmShowHMI.showText:='';
+	gWarmShowHMI.showFlag:=TRUE;
+	gWarmShowHMI.showText:=CONCAT(gWarmShowHMI.showText,'Are you sure you want to Open the');
+	gWarmShowHMI.showText:=CONCAT(gWarmShowHMI.showText,' AllGVA');
+	gWarmShowHMI.showText:=CONCAT(gWarmShowHMI.showText,' ?');
+END_IF
+IF gWarmShowHMI.bOK AND NOT gWarmShowHMI.showFlag AND FIND(gWarmShowHMI.showText,'AllGVA')>0 AND FIND(gWarmShowHMI.showText,'Open')>0 THEN
+	gWarmShowHMI.bOK:=FALSE;
+	gWarmShowHMI.showText:='';
+	gICP.C_GASBOX_AllGVAOpen:=TRUE;
+END_IF
+IF gWarmShowHMI.bNO AND NOT gWarmShowHMI.showFlag AND FIND(gWarmShowHMI.showText,'AllGVA')>0 AND FIND(gWarmShowHMI.showText,'Open')>0 THEN
+	gWarmShowHMI.bNO:=FALSE;
+	gWarmShowHMI.showText:='';
+END_IF
+
+gvaCloseRtrig(CLK:=gICP.C_GASBOX_AllGVACloseTemp);
+IF gvaCloseRtrig.Q THEN// AND NOT busy
+	gWarmShowHMI.showText:='';
+	gWarmShowHMI.showFlag:=TRUE;
+	gWarmShowHMI.showText:=CONCAT(gWarmShowHMI.showText,'Are you sure you want to Close the');
+	gWarmShowHMI.showText:=CONCAT(gWarmShowHMI.showText,' AllGVA');
+	gWarmShowHMI.showText:=CONCAT(gWarmShowHMI.showText,' ?');
+END_IF
+IF gWarmShowHMI.bOK AND NOT gWarmShowHMI.showFlag AND FIND(gWarmShowHMI.showText,'AllGVA')>0 AND FIND(gWarmShowHMI.showText,'Close')>0 THEN
+	gWarmShowHMI.bOK:=FALSE;
+	gWarmShowHMI.showText:='';
+	gICP.C_GASBOX_AllGVAClose:=TRUE;
+END_IF
+IF gWarmShowHMI.bNO AND NOT gWarmShowHMI.showFlag AND FIND(gWarmShowHMI.showText,'AllGVA')>0 AND FIND(gWarmShowHMI.showText,'Close')>0 THEN
+	gWarmShowHMI.bNO:=FALSE;
+	gWarmShowHMI.showText:='';
+END_IF
+
+gvbOpenRtrig(CLK:=gICP.C_GASBOX_AllGVBOpenTemp);
+IF gvbOpenRtrig.Q THEN// AND NOT busy
+	gWarmShowHMI.showText:='';
+	gWarmShowHMI.showFlag:=TRUE;
+	gWarmShowHMI.showText:=CONCAT(gWarmShowHMI.showText,'Are you sure you want to Open the');
+	gWarmShowHMI.showText:=CONCAT(gWarmShowHMI.showText,' AllGVB');
+	gWarmShowHMI.showText:=CONCAT(gWarmShowHMI.showText,' ?');
+END_IF
+IF gWarmShowHMI.bOK AND NOT gWarmShowHMI.showFlag AND FIND(gWarmShowHMI.showText,'AllGVB')>0 AND FIND(gWarmShowHMI.showText,'Open')>0 THEN
+	gWarmShowHMI.bOK:=FALSE;
+	gWarmShowHMI.showText:='';
+	gICP.C_GASBOX_AllGVBOpen:=TRUE;
+END_IF
+IF gWarmShowHMI.bNO AND NOT gWarmShowHMI.showFlag AND FIND(gWarmShowHMI.showText,'AllGVB')>0 AND FIND(gWarmShowHMI.showText,'Open')>0 THEN
+	gWarmShowHMI.bNO:=FALSE;
+	gWarmShowHMI.showText:='';
+END_IF
+
+gvbCloseRtrig(CLK:=gICP.C_GASBOX_AllGVBCloseTemp);
+IF gvbCloseRtrig.Q THEN// AND NOT busy
+	gWarmShowHMI.showText:='';
+	gWarmShowHMI.showFlag:=TRUE;
+	gWarmShowHMI.showText:=CONCAT(gWarmShowHMI.showText,'Are you sure you want to Close the');
+	gWarmShowHMI.showText:=CONCAT(gWarmShowHMI.showText,' AllGVB');
+	gWarmShowHMI.showText:=CONCAT(gWarmShowHMI.showText,' ?');
+END_IF
+IF gWarmShowHMI.bOK AND NOT gWarmShowHMI.showFlag AND FIND(gWarmShowHMI.showText,'AllGVB')>0 AND FIND(gWarmShowHMI.showText,'Close')>0 THEN
+	gWarmShowHMI.bOK:=FALSE;
+	gWarmShowHMI.showText:='';
+	gICP.C_GASBOX_AllGVBClose:=TRUE;
+END_IF
+IF gWarmShowHMI.bNO AND NOT gWarmShowHMI.showFlag AND FIND(gWarmShowHMI.showText,'AllGVB')>0 AND FIND(gWarmShowHMI.showText,'Close')>0 THEN
+	gWarmShowHMI.bNO:=FALSE;
+	gWarmShowHMI.showText:='';
+END_IF
+
+
+mfcSetRtrig(CLK:=gICP.C_GASBOX_AllMFCSetTemp);
+IF mfcSetRtrig.Q THEN// AND NOT busy
+	gWarmShowHMI.showText:='';
+	gWarmShowHMI.showFlag:=TRUE;
+	gWarmShowHMI.showText:=CONCAT(gWarmShowHMI.showText,'Are you sure you want to Set the');
+	gWarmShowHMI.showText:=CONCAT(gWarmShowHMI.showText,' AllMFC');
+	gWarmShowHMI.showText:=CONCAT(gWarmShowHMI.showText,' ?');
+END_IF
+IF gWarmShowHMI.bOK AND NOT gWarmShowHMI.showFlag AND FIND(gWarmShowHMI.showText,'AllMFC')>0 AND FIND(gWarmShowHMI.showText,'Set')>0 THEN
+	gWarmShowHMI.bOK:=FALSE;
+	gWarmShowHMI.showText:='';
+	gICP.C_GASBOX_AllMFCSet:=TRUE;
+END_IF
+IF gWarmShowHMI.bNO AND NOT gWarmShowHMI.showFlag AND FIND(gWarmShowHMI.showText,'AllMFC')>0 AND FIND(gWarmShowHMI.showText,'Set')>0 THEN
+	gWarmShowHMI.bNO:=FALSE;
+	gWarmShowHMI.showText:='';
+END_IF
+// Set MFC 
+CASE allMFCSetStep OF
+0:
+	IF gICP.C_GASBOX_AllMFCSet THEN
+		gICP.C_GASBOX_AllMFCSet:=FALSE;
+		allMFCClearStep:=0;
+		allMFCSetStep:=10;
+		setTimeOut:=FALSE;
+		gICP.S_GASBOX_AllMFCSetDone:=FALSE;
+	END_IF
+	setTon(IN:=FALSE);
+10:
+	gICP.MFC1.Act_Set(gICP.MFC1.setFlow);
+	allMFCSetStep:=allMFCSetStep+10;
+20:
+	IF gICP.MFC1.Get_Done_Set() THEN
+		allMFCSetStep:=allMFCSetStep+10;
+		setTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	setTon(IN:=TRUE,PT:=timeOutTime);
+	IF setTon.Q THEN
+		setTon(IN:=FALSE);
+		allMFCSetStep:=6000;
+	END_IF
+30:
+	gICP.MFC2.Act_Set(gICP.MFC2.setFlow);
+	allMFCSetStep:=allMFCSetStep+10;
+40:
+	IF gICP.MFC2.Get_Done_Set() THEN
+		allMFCSetStep:=allMFCSetStep+10;
+		setTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	setTon(IN:=TRUE,PT:=timeOutTime);
+	IF setTon.Q THEN
+		setTon(IN:=FALSE);
+		allMFCSetStep:=6000;
+	END_IF
+50:
+	gICP.MFC3.Act_Set(gICP.MFC3.setFlow);
+	allMFCSetStep:=allMFCSetStep+10;
+60:
+	IF gICP.MFC3.Get_Done_Set() THEN
+		allMFCSetStep:=allMFCSetStep+10;
+		setTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	setTon(IN:=TRUE,PT:=timeOutTime);
+	IF setTon.Q THEN
+		setTon(IN:=FALSE);
+		allMFCSetStep:=6000;
+	END_IF
+70:
+	gICP.MFC4.Act_Set(gICP.MFC4.setFlow);
+	allMFCSetStep:=allMFCSetStep+10;
+80:
+	IF gICP.MFC4.Get_Done_Set() THEN
+		allMFCSetStep:=allMFCSetStep+10;
+		setTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	setTon(IN:=TRUE,PT:=timeOutTime);
+	IF setTon.Q THEN
+		setTon(IN:=FALSE);
+		allMFCSetStep:=6000;
+	END_IF
+90:
+	gICP.MFC5.Act_Set(gICP.MFC5.setFlow);
+	allMFCSetStep:=allMFCSetStep+10;
+100:
+	IF gICP.MFC5.Get_Done_Set() THEN
+		allMFCSetStep:=allMFCSetStep+10;
+		setTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	setTon(IN:=TRUE,PT:=timeOutTime);
+	IF setTon.Q THEN
+		setTon(IN:=FALSE);
+		allMFCSetStep:=6000;
+	END_IF
+110:
+	gICP.MFC6.Act_Set(gICP.MFC6.setFlow);
+	allMFCSetStep:=allMFCSetStep+10;
+120:
+	IF gICP.MFC6.Get_Done_Set() THEN
+		allMFCSetStep:=allMFCSetStep+10;
+		setTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	setTon(IN:=TRUE,PT:=timeOutTime);
+	IF setTon.Q THEN
+		setTon(IN:=FALSE);
+		allMFCSetStep:=6000;
+	END_IF
+130:
+	gICP.MFC7.Act_Set(gICP.MFC7.setFlow);
+	allMFCSetStep:=allMFCSetStep+10;
+140:
+	IF gICP.MFC7.Get_Done_Set() THEN
+		allMFCSetStep:=allMFCSetStep+10;
+		setTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	setTon(IN:=TRUE,PT:=timeOutTime);
+	IF setTon.Q THEN
+		setTon(IN:=FALSE);
+		allMFCSetStep:=6000;
+	END_IF
+150:
+	gICP.MFC8.Act_Set(gICP.MFC8.setFlow);
+	allMFCSetStep:=allMFCSetStep+10;
+160:
+	IF gICP.MFC8.Get_Done_Set() THEN
+		allMFCSetStep:=allMFCSetStep+10;
+		setTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	setTon(IN:=TRUE,PT:=timeOutTime);
+	IF setTon.Q THEN
+		setTon(IN:=FALSE);
+		allMFCSetStep:=6000;
+	END_IF
+170:
+	gICP.MFC9.Act_Set(gICP.MFC9.setFlow);
+	allMFCSetStep:=allMFCSetStep+10;
+180:
+	IF gICP.MFC9.Get_Done_Set() THEN
+		allMFCSetStep:=allMFCSetStep+30;
+		setTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	setTon(IN:=TRUE,PT:=timeOutTime);
+	IF setTon.Q THEN
+		setTon(IN:=FALSE);
+		allMFCSetStep:=6000;
+	END_IF
+210:
+	allMFCSetStep:=0;
+	gICP.S_GASBOX_AllMFCSetDone:=TRUE;
+6000:
+	setTimeOut:=TRUE;
+	gICP.S_GASBOX_AllMFCSetDone:=FALSE;
+	allMFCSetStep:=0;
+END_CASE
+
+
+mfcClearRtrig(CLK:=gICP.C_GASBOX_AllMFCClearTemp);
+IF mfcClearRtrig.Q THEN// AND NOT busy
+	gWarmShowHMI.showText:='';
+	gWarmShowHMI.showFlag:=TRUE;
+	gWarmShowHMI.showText:=CONCAT(gWarmShowHMI.showText,'Are you sure you want to Clear the');
+	gWarmShowHMI.showText:=CONCAT(gWarmShowHMI.showText,' AllMFC');
+	gWarmShowHMI.showText:=CONCAT(gWarmShowHMI.showText,' ?');
+END_IF
+IF gWarmShowHMI.bOK AND NOT gWarmShowHMI.showFlag AND FIND(gWarmShowHMI.showText,'AllMFC')>0 AND FIND(gWarmShowHMI.showText,'Clear')>0 THEN
+	gWarmShowHMI.bOK:=FALSE;
+	gWarmShowHMI.showText:='';
+	gICP.C_GASBOX_AllMFCClear:=TRUE;
+END_IF
+IF gWarmShowHMI.bNO AND NOT gWarmShowHMI.showFlag AND FIND(gWarmShowHMI.showText,'AllMFC')>0 AND FIND(gWarmShowHMI.showText,'Clear')>0 THEN
+	gWarmShowHMI.bNO:=FALSE;
+	gWarmShowHMI.showText:='';
+END_IF
+CASE allMFCclearStep OF
+0:
+	IF gICP.C_GASBOX_AllMFCclear THEN
+		gICP.C_GASBOX_AllMFCclear:=FALSE;
+		allMFCClearStep:=10;
+		allMFCSetStep:=0;
+		clearTimeOut:=FALSE;
+		gICP.S_GASBOX_AllMFCClearDoneStep:=FALSE;
+	END_IF
+	clearTon(IN:=FALSE);
+10:
+	gICP.MFC1.Act_Clear();
+	allMFCClearStep:=allMFCClearStep+10;
+20:
+	IF gICP.MFC1.Get_Done_Clear() THEN
+		allMFCclearStep:=allMFCclearStep+10;
+		clearTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	clearTon(IN:=TRUE,PT:=timeOutTime);
+	IF clearTon.Q THEN
+		clearTon(IN:=FALSE);
+		allMFCclearStep:=6000;
+	END_IF
+30:
+	gICP.MFC2.Act_Clear();
+	allMFCClearStep:=allMFCClearStep+10;
+40:
+	IF gICP.MFC2.Get_Done_Clear() THEN
+		allMFCClearStep:=allMFCClearStep+10;
+		clearTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	clearTon(IN:=TRUE,PT:=timeOutTime);
+	IF clearTon.Q THEN
+		clearTon(IN:=FALSE);
+		allMFCClearStep:=6000;
+	END_IF
+50:
+	gICP.MFC3.Act_Clear();
+	allMFCClearStep:=allMFCClearStep+10;
+60:
+	IF gICP.MFC3.Get_Done_Clear() THEN
+		allMFCClearStep:=allMFCClearStep+10;
+		clearTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	clearTon(IN:=TRUE,PT:=timeOutTime);
+	IF clearTon.Q THEN
+		clearTon(IN:=FALSE);
+		allMFCClearStep:=6000;
+	END_IF
+70:
+	gICP.MFC4.Act_Clear();
+	allMFCClearStep:=allMFCClearStep+10;
+80:
+	IF gICP.MFC4.Get_Done_Clear() THEN
+		allMFCClearStep:=allMFCClearStep+10;
+		clearTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	clearTon(IN:=TRUE,PT:=timeOutTime);
+	IF clearTon.Q THEN
+		clearTon(IN:=FALSE);
+		allMFCClearStep:=6000;
+	END_IF
+90:
+	gICP.MFC5.Act_Clear();
+	allMFCClearStep:=allMFCClearStep+10;
+100:
+	IF gICP.MFC5.Get_Done_Clear() THEN
+		allMFCClearStep:=allMFCClearStep+10;
+		clearTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	clearTon(IN:=TRUE,PT:=timeOutTime);
+	IF clearTon.Q THEN
+		clearTon(IN:=FALSE);
+		allMFCClearStep:=6000;
+	END_IF
+110:
+	gICP.MFC6.Act_Clear();
+	allMFCClearStep:=allMFCClearStep+10;
+120:
+	IF gICP.MFC6.Get_Done_Clear() THEN
+		allMFCClearStep:=allMFCClearStep+10;
+		clearTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	clearTon(IN:=TRUE,PT:=timeOutTime);
+	IF clearTon.Q THEN
+		clearTon(IN:=FALSE);
+		allMFCClearStep:=6000;
+	END_IF
+130:
+	gICP.MFC7.Act_Clear();
+	allMFCClearStep:=allMFCClearStep+10;
+140:
+	IF gICP.MFC7.Get_Done_Clear() THEN
+		allMFCClearStep:=allMFCClearStep+10;
+		clearTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	clearTon(IN:=TRUE,PT:=timeOutTime);
+	IF clearTon.Q THEN
+		clearTon(IN:=FALSE);
+		allMFCClearStep:=6000;
+	END_IF
+150:
+	gICP.MFC8.Act_Clear();
+	allMFCClearStep:=allMFCClearStep+10;
+160:
+	IF gICP.MFC8.Get_Done_Clear() THEN
+		allMFCClearStep:=allMFCClearStep+10;
+		clearTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	clearTon(IN:=TRUE,PT:=timeOutTime);
+	IF clearTon.Q THEN
+		clearTon(IN:=FALSE);
+		allMFCClearStep:=6000;
+	END_IF
+170:
+	gICP.MFC9.Act_Clear();
+	allMFCClearStep:=allMFCClearStep+10;
+180:
+	IF gICP.MFC9.Get_Done_Clear() THEN
+		allMFCClearStep:=allMFCClearStep+30;
+		clearTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	clearTon(IN:=TRUE,PT:=timeOutTime);
+	IF clearTon.Q THEN
+		clearTon(IN:=FALSE);
+		allMFCClearStep:=6000;
+	END_IF
+
+210:
+	allMFCClearStep:=0;
+	gICP.S_GASBOX_AllMFCClearDoneStep:=TRUE;
+6000:
+	setTimeOut:=TRUE;
+	gICP.S_GASBOX_AllMFCClearDoneStep:=FALSE;
+	allMFCClearStep:=0;
+END_CASE
+
+//cleardoneRecoveryTON(IN:=gICP.S_GASBOX_AllMFCClearDone,PT:=T#0.5S);
+//IF cleardoneRecoveryTON.Q THEN
+//	gICP.S_GASBOX_AllMFCClearDone:=FALSE;
+//	cleardoneRecoveryTON(IN:=FALSE);	
+//END_IF
+setdoneRecoveryTON(IN:=gICP.S_GASBOX_AllMFCSetDone,PT:=T#0.5S);
+IF setdoneRecoveryTON.Q THEN
+	gICP.S_GASBOX_AllMFCSetDone:=FALSE;
+	setdoneRecoveryTON(IN:=FALSE);	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="HeInOut_Act" Id="{1c9ae38d-039f-4f9d-8fad-1e9a01746600}">
+      <Implementation>
+        <ST><![CDATA[IF heOldset<>gICP.HeMFC_SetFlowHMI THEN
+	gICP.HeMFC_SetFlow:=gICP.HeMFC_SetFlowHMI;
+END_IF
+heOldset:=gICP.HeMFC_SetFlowHMI;
+conditionTonRTrig[2](CLK:=gICP.HeINValve.extStep>=10);
+IF conditionTonRTrig[2].Q AND heinStep=0 THEN
+	heinStep:=10;
+END_IF
+conditionTonRTrig[3](CLK:=gICP.HeINValve.retStep>=10);
+IF conditionTonRTrig[3].Q AND heinStep=0 THEN
+	heinStep:=10;
+END_IF
+conditionTonRTrig[6](CLK:=gICP.HePumValve.extStep>=10);
+IF conditionTonRTrig[6].Q AND heinStep=0 THEN
+	heinStep:=10;
+END_IF
+conditionTonRTrig[7](CLK:=gICP.HePumValve.retStep>=10);
+IF conditionTonRTrig[7].Q AND heinStep=0 THEN
+	heinStep:=10;
+END_IF
+CASE heinStep OF
+0:
+;
+10:
+	gICP.HeMFC_SetFlow:=0;
+	heinStep:=20;
+20:
+	IF gICP.HeINExtRelay THEN
+		gICP.HeMFC_SetFlow:=gICP.HeMFC_SetFlowHMI;
+		heinStep:=0;
+	END_IF
+100:
+	gICP.HeMFC_SetFlow:=0;
+	heinStep:=20;
+110:
+	IF NOT gICP.HeINExtRelay THEN
+//		gICP.HeMFC_SetFlow:=gICP.HeMFC_SetFlowHMI;
+		heinStep:=0;
+	END_IF
+200:
+	gICP.HeMFC_SetFlow:=0;
+	heinStep:=20;
+210:
+	IF gICP.HePumExtRelay THEN
+		gICP.HeMFC_SetFlow:=gICP.HeMFC_SetFlowHMI;
+		heinStep:=0;
+	END_IF	
+300:
+	gICP.HeMFC_SetFlow:=0;
+	heinStep:=20;
+310:
+	IF NOT gICP.HePumExtRelay THEN
+//		gICP.HeMFC_SetFlow:=gICP.HeMFC_SetFlowHMI;
+		heinStep:=0;
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ICP" Id="{28ad738d-5a41-42e5-b8c2-ecea5ce3e930}">
+      <Implementation>
+        <ST><![CDATA[gICP.MachianicalPum(	
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	real_TimeMonitor:=TRUE , 
+	enabletcp:=TRUE , 
+	tcpSendDelayTime:= , 
+	ACCMaxtime:=T#30S , 
+	DCCMaxtime:=T#30S , 
+	open:= , 
+	openCondition:= , 
+	close:= , 
+	closeCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:=gCtrlMode=ControlMode.eManualCtrMode  , 
+	errorDelayTime:= , 
+	doneDelayTimeShortopenend:= , 
+	doneDelayTimeShortcloseract:= , 
+	doneDelayTimeLongopenend:= , 
+	doneDelayTimeLongcloseract:= , 
+	errorID:= 2000, 
+	nameTXT:= 'Dry PUM', 
+	Accing:= , 
+	Dccing:= , 
+	Normal:= , 
+	AccAprSw:= gICP.MachianicalPumAcc, 
+	AlmAprSw:= gICP.MachianicalPumAlm, 
+	sHost:= , 
+	nPort:= , 
+	bEnable:= , 
+	sSendSuffix:= , 
+	slaveID:= , 
+	openRelay=> gICP.MachianicalPumOpen, 
+	closeRelay=> , 
+	resetRelay=> , 
+	error=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=>
+ );
+gICP.ForlinLineValve.extCondition:=(NOT gICP.RoughValveExtRelay AND NOT gICP.SlowPummingExtRelay AND NOT gICP.FastPummingExtRelay AND
+									(NOT gICP.VentExtRelay OR (gICP.VentExtRelay AND (gICP.GateDoorRetSensor OR gICP.PDVCloseSensor))) AND
+									((NOT gICP.PDVCloseSensor AND NOT gICP.GVA10ExtRelay_Vent) OR gICP.PDVCloseSensor)) AND
+									(gICP.TruboPumNoRotation OR (NOT gICP.TruboPumNoRotation AND gICP.ForeLineGauge.outputValue<gRoughtPumVaccum*5));
+gICP.ForlinLineValve.retCondition:=gICP.S_GASBOX_AllMFCClearDone OR 
+									(gICP.S_MFCMonitFlowNotZero AND ((gICP.RoughValveExtRelay) OR (NOT gICP.RoughValveExtRelay AND gICP.PDVCloseSensor))) ;
+gICP.ForlinLineValve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	inVacu:=gICP.ForeLineGauge.outputValue, 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:=, 
+	retract:= , 
+	retCondition:=, // (腔体内有气体通入时，ForeLine关闭条件需谨慎)
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2010, 
+	nameTXT:= 'ForlinLineValve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE,  
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.ForlinLineValveExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.RoughValve.extCondition:=NOT gICP.ForlinLineValveExtRelay AND NOT gICP.SlowPummingExtRelay AND NOT gICP.FastPummingExtRelay AND
+									(NOT gICP.VentExtRelay OR (gICP.VentExtRelay AND gICP.GateDoorRetSensor)) AND
+										( NOT gICP.GVA10ExtRelay_Vent);
+gICP.RoughValve.retCondition:=(gICP.S_MFCMonitFlowNotZero AND gICP.PDVOpenSensor AND gICP.ForlinLineValveExtRelay)  OR gICP.S_GASBOX_AllMFCClearDone ; // (腔体内有气体通入时，RoughValve关闭条件需谨慎)
+gICP.RoughValve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:= , 
+	retract:= , 
+	retCondition:= (gICP.S_MFCMonitFlowNotZero AND gICP.PDVOpenSensor AND gICP.ForlinLineValveExtRelay)  OR gICP.S_GASBOX_AllMFCClearDone , // (腔体内有气体通入时，RoughValve关闭条件需谨慎)
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE ,
+	inVacu:=gICP.ForeLineGauge.outputValue, 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2020, 
+	nameTXT:= 'RoughValve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.RoughValveExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.SlowPummingValve.extCondition:=NOT gICP.ForlinLineValveExtRelay AND NOT gICP.RoughValveExtRelay AND NOT gICP.FastPummingExtRelay AND
+									(*((NOT gICP.VentExtRelay AND gICP.MachianicalPumOpen) OR (NOT gICP.MachianicalPum.VPEStart)) AND*)
+									((NOT gICP.VentExtRelay ) AND
+									(gICP.GateDoorRetSensor OR (NOT gICP.GateDoorRetSensor AND NOT gICP.GVA10ExtRelay_Vent AND gICP.PDVCloseSensor)));		
+gICP.SlowPummingValve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:= , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2030, 
+	nameTXT:= 'SlowPummingValve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.SlowPummingExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.FastPummingValve.extCondition:=NOT gICP.ForlinLineValveExtRelay AND NOT gICP.RoughValveExtRelay AND NOT gICP.SlowPummingExtRelay AND
+									(*((NOT gICP.VentExtRelay AND gICP.MachianicalPumOpen) OR (NOT gICP.MachianicalPum.VPEStart)) AND*)
+									((NOT gICP.VentExtRelay ) AND
+									(gICP.GateDoorRetSensor OR (NOT gICP.GateDoorRetSensor AND NOT gICP.GVA10ExtRelay_Vent AND gICP.PDVCloseSensor)));		
+gICP.FastPummingValve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:= , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2040, 
+	nameTXT:= 'FastPummingValve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.FastPummingExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.ElectrodeCyl(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:=gICP.I_ARMHome AND gICP.LiftPinRetSensor AND NOT (gICP.ARM.busy OR gICP.ARM.jogBusy) , 
+	retract:= , 
+	retCondition:=NOT gICP.HeINExtRelay AND NOT gICP.HePumExtRelay AND (gICP.HeCheckGaugeReal<0.1 OR (gICP.HeCheckGaugeReal>0.1 AND gICP.ChamberGauge.outputValue1>gLVacuumPressureChamber)) AND gICP.HeMFC_ActFlow<1.0, 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= T#10S, 
+	doneDelayTimeShortExtend:=T#1S , 
+	doneDelayTimeShortRetract:=T#1S , 
+	doneDelayTimeLongExtend:=T#1S, 
+	doneDelayTimeLongRetract:=T#1S , 
+	errorID:= 2050, 
+	nameTXT:= 'ElectrodeCyl', 
+	extAprSw:=gICP.ElectrodeCylExtSensor , 
+	retAprSw:=gICP.ElectrodeCylRetSensor , 
+	enableExtAprSw:= , 
+	enableRetAprSw:= , 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.ElectrodeCylExtRelay , 
+	retRelay=>gICP.ElectrodeCylRetRelay , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.LiftPinCyl(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:=gICP.ElectrodeCylRetSensor AND (gICP.I_ARMHome OR ABS( gICP.ARM.actpos - gARMPosition)<=1), 
+	retract:= , 
+	retCondition:=gICP.I_ARMHome OR ABS( gICP.ARM.actpos - gARMPosition)<=1, 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2060, 
+	nameTXT:= 'LiftPinCyl', 
+	extAprSw:=gICP.LiftPinExtSensor , 
+	retAprSw:=gICP.LiftPinRetSensor , 
+	enableExtAprSw:= , 
+	enableRetAprSw:= , 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.LiftPinExtRelay , 
+	retRelay=>gICP.LiftPinRetRelay , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVA1Valve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:=TRUE , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2070, 
+	nameTXT:= 'GVA1Valve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVA1ExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVA2Valve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:=TRUE , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2080, 
+	nameTXT:= 'GVA2Valve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVA2ExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVA3Valve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:=TRUE , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2090, 
+	nameTXT:= 'GVA3Valve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVA3ExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVA4Valve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:= TRUE, 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2100, 
+	nameTXT:= 'GVA4Valve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVA4ExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVA5Valve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:=TRUE, 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2110, 
+	nameTXT:= 'GVA5Valve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE,  
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVA5ExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVA6Valve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:= TRUE, 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2120, 
+	nameTXT:= 'GVA6Valve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVA6ExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVA7Valve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:= TRUE, 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2130, 
+	nameTXT:= 'GVA7Valve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVA7ExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVA8Valve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:= TRUE, 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2140, 
+	nameTXT:= 'GVA8Valve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVA8ExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVA9Valve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:=TRUE, 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2260, 
+	nameTXT:= 'GVA9Valve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVA9ExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVA10Valve_Vent.extCondition:= gICP.GV20ExtRelay_Main AND (gICP.TruboPumNoRotation OR NOT FuncModule_RS232_TBP.serialConnected)AND gChamberVacRem<gATMPressure AND 
+									(gICP.ChamberGauge.outputValue1<gATMPressureChamber OR NOT gICP.I_ATMSensor) AND NOT gICP.RoughValveExtRelay AND
+									gICP.GateDoorRetSensor AND gICP.PDVCloseSensor; 
+ (*AND ((gICP.GateDoorRetSensor AND gICP.PDVCloseSensor) OR 
+((NOT gICP.GateDoorRetSensor OR NOT gICP.PDVCloseSensor) AND  
+NOT gICP.TruboPum.AccAprSw AND NOT gICP.TruboPum.DccAprSw AND NOT gICP.TruboPumNormal AND NOT gICP.MachianicalPum.VPEStart))*)
+IF gICP.GVA10ExtRelay_Vent THEN
+	gRoughRemainTMPCanOpen:=FALSE;
+END_IF
+gICP.GVA10Valve_Vent(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:= , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2270, 
+	nameTXT:= 'GVA10Valve_Vent', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVA10ExtRelay_Vent , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GV20Valve_Main(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:= NOT gICP.AIMExtRelay , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2340, 
+	nameTXT:= 'GV20Valve_Main', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GV20ExtRelay_Main , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVB1Valve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:=(gICP.RoughValveExtRelay OR (NOT gICP.PDVCloseSensor AND gICP.ForlinLineValveExtRelay)) AND gICP.GVA1ExtRelay  AND gICP.GV20ExtRelay_Main ,  
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2150, 
+	nameTXT:= 'GVB1Valve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVB1ExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVB2Valve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:= (gICP.RoughValveExtRelay OR (NOT gICP.PDVCloseSensor AND gICP.ForlinLineValveExtRelay))  AND gICP.GVA2ExtRelay AND gICP.GV20ExtRelay_Main , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2160, 
+	nameTXT:= 'GVB2Valve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVB2ExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVB3Valve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:=(gICP.RoughValveExtRelay OR (NOT gICP.PDVCloseSensor AND gICP.ForlinLineValveExtRelay))  AND gICP.GVA3ExtRelay AND gICP.GV20ExtRelay_Main , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2170, 
+	nameTXT:= 'GVB3Valve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVB3ExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVB4Valve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:= (gICP.RoughValveExtRelay OR (NOT gICP.PDVCloseSensor AND gICP.ForlinLineValveExtRelay))  AND gICP.GVA4ExtRelay AND gICP.GV20ExtRelay_Main , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2180, 
+	nameTXT:= 'GVB4Valve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVB4ExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVB5Valve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:=(gICP.RoughValveExtRelay OR (NOT gICP.PDVCloseSensor AND gICP.ForlinLineValveExtRelay))  AND gICP.GVA5ExtRelay  AND gICP.GV20ExtRelay_Main , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2190, 
+	nameTXT:= 'GVB5Valve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVB5ExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVB6Valve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:=(gICP.RoughValveExtRelay OR (NOT gICP.PDVCloseSensor AND gICP.ForlinLineValveExtRelay))  AND gICP.GVA6ExtRelay  AND gICP.GV20ExtRelay_Main , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2200, 
+	nameTXT:= 'GVB6Valve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVB6ExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVB7Valve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:=(gICP.RoughValveExtRelay OR (NOT gICP.PDVCloseSensor AND gICP.ForlinLineValveExtRelay))  AND gICP.GVA7ExtRelay AND gICP.GV20ExtRelay_Main  , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2210, 
+	nameTXT:= 'GVB7Valve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVB7ExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVB8Valve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:=(gICP.RoughValveExtRelay OR (NOT gICP.PDVCloseSensor AND gICP.ForlinLineValveExtRelay))  AND gICP.GVA8ExtRelay AND gICP.GV20ExtRelay_Main , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2280, 
+	nameTXT:= 'GVB8Valve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVB8ExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.GVB9Valve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:= (gICP.RoughValveExtRelay OR (NOT gICP.PDVCloseSensor AND gICP.ForlinLineValveExtRelay)) AND gICP.GVA9ExtRelay AND gICP.GV20ExtRelay_Main , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2290, 
+	nameTXT:= 'GVB9Valve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GVB9ExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+conditionTon[2](IN:=gICP.PDV.openISO AND NOT gICP.S_GASBOX_AllGVBClose AND NOT gICP.ISOExtRelay AND gCtrlMode=ControlMode.eManualCtrMode AND NOT gSPOUBusy,PT:=T#2S);
+IF conditionTon[2].Q THEN
+	gICP.ISOValve.Act_Extend();
+END_IF
+conditionTon[3](IN:=NOT gICP.PDV.openISO AND gICP.ISOExtRelay AND gCtrlMode=ControlMode.eManualCtrMode,PT:=T#100S);
+IF conditionTon[3].Q THEN
+	gICP.ISOValve.Act_Retract();
+END_IF
+gICP.ISOValve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:=gICP.PDV.contrlmodeRead=0 , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2220, 
+	nameTXT:= 'ISOValve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.ISOExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.AIMValve.extCondition:=gICP.S_GASBOX_AllGVBClose AND gICP.S_GASBOX_AllGVAClose AND 
+							(gICP.ForeLineGauge.outputValue<gRoughtPumVaccum*20 OR (gICP.ISOExtRelay AND gICP.PDV.actPressure<10.0)) AND gICP.ForlinLineValveExtRelay AND NOT gICP.PDVCloseSensor AND gICP.TruboPumNormal;
+conditionTonRTrig[1](CLK:=NOT gICP.AIMValve.extCondition);
+IF conditionTonRTrig[1].Q THEN
+	gICP.AIMValve.Act_Retract();
+END_IF
+gICP.AIMValve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:= , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2230, 
+	nameTXT:= 'AIMValve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.AIMExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+IF gICP.GateDoorExtSensor THEN
+	gChamberVacRem:=gICP.RoughValve.viewForlineVac:=gICP.LoadLockGauge.outputValue;
+ELSE
+	gChamberVacRem:=gICP.RoughValve.viewForlineVac;
+END_IF
+IF gICP.TruboPumNoRotation AND NOT gICP.TruboPumOpen THEN
+	IF NOT gICP.PDVCloseSensor THEN
+		gTBVacRem:=gChamberVacRem;
+	ELSIF gICP.ForlinLineValveExtRelay THEN
+		gTBVacRem:=gICP.ForeLineGauge.outputValue;
+	ELSE
+		gTBVacRem:=gICP.ForlinLineValve.viewForlineVac;
+	END_IF
+ELSE
+	gTBVacRem:=gRoughtPumVaccum;
+END_IF
+
+gGDOpencondition:=((gICP.LoadLockGauge.outputValue>gATMPressure AND gChamberVacRem>gATMPressure  AND (gICP.ChamberGauge.outputValue1>gATMPressureChamber OR gICP.I_ATMSensor)) OR 
+				  (ABS(gICP.LoadLockGauge.outputValue-gICP.ChamberGauge.outputValue1)<gDifferentialPressure AND NOT gICP.I_ATMSensor AND gICP.ChamberGauge.outputValue1<gLVacuumPressureChamber)) AND NOT gICP.LoadLockGauge.error AND NOT gICP.ChamberGauge.error;
+gICP.GateDoorValve.extCondition:=gEnableGDOpenClose OR
+								(((NOT gICP.TruboPumNoRotation AND gICP.TruboPumOpen AND gICP.PDVCloseSensor) OR ((gICP.TruboPumNoRotation OR NOT FuncModule_RS232_TBP.serialConnected) AND NOT gICP.TruboPumOpen)) AND
+								gGDOpencondition);
+gICP.GateDoorValve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:= , 
+	retract:= , 
+	retCondition:=gICP.I_ARMHome , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2240, 
+	nameTXT:= 'GateDoorValve', 
+	extAprSw:=gICP.GateDoorExtSensor , 
+	retAprSw:=gICP.GateDoorRetSensor , 
+	enableExtAprSw:= , 
+	enableRetAprSw:= , 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GateDoorExtRelay , 
+	retRelay=>gICP.GateDoorRetRelay , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.VentValve.extCondition:=(NOT gICP.FastPummingExtRelay AND NOT gICP.SlowPummingExtRelay AND 
+									(gICP.GateDoorRetSensor OR 
+										(NOT gICP.GateDoorRetSensor AND (gICP.TruboPumNoRotation OR NOT FuncModule_RS232_TBP.serialConnected) AND// Gate Door 打开，则分子泵一定要停止，Vent才能打开
+											((gICP.PDVCloseSensor AND NOT gICP.RoughValveExtRelay) OR 
+												(NOT gICP.PDVCloseSensor AND NOT gICP.RoughValveExtRelay AND NOT gICP.ForlinLineValveExtRelay AND 
+													(NOT gICP.PDVCloseSensor AND NOT gICP.TruboPum.DccAprSw AND NOT gICP.TruboPum.AccAprSw AND NOT gICP.TruboPum.NormalAprSw))))));
+conditionTon[4](IN:=(NOT gICP.I_LLSwitch),PT:=T#1S);
+conditionTonRTrig[4](CLK:=conditionTon[4].Q);
+IF conditionTonRTrig[4].Q THEN
+	gICP.VentValve.Act_Retract();
+END_IF
+IF gICP.VentExtRelay AND NOT gICP.GateDoorRetSensor THEN
+	gRoughRemainTMPCanOpen:=FALSE;
+END_IF
+gICP.VentValve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:= , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2250, 
+	nameTXT:= 'VentValve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.VentExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.TruboPum(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	TMPType:= TMPType_Default, 
+	real_TimeMonitor:=,
+	real_TimeMonitorClose:=NOT FuncModule_RS232_TBP.serialConnected OR (gICP.GVA10ExtRelay_Vent OR (NOT gICP.GateDoorRetSensor AND gICP.VentExtRelay)) OR NOT gRoughRemainTMPCanOpen,
+	open:= , 
+	openCondition:= FuncModule_RS232_TBP.serialConnected AND (gICP.ForlinLineValveExtRelay AND NOT gICP.ForeLineGauge.error AND 
+					gICP.TBGauge.outputValue<gRoughtPumVaccum*2.5 AND 
+					gICP.ForeLineGauge.outputValue<gRoughtPumVaccum*10 AND 
+					(gICP.PDVCloseSensor OR (NOT gICP.PDVCloseSensor AND NOT gICP.GVA10ExtRelay_Vent))) AND
+					( gICP.GateDoorRetSensor OR (NOT gICP.GateDoorRetSensor AND NOT gICP.VentExtRelay) ) (*AND gRoughRemainTMPCanOpen*) , 
+	close:= , 
+	closeCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	serialExcute:=TRUE , 
+	errorDelayTime:= , 
+	ACCMaxtime:=T#1200S , 
+	DCCMaxtime:=T#1200S , 
+	doneDelayTimeShortopenend:= , 
+	doneDelayTimeShortcloseract:= , 
+	doneDelayTimeLongopenend:= , 
+	doneDelayTimeLongcloseract:= , 
+	errorID:=2500 , 
+	nameTXT:='TruboPum' , 
+	AccAprSw:=gICP.TruboPumAcc , 
+	NormalAprSw:=gICP.TruboPumNormal , 
+	DccAprSw:= gICP.TruboPumDcc, 
+	AlmAprSw:=  gICP.TruboPumAlarm, 
+	ErrorAprSw:= gICP.TruboPumError, 
+	enableOpenAprSw:= , 
+	enableCloseAprSw:= , 
+	mainPower:=TRUE , 
+	temperature:= , 
+	current:= , 
+	speed:= , 
+	serialSlaveID:=10 , 
+	serialError:= , 
+	noteWTXT_open:= , 
+	noteWTXT_close:= , 
+	note_open=> , 
+	note_close=> , 
+	openRelay=>gICP.TruboPumOpen , 
+	closeRelay=> , 
+	resetRelay=>gICP.TruboPumReset , 
+	busy=> , 
+	openbusy=> , 
+	closebusy=> , 
+	done=> , 
+	opendone=> , 
+	closedone=> , 
+	error=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.MFC1(
+	WarmHMI:=gWarmShowHMI,
+	operatorLog:=gOperatorLog,
+	MFCType:=MFCType_Default , 
+	set:= , 
+	setCondition:= , 
+	clear:= , 
+	clearCondition:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	ACCMaxtime:=T#2S , 
+	DCCMaxtime:=T#2S , 
+	doneDelayTimeShortset:= , 
+	doneDelayTimeShortclear:= , 
+	errorID:=2600 , 
+	nameTXT:='MFC1' , 
+	AlmAprSw:= , 
+	temperatureMax:= , 
+	setFlow:= , 
+	maxSetValue:=50.0,
+	minSetValue:=0.0,
+	serialSlaveID:=1  );
+gICP.MFC2(
+	WarmHMI:=gWarmShowHMI,
+	operatorLog:=gOperatorLog,
+	MFCType:=MFCType_Default , 
+	set:= , 
+	setCondition:= , 
+	clear:= , 
+	clearCondition:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	ACCMaxtime:=T#2S , 
+	DCCMaxtime:=T#2S , 
+	doneDelayTimeShortset:= , 
+	doneDelayTimeShortclear:= , 
+	errorID:=2610 , 
+	nameTXT:='MFC2' , 
+	AlmAprSw:= , 
+	temperatureMax:= , 
+	setFlow:= , 
+	maxSetValue:=200.0,
+	minSetValue:=0.0,
+	serialSlaveID:=2  );
+gICP.MFC3(
+	WarmHMI:=gWarmShowHMI,
+	operatorLog:=gOperatorLog,
+	MFCType:=MFCType_Default , 
+	set:= , 
+	setCondition:= , 
+	clear:= , 
+	clearCondition:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	ACCMaxtime:=T#2S , 
+	DCCMaxtime:=T#2S , 
+	doneDelayTimeShortset:= , 
+	doneDelayTimeShortclear:= , 
+	errorID:=2620 , 
+	nameTXT:='MFC3' , 
+	AlmAprSw:= , 
+	temperatureMax:= , 
+	setFlow:= , 
+	maxSetValue:=200.0,
+	minSetValue:=0.0,
+	serialSlaveID:=3  );
+gICP.MFC4(
+	WarmHMI:=gWarmShowHMI,
+	operatorLog:=gOperatorLog,
+	MFCType:=MFCType_Default , 
+	set:= , 
+	setCondition:= , 
+	clear:= , 
+	clearCondition:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	ACCMaxtime:=T#2S , 
+	DCCMaxtime:=T#2S , 
+	doneDelayTimeShortset:= , 
+	doneDelayTimeShortclear:= , 
+	errorID:=2630 , 
+	nameTXT:='MFC4' , 
+	AlmAprSw:= , 
+	temperatureMax:= , 
+	setFlow:= , 
+	maxSetValue:=200.0,
+	minSetValue:=0.0,
+	serialSlaveID:=4  );
+gICP.MFC5(
+	WarmHMI:=gWarmShowHMI,
+	operatorLog:=gOperatorLog,
+	MFCType:=MFCType_Default , 
+	set:= , 
+	setCondition:= , 
+	clear:= , 
+	clearCondition:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	ACCMaxtime:=T#2S , 
+	DCCMaxtime:=T#2S , 
+	doneDelayTimeShortset:= , 
+	doneDelayTimeShortclear:= , 
+	errorID:=2640 , 
+	nameTXT:='MFC5' , 
+	AlmAprSw:= , 
+	temperatureMax:= , 
+	setFlow:= , 
+	maxSetValue:=100.0,
+	minSetValue:=0.0,
+	serialSlaveID:=5  );
+gICP.MFC6(
+	WarmHMI:=gWarmShowHMI,
+	operatorLog:=gOperatorLog,
+	MFCType:=MFCType_Default , 
+	set:= , 
+	setCondition:= , 
+	clear:= , 
+	clearCondition:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	ACCMaxtime:=T#2S , 
+	DCCMaxtime:=T#2S , 
+	doneDelayTimeShortset:= , 
+	doneDelayTimeShortclear:= , 
+	errorID:=2650 , 
+	nameTXT:='MFC6' , 
+	AlmAprSw:= , 
+	temperatureMax:= , 
+	setFlow:= , 
+	maxSetValue:=10.0,
+	minSetValue:=0.0,
+	serialSlaveID:=6  );
+gICP.MFC7(
+	WarmHMI:=gWarmShowHMI,
+	operatorLog:=gOperatorLog,
+	MFCType:=MFCType_Default , 
+	set:= , 
+	setCondition:= , 
+	clear:= , 
+	clearCondition:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	ACCMaxtime:=T#2S , 
+	DCCMaxtime:=T#2S , 
+	doneDelayTimeShortset:= , 
+	doneDelayTimeShortclear:= , 
+	errorID:=2660 , 
+	nameTXT:='MFC7' , 
+	AlmAprSw:= , 
+	temperatureMax:= , 
+	setFlow:= , 
+	maxSetValue:=500.0,
+	minSetValue:=0.0,
+	serialSlaveID:=7  );
+gICP.MFC8(
+	WarmHMI:=gWarmShowHMI,
+	operatorLog:=gOperatorLog,
+	MFCType:=MFCType_Default , 
+	set:= , 
+	setCondition:= , 
+	clear:= , 
+	clearCondition:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	ACCMaxtime:=T#2S , 
+	DCCMaxtime:=T#2S , 
+	doneDelayTimeShortset:= , 
+	doneDelayTimeShortclear:= , 
+	errorID:=2670 , 
+	nameTXT:='MFC8' , 
+	AlmAprSw:= , 
+	temperatureMax:= , 
+	setFlow:= , 
+	maxSetValue:=500.0,
+	minSetValue:=0.0,
+	serialSlaveID:=8  );
+gICP.MFC9(
+	WarmHMI:=gWarmShowHMI,
+	operatorLog:=gOperatorLog,
+	MFCType:=MFCType_Default , 
+	set:= , 
+	setCondition:= , 
+	clear:= , 
+	clearCondition:= , 
+	power:= TRUE, 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	ACCMaxtime:=T#2S , 
+	DCCMaxtime:=T#2S , 
+	doneDelayTimeShortset:= , 
+	doneDelayTimeShortclear:= , 
+	errorID:=2680 , 
+	nameTXT:='MFC9' , 
+	AlmAprSw:= , 
+	temperatureMax:= , 
+	setFlow:= , 
+	maxSetValue:=100.0,
+	minSetValue:=0.0,
+	serialSlaveID:=9  );
+gICP.PowerRF(
+	WarmHMI:=gWarmShowHMI,
+	operatorLog:=gOperatorLog,
+	NoteHMI:=gNoteShowHMI,
+	runTime:= , 
+	HMIItf:= , 
+	RFTYPE:=RFType_Default , 
+	real_TimeMonitor:= TRUE, 
+	open:= , 
+	openCondition:=gPowerRFConnected AND NOT gICP.S_GASBOX_AllGVBClose AND 
+					(gICP.TruboPum.Get_Done_Open() OR gICP.TruboPumNormal) AND 
+					gICP.PDV.actPressure>1 AND gICP.ISOExtRelay AND NOT gICP.PDVCloseSensor AND  
+					gICP.ForlinLineValveExtRelay AND gICP.ForeLineGauge.outputValue<1000 AND gICP.HeINExtRelay AND 
+					gICP.HeCheckGaugeReal>=5 AND gICP.HeMFC_ActFlow>=1, 
+	close:= , 
+	closeCondition:= ,
+	readCondition:=gPowerRFConnected ,
+	reset:=  ,
+	stop:= , 
+	power:=TRUE , 
+	enable:= TRUE, 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	serialExcute:= , 
+	errorDelayTime:= , 
+	ACCMaxtime:= , 
+	DCCMaxtime:= , 
+	doneDelayTimeShortopenend:= , 
+	doneDelayTimeShortcloseract:= , 
+	doneDelayTimeLongopenend:= , 
+	doneDelayTimeLongcloseract:= , 
+	errorID:= 2700, 
+	nameTXT:= 'PowerRF',  
+	AlmAprSw:= , 
+	ErrorAprSw:= , 
+	enableOpenAprSw:= , 
+	enableCloseAprSw:= , 
+	mainPower:= TRUE, 
+	temperature:= , 
+	current:= , 
+	vol:= , 
+	serialSlaveID:=1 , 
+	serialError:= , 
+	noteWTXT_open:= , 
+	noteWTXT_close:= , 
+	note_open=> , 
+	note_close=> , 
+	openRelay=> gICP.PowerRFOpenRelay, 
+	closeRelay=> , 
+	resetRelay=> gICP.PowerRFResetRelay, 
+	busy=> , 
+	openbusy=> , 
+	closebusy=> , 
+	done=> , 
+	opendone=> , 
+	closedone=> , 
+	error=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.SourceRF(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	runTime:= , 
+	HMIItf:= , 
+	RFTYPE:=RFType_Default , 
+	real_TimeMonitor:= TRUE, 
+	open:= , 
+	openCondition:=gSourceRFConnected AND NOT gICP.S_GASBOX_AllGVBClose AND 
+					(gICP.TruboPum.Get_Done_Open() OR gICP.TruboPumNormal) AND 
+					gICP.PDV.actPressure>1 AND gICP.ISOExtRelay AND NOT gICP.PDVCloseSensor AND  
+					gICP.ForlinLineValveExtRelay AND gICP.ForeLineGauge.outputValue<1000 AND gICP.HeINExtRelay AND 
+					gICP.HeCheckGaugeReal>=5 AND gICP.HeMFC_ActFlow>=1, 
+	close:= , 
+	closeCondition:= , 
+	readCondition:=gSourceRFConnected,
+	reset:= , 
+	stop:= , 
+	power:= TRUE, 
+	enable:= TRUE, 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	serialExcute:= , 
+	errorDelayTime:= , 
+	ACCMaxtime:= , 
+	DCCMaxtime:= , 
+	doneDelayTimeShortopenend:= , 
+	doneDelayTimeShortcloseract:= , 
+	doneDelayTimeLongopenend:= , 
+	doneDelayTimeLongcloseract:= , 
+	errorID:= 2710, 
+	nameTXT:= 'SourceRF', 
+	AlmAprSw:= , 
+	ErrorAprSw:= , 
+	enableOpenAprSw:= , 
+	enableCloseAprSw:= , 
+	mainPower:= TRUE, 
+	temperature:= , 
+	current:= , 
+	vol:= , 
+	serialSlaveID:=2 , 
+	serialError:= , 
+	noteWTXT_open:= , 
+	noteWTXT_close:= , 
+	note_open=> , 
+	note_close=> , 
+	openRelay=>gICP.SourceRFOpenRelay , 
+	closeRelay=> , 
+	resetRelay=> gICP.SourceRFResetRelay, 
+	busy=> , 
+	openbusy=> , 
+	closebusy=> , 
+	done=> , 
+	opendone=> , 
+	closedone=> , 
+	error=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.Chiller(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	HMIItf:= , 
+	ChillerType:= , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:= , 
+	retract:= , 
+	retCondition:= , 
+	setPoint:= , 
+	setCondition:= , 
+	readPoint:= , 
+	alarmTemperatureL:= 10,
+	alarmTemperatureH:= 30,
+	readCondition:= gChillerConnected, 
+	reset:= , 
+	stop:= , 
+	power:= TRUE, 
+	enable:= TRUE,  
+	hmiEN:=gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	doneDelayTimeLongSET:= , 
+	errorID:= 2800, 
+	nameTXT:='Chiller' );
+conditionTon[1](IN:=gPDVConnected,PT:=T#5S);
+gICP.PDV(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	opencondition_INOUT:=gPDVOpencondition,
+	pvType:= PVType_Default, 
+	controlMode:=PVControl_Default , 
+	real_TimeMonitor:=TRUE ,
+	openRemOK:=gEnablePDVOpenClose OR(((gTBVacRem>gATMPressure AND gICP.TBGauge.outputValue>gATMPressure AND gChamberVacRem> gATMPressure AND (gICP.ChamberGauge.outputValue1<gATMPressureChamber OR gICP.I_ATMSensor)) OR (ABS(gICP.TBGauge.outputValue-gICP.ChamberGauge.outputValue1)<gDifferentialPressure AND gICP.ChamberGauge.outputValue1<gLVacuumPressureChamber AND NOT gICP.I_ATMSensor)) AND NOT gICP.TBGauge.error AND NOT gICP.ChamberGauge.error) (*AND FuncModule_RS232_TBP.serialConnected AND gRoughRemain*), 
+	open:= , 
+	openCondition:=gEnablePDVOpenClose OR(((gTBVacRem>gATMPressure AND gICP.TBGauge.outputValue>gATMPressure AND gChamberVacRem> gATMPressure AND  (gICP.ChamberGauge.outputValue1<gATMPressureChamber OR gICP.I_ATMSensor)) OR (ABS(gICP.TBGauge.outputValue-gICP.ChamberGauge.outputValue1)<gDifferentialPressure AND gICP.ChamberGauge.outputValue1<gLVacuumPressureChamber AND NOT gICP.I_ATMSensor)) AND NOT gICP.TBGauge.error AND NOT gICP.ChamberGauge.error)  (*AND FuncModule_RS232_TBP.serialConnected AND gRoughRemain*), 
+	close:= , 
+	closeCondition:= gICP.S_GASBOX_AllMFCClearDone OR (gICP.S_MFCMonitFlowNotZero AND gICP.RoughValveExtRelay) , 
+	readCondition:=conditionTon[1].Q ,
+	modeCondition:=conditionTon[1].Q AND gEnablePDVOpenClose OR(((gTBVacRem>gATMPressure AND gICP.TBGauge.outputValue>gATMPressure AND gChamberVacRem> gATMPressure AND  (gICP.ChamberGauge.outputValue1<gATMPressureChamber OR gICP.I_ATMSensor)) OR (ABS(gICP.TBGauge.outputValue-gICP.ChamberGauge.outputValue1)<gDifferentialPressure AND gICP.ChamberGauge.outputValue1<gLVacuumPressureChamber AND NOT gICP.I_ATMSensor)) AND NOT gICP.TBGauge.error AND NOT gICP.ChamberGauge.error)  (*AND FuncModule_RS232_TBP.serialConnected AND gRoughRemain*) ,
+	configCondition:=conditionTon[1].Q,
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	setPressure:= , 
+	PressureOffset:= , 
+	safectrlMode:=gCtrlMode=ControlMode.eManualCtrMode  ,
+	hmiEN:=gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortopen:= , 
+	doneDelayTimeShortclose:= , 
+	doneDelayTimeLongopen:= , 
+	doneDelayTimeLongclose:= , 
+	errorID:= 2720, 
+	nameTXT:= 'PDV', 
+	openAprSw:= gICP.PDVOpenSensor, 
+	closeAprSw:=gICP.PDVCloseSensor , 
+	enableopenAprSw:= , 
+	enablecloseAprSw:= , 
+	noteWTXT_open:= , 
+	noteWTXT_close:= , 
+	openRelay=>gICP.PDVOpenRelay , 
+	closeRelay=>gICP.PDVCloseRelay , 
+	modeRelay=> gICP.PDVModeRelay,
+	note_open=> , 
+	note_close=> , 
+	busy=> , 
+	done=> , 
+	opendone=> , 
+	closedone=> , 
+	error=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> , 
+	serialError=> , 
+	contrlmodeRead=> , 
+	actPressure=> , 
+	actPos=> );
+gICP.ForeLineGauge(
+	inputValue:= gICP.AI_ForeLineGauge, 
+	gaugeType:=2,
+	calValueH:=gPSGMaxPre_V , 
+	calValueL:=0.0 , 
+	moduleValueH:=32767 , 
+	moduleValueL:=0 , 
+	alrmmaxValue:= 795000, 
+	alrmminValue:=0 , 
+	condition:= TRUE, 
+	initString:='---' , 
+	outputValue=> , 
+	outputValue_String=> , 
+	error=> );
+gICP.AIMGauge(
+	inputValue:= gICP.AI_AIMGauge,
+	gaugeType:=1, 
+	calValueH:=gPSGMaxPre_V , 
+	calValueL:=0.0 , 
+	moduleValueH:=32767 , 
+	moduleValueL:=0 , 
+	alrmmaxValue:= 755450, 
+	alrmminValue:= 0, 
+	condition:= gICP.AIMExtRelay, 
+	initString:='---'  , 
+	outputValue=> , 
+	outputValue_String=> , 
+	error=> );
+gICP.LoadLockGauge(
+	inputValue:= gICP.AI_LoadLockGauge, 
+	gaugeType:=2,
+	calValueH:=gPSGMaxPre_V , 
+	calValueL:=0.0 , 
+	moduleValueH:=32767 , 
+	moduleValueL:=0 , 
+	alrmmaxValue:= 765000, 
+	alrmminValue:= 0, 
+	condition:= TRUE, 
+	initString:='---'  , 
+	outputValue=> , 
+	outputValue_String=> , 
+	error=> );
+gICP.ChamberGauge(
+	inputValue:= gICP.AI_ChamberGauge, 
+	gaugeType:=1,
+	calValueH:=20.0 , 
+	calValueL:=4.0 , 
+	moduleValueH:=32767 , 
+	moduleValueL:=0 , 
+	alrmmaxValue:= 760000, 
+	alrmminValue:= 0, 
+	condition:= TRUE, 
+	initString:='---'  , 
+	outputValue=> , 
+	outputValue_String=> , 
+	error=> );
+gICP.TBGauge(
+	inputValue:= PLC_AMX_AI.dworld, 
+	gaugeType:=2,
+	calValueH:=10.0 , 
+	calValueL:=0.0 , 
+	moduleValueH:=4096 , 
+	moduleValueL:=0 , 
+	alrmmaxValue:= 765000, 
+	alrmminValue:= 0, 
+	condition:= TRUE, 
+	initString:='---'  , 
+	outputValue=> , 
+	outputValue_String=> , 
+	error=> );
+//gICP.HeMFM(
+//	inputValue:= gICP.AI_HeCheckGauge, 
+//	MFMType:=0,
+//	calValueH:=10.0 , 
+//	calValueL:=0.0 , 
+//	moduleValueH:=32767 , 
+//	moduleValueL:=0 , 
+//	alrmmaxValue:= 10000, 
+//	alrmminValue:= 0, 
+//	condition:= TRUE, 
+//	initString:='---'  , 
+//	outputValue=> , 
+//	outputValue_String=> , 
+//	error=> );
+gICP.GASBoxVentValve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:= , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2300, 
+	nameTXT:= 'GASBoxVentValve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.GASBoxVentExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+conditionTon[5](IN:=gICP.PDVCloseSensor AND NOT gICP.RoughValveExtRelay AND 
+					(gICP.GateDoorRetSensor OR( NOT gICP.GateDoorRetSensor AND NOT gICP.FastPummingExtRelay AND NOT gICP.SlowPummingExtRelay))
+					AND gCtrlMode=ControlMode.eManualCtrMode,PT:=T#2S);
+conditionTonRTrig[5](CLK:=conditionTon[5].Q);
+IF conditionTonRTrig[5].Q THEN
+	gICP.HeINValve.Act_Retract();
+	gICP.HePumValve.Act_Retract();
+END_IF
+gICP.HeINValve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:=NOT gICP.HePumExtRelay AND (gICP.ElectrodeCylExtSensor OR gEnableHeInOpenClose), 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2310, 
+	nameTXT:= 'HeINValve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.HeINExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.HePumValve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:=NOT gICP.HeINExtRelay , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2320, 
+	nameTXT:= 'HePumValve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.HePumExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.TBPurgeValve(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	cylinderType:=CylinderType_Default , 
+	real_TimeMonitor:= , 
+	extend:= , 
+	extCondition:=NOT gICP.ForlinLineValveExtRelay , 
+	retract:= , 
+	retCondition:= , 
+	reset:= , 
+	stop:= , 
+	power:=TRUE , 
+	enable:=TRUE , 
+	hmiEN:= gCtrlMode=ControlMode.eManualCtrMode , 
+	errorDelayTime:= , 
+	doneDelayTimeShortExtend:= , 
+	doneDelayTimeShortRetract:= , 
+	doneDelayTimeLongExtend:= , 
+	doneDelayTimeLongRetract:= , 
+	errorID:= 2350, 
+	nameTXT:= 'TBPurgeValve', 
+	extAprSw:= , 
+	retAprSw:= , 
+	enableExtAprSw:= FALSE, 
+	enableRetAprSw:= FALSE, 
+	noteWTXT_Ext:= , 
+	noteWTXT_Ret:= , 
+	extRelay=>gICP.TBPurgeExtRelay , 
+	retRelay=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+gICP.ARM(
+	WarmHMI:=gWarmShowHMI,
+	NoteHMI:=gNoteShowHMI,
+	operatorLog:=gOperatorLog,
+	HMIItf:= , 
+	armType:= , 
+	real_TimeMonitor:= , 
+	IN:= , 
+	INCondition:= gICP.GateDoorExtSensor AND FuncModule_RS232_ARM.serialConnected AND gICP.ElectrodeCylRetSensor AND (NOT gICP.I_WaferCheck OR (gICP.I_WaferCheck AND gICP.LiftPinRetSensor)), 
+	HOME:= , 
+	HOMECondition:= FuncModule_RS232_ARM.serialConnected, 
+	JOG:= , 
+	readCondition:= , 
+	JOGCondition:=gICP.GateDoorExtSensor AND FuncModule_RS232_ARM.serialConnected AND gICP.ElectrodeCylRetSensor , 
+	reset:= , 
+	stop:= , 
+	power:= , 
+	enable:=TRUE , 
+	hmiEN:=TRUE , 
+	setpos:=gARMPosition , 
+	setvel:= , 
+	jogsetDir:= , 
+	jogsetlen:= , 
+	errorDelayTime:= , 
+	doneDelayTimeShortIN:= , 
+	doneDelayTimeShortHOME:= , 
+	doneDelayTimeLongIN:= , 
+	doneDelayTimeLongHOME:= , 
+	errorID:= 2330, 
+	nameTXT:='ARM' , 
+	INAprSw:= , 
+	HOMEAprSw:= gICP.I_ARMHome, 
+	enableINAprSw:= TRUE, 
+	enableHOMEAprSw:= TRUE, 
+	noteWTXT_IN:= , 
+	noteWTXT_HOME:= , 
+	INRelay=> , 
+	HOMERelay=> , 
+	note_IN=> , 
+	note_HOME=> , 
+	busy=> , 
+	done=> , 
+	INdone=> , 
+	HOMEdone=> , 
+	readdone=> , 
+	readbusy=> , 
+	readerror=> , 
+	error=> , 
+	errID=> , 
+	errTXT=> , 
+	errWTXT=> );
+IF gICP.I_LLSwitch THEN
+	gICP.I_LLSwitchString:='CLOSE';
+ELSE
+	gICP.I_LLSwitchString:='OPEN';
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="instance">
+      <LineId Id="1091" Count="43" />
+      <LineId Id="1239" Count="12" />
+      <LineId Id="1238" Count="0" />
+      <LineId Id="1252" Count="0" />
+      <LineId Id="1187" Count="12" />
+      <LineId Id="1186" Count="0" />
+      <LineId Id="1278" Count="12" />
+      <LineId Id="1224" Count="0" />
+      <LineId Id="1349" Count="12" />
+      <LineId Id="1348" Count="0" />
+      <LineId Id="1136" Count="19" />
+      <LineId Id="1319" Count="0" />
+      <LineId Id="1088" Count="0" />
+    </LineIds>
+    <LineIds Name="instance.CombinationSignals_Valve">
+      <LineId Id="85" Count="0" />
+      <LineId Id="1" Count="1" />
+      <LineId Id="4" Count="6" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="24" Count="1" />
+      <LineId Id="3" Count="0" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="41" Count="7" />
+      <LineId Id="50" Count="1" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="663" Count="7" />
+      <LineId Id="64" Count="1" />
+      <LineId Id="811" Count="1" />
+      <LineId Id="66" Count="12" />
+      <LineId Id="662" Count="0" />
+      <LineId Id="79" Count="0" />
+      <LineId Id="810" Count="0" />
+      <LineId Id="80" Count="2" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="671" Count="0" />
+      <LineId Id="86" Count="1" />
+      <LineId Id="84" Count="0" />
+      <LineId Id="91" Count="0" />
+      <LineId Id="88" Count="0" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="89" Count="0" />
+      <LineId Id="93" Count="4" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="83" Count="0" />
+      <LineId Id="98" Count="2" />
+      <LineId Id="102" Count="8" />
+      <LineId Id="807" Count="0" />
+      <LineId Id="101" Count="0" />
+      <LineId Id="157" Count="12" />
+      <LineId Id="808" Count="0" />
+      <LineId Id="156" Count="0" />
+      <LineId Id="171" Count="0" />
+      <LineId Id="173" Count="1" />
+      <LineId Id="636" Count="25" />
+      <LineId Id="184" Count="0" />
+      <LineId Id="672" Count="0" />
+      <LineId Id="809" Count="0" />
+      <LineId Id="172" Count="0" />
+      <LineId Id="113" Count="2" />
+      <LineId Id="607" Count="2" />
+      <LineId Id="611" Count="1" />
+      <LineId Id="610" Count="0" />
+      <LineId Id="613" Count="1" />
+      <LineId Id="124" Count="0" />
+      <LineId Id="616" Count="1" />
+      <LineId Id="615" Count="0" />
+      <LineId Id="619" Count="1" />
+      <LineId Id="618" Count="0" />
+      <LineId Id="622" Count="1" />
+      <LineId Id="621" Count="0" />
+      <LineId Id="625" Count="1" />
+      <LineId Id="624" Count="0" />
+      <LineId Id="628" Count="1" />
+      <LineId Id="627" Count="0" />
+      <LineId Id="631" Count="1" />
+      <LineId Id="630" Count="0" />
+      <LineId Id="806" Count="0" />
+      <LineId Id="112" Count="0" />
+      <LineId Id="187" Count="1" />
+      <LineId Id="128" Count="0" />
+      <LineId Id="191" Count="1" />
+      <LineId Id="189" Count="1" />
+      <LineId Id="193" Count="5" />
+      <LineId Id="142" Count="0" />
+      <LineId Id="591" Count="0" />
+      <LineId Id="597" Count="0" />
+      <LineId Id="600" Count="6" />
+      <LineId Id="598" Count="0" />
+      <LineId Id="592" Count="1" />
+      <LineId Id="595" Count="1" />
+      <LineId Id="594" Count="0" />
+      <LineId Id="570" Count="2" />
+      <LineId Id="574" Count="2" />
+      <LineId Id="573" Count="0" />
+      <LineId Id="702" Count="0" />
+      <LineId Id="675" Count="0" />
+      <LineId Id="677" Count="0" />
+      <LineId Id="706" Count="3" />
+      <LineId Id="686" Count="2" />
+      <LineId Id="695" Count="1" />
+      <LineId Id="710" Count="0" />
+      <LineId Id="697" Count="3" />
+      <LineId Id="676" Count="0" />
+      <LineId Id="713" Count="1" />
+      <LineId Id="718" Count="14" />
+      <LineId Id="716" Count="0" />
+      <LineId Id="748" Count="0" />
+      <LineId Id="715" Count="0" />
+      <LineId Id="750" Count="14" />
+      <LineId Id="749" Count="0" />
+      <LineId Id="765" Count="0" />
+      <LineId Id="712" Count="0" />
+      <LineId Id="733" Count="14" />
+      <LineId Id="673" Count="0" />
+      <LineId Id="766" Count="17" />
+      <LineId Id="199" Count="1" />
+      <LineId Id="127" Count="0" />
+      <LineId Id="201" Count="0" />
+      <LineId Id="203" Count="0" />
+      <LineId Id="209" Count="0" />
+      <LineId Id="211" Count="1" />
+      <LineId Id="218" Count="0" />
+      <LineId Id="358" Count="0" />
+      <LineId Id="210" Count="0" />
+      <LineId Id="227" Count="0" />
+      <LineId Id="205" Count="0" />
+      <LineId Id="207" Count="0" />
+      <LineId Id="213" Count="0" />
+      <LineId Id="206" Count="0" />
+      <LineId Id="222" Count="1" />
+      <LineId Id="225" Count="1" />
+      <LineId Id="224" Count="0" />
+      <LineId Id="214" Count="0" />
+      <LineId Id="208" Count="0" />
+      <LineId Id="215" Count="0" />
+      <LineId Id="217" Count="0" />
+      <LineId Id="216" Count="0" />
+      <LineId Id="229" Count="12" />
+      <LineId Id="228" Count="0" />
+      <LineId Id="243" Count="12" />
+      <LineId Id="242" Count="0" />
+      <LineId Id="257" Count="40" />
+      <LineId Id="256" Count="0" />
+      <LineId Id="299" Count="41" />
+      <LineId Id="354" Count="2" />
+      <LineId Id="220" Count="1" />
+      <LineId Id="357" Count="0" />
+      <LineId Id="219" Count="0" />
+      <LineId Id="202" Count="0" />
+      <LineId Id="784" Count="17" />
+      <LineId Id="364" Count="0" />
+      <LineId Id="368" Count="29" />
+      <LineId Id="525" Count="4" />
+      <LineId Id="403" Count="8" />
+      <LineId Id="530" Count="4" />
+      <LineId Id="417" Count="8" />
+      <LineId Id="535" Count="4" />
+      <LineId Id="431" Count="8" />
+      <LineId Id="540" Count="4" />
+      <LineId Id="445" Count="8" />
+      <LineId Id="545" Count="4" />
+      <LineId Id="459" Count="8" />
+      <LineId Id="550" Count="4" />
+      <LineId Id="473" Count="8" />
+      <LineId Id="555" Count="4" />
+      <LineId Id="487" Count="8" />
+      <LineId Id="560" Count="4" />
+      <LineId Id="501" Count="2" />
+      <LineId Id="517" Count="7" />
+      <LineId Id="366" Count="1" />
+      <LineId Id="577" Count="1" />
+      <LineId Id="581" Count="0" />
+      <LineId Id="579" Count="0" />
+      <LineId Id="360" Count="0" />
+      <LineId Id="359" Count="0" />
+      <LineId Id="361" Count="0" />
+      <LineId Id="580" Count="0" />
+      <LineId Id="362" Count="1" />
+    </LineIds>
+    <LineIds Name="instance.HeInOut_Act">
+      <LineId Id="57" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="3" Count="2" />
+      <LineId Id="7" Count="2" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="25" Count="6" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="14" Count="6" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="33" Count="6" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="41" Count="6" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="49" Count="6" />
+      <LineId Id="48" Count="0" />
+      <LineId Id="12" Count="0" />
+    </LineIds>
+    <LineIds Name="instance.ICP">
+      <LineId Id="835" Count="0" />
+      <LineId Id="4107" Count="0" />
+      <LineId Id="4257" Count="0" />
+      <LineId Id="4378" Count="0" />
+      <LineId Id="838" Count="30" />
+      <LineId Id="873" Count="2" />
+      <LineId Id="897" Count="2" />
+      <LineId Id="240" Count="0" />
+      <LineId Id="903" Count="0" />
+      <LineId Id="2245" Count="0" />
+      <LineId Id="4208" Count="0" />
+      <LineId Id="4352" Count="0" />
+      <LineId Id="4487" Count="0" />
+      <LineId Id="4486" Count="0" />
+      <LineId Id="4564" Count="0" />
+      <LineId Id="2246" Count="0" />
+      <LineId Id="4108" Count="0" />
+      <LineId Id="4222" Count="0" />
+      <LineId Id="4379" Count="0" />
+      <LineId Id="2247" Count="0" />
+      <LineId Id="4481" Count="0" />
+      <LineId Id="2248" Count="19" />
+      <LineId Id="3685" Count="0" />
+      <LineId Id="2269" Count="6" />
+      <LineId Id="4210" Count="0" />
+      <LineId Id="4209" Count="0" />
+      <LineId Id="4353" Count="0" />
+      <LineId Id="4565" Count="0" />
+      <LineId Id="2276" Count="0" />
+      <LineId Id="4109" Count="0" />
+      <LineId Id="4223" Count="0" />
+      <LineId Id="4380" Count="0" />
+      <LineId Id="2277" Count="9" />
+      <LineId Id="4466" Count="0" />
+      <LineId Id="2287" Count="10" />
+      <LineId Id="3686" Count="0" />
+      <LineId Id="2299" Count="6" />
+      <LineId Id="4211" Count="0" />
+      <LineId Id="2306" Count="0" />
+      <LineId Id="4357" Count="0" />
+      <LineId Id="4360" Count="0" />
+      <LineId Id="2307" Count="0" />
+      <LineId Id="4110" Count="0" />
+      <LineId Id="4224" Count="0" />
+      <LineId Id="4381" Count="0" />
+      <LineId Id="2308" Count="20" />
+      <LineId Id="3687" Count="0" />
+      <LineId Id="2330" Count="6" />
+      <LineId Id="4212" Count="0" />
+      <LineId Id="4358" Count="0" />
+      <LineId Id="4499" Count="0" />
+      <LineId Id="2337" Count="1" />
+      <LineId Id="4111" Count="0" />
+      <LineId Id="4225" Count="0" />
+      <LineId Id="4382" Count="0" />
+      <LineId Id="2339" Count="20" />
+      <LineId Id="3688" Count="0" />
+      <LineId Id="2361" Count="7" />
+      <LineId Id="4112" Count="0" />
+      <LineId Id="4226" Count="0" />
+      <LineId Id="4383" Count="0" />
+      <LineId Id="2369" Count="29" />
+      <LineId Id="4113" Count="0" />
+      <LineId Id="4227" Count="0" />
+      <LineId Id="4384" Count="0" />
+      <LineId Id="2399" Count="29" />
+      <LineId Id="4114" Count="0" />
+      <LineId Id="4228" Count="0" />
+      <LineId Id="4385" Count="0" />
+      <LineId Id="2429" Count="29" />
+      <LineId Id="4115" Count="0" />
+      <LineId Id="4229" Count="0" />
+      <LineId Id="4386" Count="0" />
+      <LineId Id="2459" Count="20" />
+      <LineId Id="3668" Count="0" />
+      <LineId Id="2481" Count="7" />
+      <LineId Id="4116" Count="0" />
+      <LineId Id="4230" Count="0" />
+      <LineId Id="4387" Count="0" />
+      <LineId Id="2489" Count="20" />
+      <LineId Id="3669" Count="0" />
+      <LineId Id="2511" Count="7" />
+      <LineId Id="4117" Count="0" />
+      <LineId Id="4231" Count="0" />
+      <LineId Id="4388" Count="0" />
+      <LineId Id="2519" Count="20" />
+      <LineId Id="3670" Count="0" />
+      <LineId Id="2541" Count="7" />
+      <LineId Id="4118" Count="0" />
+      <LineId Id="4232" Count="0" />
+      <LineId Id="4389" Count="0" />
+      <LineId Id="2549" Count="20" />
+      <LineId Id="3671" Count="0" />
+      <LineId Id="2571" Count="7" />
+      <LineId Id="4119" Count="0" />
+      <LineId Id="4233" Count="0" />
+      <LineId Id="4390" Count="0" />
+      <LineId Id="2579" Count="20" />
+      <LineId Id="3672" Count="0" />
+      <LineId Id="2601" Count="7" />
+      <LineId Id="4120" Count="0" />
+      <LineId Id="4234" Count="0" />
+      <LineId Id="4391" Count="0" />
+      <LineId Id="2609" Count="20" />
+      <LineId Id="3673" Count="0" />
+      <LineId Id="2631" Count="7" />
+      <LineId Id="4121" Count="0" />
+      <LineId Id="4235" Count="0" />
+      <LineId Id="4392" Count="0" />
+      <LineId Id="2639" Count="20" />
+      <LineId Id="3674" Count="0" />
+      <LineId Id="2661" Count="6" />
+      <LineId Id="3744" Count="0" />
+      <LineId Id="4122" Count="0" />
+      <LineId Id="4236" Count="0" />
+      <LineId Id="4393" Count="0" />
+      <LineId Id="3745" Count="27" />
+      <LineId Id="3743" Count="0" />
+      <LineId Id="4327" Count="0" />
+      <LineId Id="4500" Count="0" />
+      <LineId Id="4504" Count="0" />
+      <LineId Id="4501" Count="2" />
+      <LineId Id="4507" Count="2" />
+      <LineId Id="3774" Count="0" />
+      <LineId Id="4123" Count="0" />
+      <LineId Id="4237" Count="0" />
+      <LineId Id="4394" Count="0" />
+      <LineId Id="3775" Count="27" />
+      <LineId Id="3773" Count="0" />
+      <LineId Id="4272" Count="2" />
+      <LineId Id="4395" Count="0" />
+      <LineId Id="4275" Count="27" />
+      <LineId Id="4271" Count="0" />
+      <LineId Id="2668" Count="0" />
+      <LineId Id="4124" Count="0" />
+      <LineId Id="4238" Count="0" />
+      <LineId Id="4396" Count="0" />
+      <LineId Id="2669" Count="20" />
+      <LineId Id="3675" Count="0" />
+      <LineId Id="2691" Count="7" />
+      <LineId Id="4125" Count="0" />
+      <LineId Id="4239" Count="0" />
+      <LineId Id="4397" Count="0" />
+      <LineId Id="2699" Count="20" />
+      <LineId Id="3676" Count="0" />
+      <LineId Id="2721" Count="7" />
+      <LineId Id="4126" Count="0" />
+      <LineId Id="4240" Count="0" />
+      <LineId Id="4398" Count="0" />
+      <LineId Id="2729" Count="20" />
+      <LineId Id="3677" Count="0" />
+      <LineId Id="2751" Count="7" />
+      <LineId Id="4127" Count="0" />
+      <LineId Id="4241" Count="0" />
+      <LineId Id="4399" Count="0" />
+      <LineId Id="2759" Count="20" />
+      <LineId Id="3678" Count="0" />
+      <LineId Id="2781" Count="7" />
+      <LineId Id="4128" Count="0" />
+      <LineId Id="4242" Count="0" />
+      <LineId Id="4400" Count="0" />
+      <LineId Id="2789" Count="20" />
+      <LineId Id="3679" Count="0" />
+      <LineId Id="2811" Count="7" />
+      <LineId Id="4129" Count="0" />
+      <LineId Id="4243" Count="0" />
+      <LineId Id="4401" Count="0" />
+      <LineId Id="2819" Count="20" />
+      <LineId Id="3680" Count="0" />
+      <LineId Id="2841" Count="7" />
+      <LineId Id="4130" Count="0" />
+      <LineId Id="4244" Count="0" />
+      <LineId Id="4402" Count="0" />
+      <LineId Id="2849" Count="20" />
+      <LineId Id="3681" Count="0" />
+      <LineId Id="2871" Count="6" />
+      <LineId Id="3834" Count="0" />
+      <LineId Id="4131" Count="0" />
+      <LineId Id="4245" Count="0" />
+      <LineId Id="4403" Count="0" />
+      <LineId Id="3835" Count="27" />
+      <LineId Id="3833" Count="0" />
+      <LineId Id="3864" Count="0" />
+      <LineId Id="4132" Count="0" />
+      <LineId Id="4246" Count="0" />
+      <LineId Id="4404" Count="0" />
+      <LineId Id="3865" Count="27" />
+      <LineId Id="3863" Count="0" />
+      <LineId Id="4344" Count="0" />
+      <LineId Id="4350" Count="1" />
+      <LineId Id="4349" Count="0" />
+      <LineId Id="4345" Count="3" />
+      <LineId Id="2878" Count="0" />
+      <LineId Id="4133" Count="0" />
+      <LineId Id="4247" Count="0" />
+      <LineId Id="4405" Count="0" />
+      <LineId Id="2879" Count="20" />
+      <LineId Id="3682" Count="0" />
+      <LineId Id="2901" Count="6" />
+      <LineId Id="4343" Count="0" />
+      <LineId Id="4370" Count="0" />
+      <LineId Id="4580" Count="3" />
+      <LineId Id="2908" Count="0" />
+      <LineId Id="4134" Count="0" />
+      <LineId Id="4248" Count="0" />
+      <LineId Id="4406" Count="0" />
+      <LineId Id="2909" Count="20" />
+      <LineId Id="3683" Count="0" />
+      <LineId Id="2931" Count="6" />
+      <LineId Id="4471" Count="1" />
+      <LineId Id="4474" Count="1" />
+      <LineId Id="4473" Count="0" />
+      <LineId Id="4488" Count="0" />
+      <LineId Id="4491" Count="5" />
+      <LineId Id="4489" Count="0" />
+      <LineId Id="4497" Count="1" />
+      <LineId Id="4490" Count="0" />
+      <LineId Id="4478" Count="0" />
+      <LineId Id="4467" Count="1" />
+      <LineId Id="4463" Count="0" />
+      <LineId Id="4600" Count="0" />
+      <LineId Id="4465" Count="0" />
+      <LineId Id="2938" Count="0" />
+      <LineId Id="4135" Count="0" />
+      <LineId Id="4249" Count="0" />
+      <LineId Id="4407" Count="0" />
+      <LineId Id="2939" Count="28" />
+      <LineId Id="4214" Count="1" />
+      <LineId Id="4217" Count="2" />
+      <LineId Id="4567" Count="0" />
+      <LineId Id="4363" Count="0" />
+      <LineId Id="4362" Count="0" />
+      <LineId Id="4364" Count="2" />
+      <LineId Id="4511" Count="1" />
+      <LineId Id="4510" Count="0" />
+      <LineId Id="2968" Count="0" />
+      <LineId Id="4136" Count="0" />
+      <LineId Id="4250" Count="0" />
+      <LineId Id="4408" Count="0" />
+      <LineId Id="2969" Count="20" />
+      <LineId Id="3684" Count="0" />
+      <LineId Id="2991" Count="7" />
+      <LineId Id="4138" Count="0" />
+      <LineId Id="4258" Count="0" />
+      <LineId Id="4409" Count="0" />
+      <LineId Id="2999" Count="0" />
+      <LineId Id="4515" Count="0" />
+      <LineId Id="4513" Count="0" />
+      <LineId Id="3000" Count="1" />
+      <LineId Id="4602" Count="0" />
+      <LineId Id="4601" Count="0" />
+      <LineId Id="4355" Count="1" />
+      <LineId Id="3002" Count="46" />
+      <LineId Id="3542" Count="0" />
+      <LineId Id="4139" Count="0" />
+      <LineId Id="4410" Count="0" />
+      <LineId Id="3543" Count="19" />
+      <LineId Id="3088" Count="1" />
+      <LineId Id="4140" Count="0" />
+      <LineId Id="4411" Count="0" />
+      <LineId Id="3090" Count="4" />
+      <LineId Id="3097" Count="4" />
+      <LineId Id="3540" Count="1" />
+      <LineId Id="3104" Count="5" />
+      <LineId Id="3538" Count="1" />
+      <LineId Id="3110" Count="0" />
+      <LineId Id="3563" Count="0" />
+      <LineId Id="4141" Count="0" />
+      <LineId Id="4412" Count="0" />
+      <LineId Id="3564" Count="19" />
+      <LineId Id="3168" Count="0" />
+      <LineId Id="3584" Count="0" />
+      <LineId Id="4142" Count="0" />
+      <LineId Id="4413" Count="0" />
+      <LineId Id="3585" Count="19" />
+      <LineId Id="3208" Count="0" />
+      <LineId Id="3605" Count="0" />
+      <LineId Id="4143" Count="0" />
+      <LineId Id="4414" Count="0" />
+      <LineId Id="3606" Count="19" />
+      <LineId Id="3248" Count="0" />
+      <LineId Id="3626" Count="0" />
+      <LineId Id="4144" Count="0" />
+      <LineId Id="4415" Count="0" />
+      <LineId Id="3627" Count="19" />
+      <LineId Id="3288" Count="0" />
+      <LineId Id="3647" Count="0" />
+      <LineId Id="4145" Count="0" />
+      <LineId Id="4416" Count="0" />
+      <LineId Id="3648" Count="19" />
+      <LineId Id="3328" Count="0" />
+      <LineId Id="3700" Count="0" />
+      <LineId Id="4146" Count="0" />
+      <LineId Id="4417" Count="0" />
+      <LineId Id="3701" Count="19" />
+      <LineId Id="3699" Count="0" />
+      <LineId Id="3722" Count="0" />
+      <LineId Id="4147" Count="0" />
+      <LineId Id="4418" Count="0" />
+      <LineId Id="3723" Count="19" />
+      <LineId Id="3721" Count="0" />
+      <LineId Id="3329" Count="0" />
+      <LineId Id="4148" Count="0" />
+      <LineId Id="4419" Count="0" />
+      <LineId Id="4259" Count="0" />
+      <LineId Id="3330" Count="5" />
+      <LineId Id="4568" Count="0" />
+      <LineId Id="4570" Count="2" />
+      <LineId Id="3336" Count="1" />
+      <LineId Id="4305" Count="0" />
+      <LineId Id="3338" Count="13" />
+      <LineId Id="3355" Count="28" />
+      <LineId Id="4149" Count="0" />
+      <LineId Id="4260" Count="0" />
+      <LineId Id="4420" Count="0" />
+      <LineId Id="3384" Count="4" />
+      <LineId Id="4573" Count="3" />
+      <LineId Id="3389" Count="2" />
+      <LineId Id="4304" Count="0" />
+      <LineId Id="3392" Count="13" />
+      <LineId Id="3409" Count="27" />
+      <LineId Id="3894" Count="0" />
+      <LineId Id="4150" Count="0" />
+      <LineId Id="4261" Count="0" />
+      <LineId Id="4421" Count="0" />
+      <LineId Id="3895" Count="9" />
+      <LineId Id="4158" Count="0" />
+      <LineId Id="4155" Count="0" />
+      <LineId Id="3905" Count="2" />
+      <LineId Id="3943" Count="0" />
+      <LineId Id="3909" Count="9" />
+      <LineId Id="4303" Count="0" />
+      <LineId Id="3448" Count="0" />
+      <LineId Id="4151" Count="0" />
+      <LineId Id="4256" Count="0" />
+      <LineId Id="4422" Count="0" />
+      <LineId Id="4429" Count="0" />
+      <LineId Id="3449" Count="2" />
+      <LineId Id="4482" Count="0" />
+      <LineId Id="3452" Count="3" />
+      <LineId Id="3944" Count="0" />
+      <LineId Id="4254" Count="1" />
+      <LineId Id="3456" Count="5" />
+      <LineId Id="4428" Count="0" />
+      <LineId Id="3462" Count="15" />
+      <LineId Id="3689" Count="0" />
+      <LineId Id="3478" Count="15" />
+      <LineId Id="3696" Count="0" />
+      <LineId Id="3494" Count="12" />
+      <LineId Id="3697" Count="0" />
+      <LineId Id="3530" Count="2" />
+      <LineId Id="3510" Count="1" />
+      <LineId Id="3690" Count="0" />
+      <LineId Id="3513" Count="6" />
+      <LineId Id="3698" Count="0" />
+      <LineId Id="3533" Count="2" />
+      <LineId Id="3523" Count="6" />
+      <LineId Id="3945" Count="0" />
+      <LineId Id="4551" Count="12" />
+      <LineId Id="4550" Count="0" />
+      <LineId Id="4587" Count="12" />
+      <LineId Id="4586" Count="0" />
+      <LineId Id="4034" Count="12" />
+      <LineId Id="4033" Count="0" />
+      <LineId Id="4004" Count="0" />
+      <LineId Id="4152" Count="0" />
+      <LineId Id="4251" Count="0" />
+      <LineId Id="4423" Count="0" />
+      <LineId Id="4005" Count="27" />
+      <LineId Id="4003" Count="0" />
+      <LineId Id="4372" Count="0" />
+      <LineId Id="4579" Count="0" />
+      <LineId Id="4578" Count="0" />
+      <LineId Id="4376" Count="0" />
+      <LineId Id="4373" Count="2" />
+      <LineId Id="4371" Count="0" />
+      <LineId Id="4048" Count="0" />
+      <LineId Id="4153" Count="0" />
+      <LineId Id="4252" Count="0" />
+      <LineId Id="4424" Count="0" />
+      <LineId Id="4049" Count="27" />
+      <LineId Id="4047" Count="0" />
+      <LineId Id="4078" Count="0" />
+      <LineId Id="4154" Count="0" />
+      <LineId Id="4253" Count="0" />
+      <LineId Id="4425" Count="0" />
+      <LineId Id="4079" Count="27" />
+      <LineId Id="4077" Count="0" />
+      <LineId Id="4517" Count="31" />
+      <LineId Id="4516" Count="0" />
+      <LineId Id="4160" Count="0" />
+      <LineId Id="4207" Count="0" />
+      <LineId Id="4262" Count="0" />
+      <LineId Id="4377" Count="0" />
+      <LineId Id="4161" Count="45" />
+      <LineId Id="4159" Count="0" />
+      <LineId Id="3691" Count="1" />
+      <LineId Id="3694" Count="1" />
+      <LineId Id="3693" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

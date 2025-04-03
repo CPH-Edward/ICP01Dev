@@ -1,0 +1,1414 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="RFModule_Source" Id="{7ccd7084-42a4-4749-996a-602098d5044a}" SpecialFunc="None">
+    <Declaration><![CDATA[(*
+--报错编号0: 无报错
+--报错编号1: openend Error
+--报错编号2: close Error
+*)
+FUNCTION_BLOCK RFModule_Source
+VAR_IN_OUT
+	WarmHMI					:WARMStruct;
+	NoteHMI					:NoteStruct;
+	operatorLog				:printLogModule_EX;
+END_VAR
+VAR_INPUT
+	HMIItf						:RFHMIStruts;// 每个RF对象都关联了一个HMI
+	RFTYPE						:RFType:=RFType_Default;// 设置RF的类型
+	real_TimeMonitor			:BOOL:=TRUE;//实时状态检测
+	co_control					:BOOL;// 共同计时
+	open						:BOOL:=FALSE;//启动触发信号
+	openCondition				:BOOL:=TRUE;//启动条件
+	close						:BOOL:=FALSE;//停止触发信号
+	closeCondition				:BOOL:=TRUE;//停止条件
+	reset						:BOOL:=FALSE;//复位信号
+	readCondition				:BOOL:=TRUE;//读取条件
+	stop						:BOOL:=FALSE;//停止信号
+	power						:BOOL:=TRUE;// RF动作后是否关闭继电器得电状态, TRUE--保持得电,FALSE--断开得电
+	enable						:BOOL:=TRUE;// RF禁用条件
+	//ctrlMode					:ControlMode:=ControlMode.eManualCtrMode;//eManualCtrMode or eAutoCtrMode
+	hmiEN						:BOOL:=TRUE;//HMI 启用条件
+	serialExcute				:BOOL;// RS485、232开始一次参数读取
+	
+	errorDelayTime				:TIME:=T#10S;//分子泵感应器感应超时
+	
+	ACCMaxtime					:TIME:=T#20S;// RF加速最大时间 启动过程
+	DCCMaxtime					:TIME:=T#20S;// RF减速最大时间 停止过程
+	
+	doneDelayTimeShortopenend	:TIME:=T#100MS;//  RF启动感应到位延时_伸出
+	doneDelayTimeShortcloseract	:TIME:=T#50MS;//  RF感应到位延时_收回
+	doneDelayTimeLongopenend	:TIME:=T#500MS;//  RF感应到位延时_伸出
+	doneDelayTimeLongcloseract	:TIME:=T#50MS;// RF感应到位延时_收回
+	errorID						:UDINT:=0;// RF错误报警分配的起始ID
+	nameTXT						:STRING(255):='';// RF名字
+	
+	AlmAprSw					:BOOL:=FALSE;// RF报警感应器信号,需要链接到实际的IO点
+	ErrorAprSw					:BOOL:=FALSE;// RF报错感应器信号,需要链接到实际的IO点
+	enableOpenAprSw				:BOOL:=TRUE;// 启用启动感应器,针对只有一个传感器的 RF
+	enableCloseAprSw			:BOOL:=TRUE;// 启用停止感应器,针对只有一个传感器的 RF
+	runTime						: LINT;// 运行时间
+	mainPower					:BOOL;// RF主电源
+	temperature					:REAL;// RF温度
+	current						:REAL;// RF电流
+	vol							:REAL;// RF电压
+	serialSlaveID				:UINT;// RF ID
+	serialError					:BOOL;// RF通讯错误
+	setpower					:UDINT;// 设定功率	
+	settime						:UDINT;// 设定时间
+	noteWTXT_open				:WSTRING(255):="";// RF打开动作NoteTXT 中文
+	noteWTXT_close				:WSTRING(255):="";// RF关闭动作NoteTXT 中文
+	controlMode					:INT:=0;// 0 手动，1 Analog，2 RS232
+	outputMode					:INT:=0;// 0 continuous，1 pulse
+	outputState					:INT:=0;// 0 Stop,1 Start
+	alarmState					:INT:=0;// 0 No Error,1 Error
+	setpowerRead				:UDINT:=0;// 读取设置的功率值
+	forwardpower				:UDINT;// 实际功率	
+	reflectedpower				:UDINT;// 反馈功率
+	maxpower					:UDINT;// 设置的最大功率值
+END_VAR
+VAR_OUTPUT
+	note_open				:BOOL;// 开条件不满足提示
+	note_close				:BOOL;// 关条件不满足提示
+	openRelay				:BOOL:=FALSE;// RF启动执行继电器,需要链接到实际的IO点
+	closeRelay				:BOOL:=FALSE;// RF停止执行继电器,需要链接到实际的IO点
+	resetRelay				:BOOL:=FALSE;// RF复位执行继电器,需要链接到实际的IO点	
+	rematime				:UDINT;// 剩余时间
+	busy					:BOOL;// RFusy状态
+	openbusy				:BOOL;// RF开动作Busy状态
+	closebusy				:BOOL;// RF关动作Busy状态
+	readbusy				:BOOL;// RF循环读取Busy状态
+	done					:BOOL;// RF动作Done状态
+	readdone					:BOOL;// RF动作Done状态
+	opendone				:BOOL;// RF动作伸出完成
+	closedone				:BOOL;// RF动作收回完成
+	setpointdone			:BOOL;
+	readerror			    :BOOL;// RF动作error状态
+	error					:BOOL;// RF动作error状态
+	errID					:UDINT;// RF动作errID
+	errTXT					:STRING(255):='';// RF动作errTXT
+	errWTXT					:WSTRING(255):="";// RF动作errTXT 中文
+END_VAR
+	
+VAR	
+	readAndWriteLock:BOOL;
+	runTON					: TON;
+	openErrorDelayTon		:Ton;
+	openDoneDelayTon		:Ton;
+	closeErrorDelayTon		:Ton;
+	closeDoneDelayTon		:Ton;
+	
+	extendTrigRAlc			:R_Trig;//上升沿触发
+	runTimeClearR			:R_Trig;//上升沿触发
+	
+	openendTrigRAlc			:R_Trig;//上升沿触发
+	
+	singleControltempR			:R_Trig;//上升沿触发
+	singleControlR			:R_Trig;//上升沿触发
+	singleControlF			:F_Trig;//上升沿触发
+	
+	openendTrigR1			:R_Trig;//上升沿触发
+	openendTrigR1_Aiko		:R_Trig;//上升沿触发
+	closeractTrigR1			:R_Trig;//上升沿触发
+	resetTrigR1				:R_Trig;//上升沿触发
+	stopTrigR1				:R_Trig;//上升沿触发
+	powerTrigR1				:R_Trig;//上升沿触发
+	
+	openStep				:UINT:=0;
+	closeStep				:UINT:=0;
+	errorStep				:UINT:=0;
+	readStep				:UINT:=0;
+	
+	resetRelayTON			:TON;
+	resetRelayTONTime		:TIME:=T#2S;
+	
+	writeStep				:UINT:=0;
+	writeMaxStep			:UINT:=0;
+	
+	notBusyMonitorDelayTon:TON;//动作不切换时，延迟检测
+	notBusyMonitorDelayTime:TIME:=T#2S;//动作不切换延迟检测时间
+	firstPower			    :BOOL:=TRUE;//首次上电标志位
+	firstPowerTON			:TON;
+	
+	AccFTrig:F_TRIG;//检测加速信号下降延
+	NormalRTrig:R_TRIG;//匀速上升沿
+	DccFTrig:F_TRIG;// 检测减速信号下降延
+	noteTON_P:tON;            // 操作提示标志位延时继电器
+	noteTON_N:tON;            // 操作提示标志位延时继电器
+	noteRTrig_P:R_TRIG;          // 操作提示
+	noteRTrig_N:R_TRIG;          // 操作提示
+	powerTon:TON;
+	readTon1:TON;
+	readTon2:TON;
+	readTon3:TON;
+	t1:TON;
+	t2:TON;
+	writeTON:TON;
+	writeMaxTON:TON;
+	readTON:TON;
+	readErrorTimes:UINT:=0;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[Init_ACT();
+Error_ACT();
+Open_ACT();
+Close_ACT();
+Reset_ACT();
+Error_ACT();
+Read_ACT();
+WritePower_ACT();
+WriteMaxPower_ACT();]]></ST>
+    </Implementation>
+    <Folder Name="Error" Id="{a2950bc2-8f8d-481b-82d1-444cded587e1}" />
+    <Folder Name="Private" Id="{52cc19ee-6175-4dbc-ba6a-71b12a66c313}" />
+    <Method Name="Act_Close" Id="{9f56f927-c2c9-4807-b48b-e2e9dd7c479f}">
+      <Declaration><![CDATA[(*
+触发缩回动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Close : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND closeCondition THEN// AND NOT busy
+	Act_Close:=close:=TRUE;
+ELSE
+	Act_Close:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Open" Id="{aee025d9-5961-4477-b90d-ee5b64afb6cc}">
+      <Declaration><![CDATA[(*
+触发伸出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Open : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND openCondition THEN// AND NOT busy
+	Act_Open:=open:=TRUE;
+ELSE
+	Act_Open:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Reset" Id="{61a717c4-a319-4666-887d-84d4bc7a0ac1}">
+      <Declaration><![CDATA[(*
+触发复位报警动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Reset : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Reset:=reset:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_SerialSend" Id="{5f48a9af-6d6a-4859-a35f-4560ea3f4ffa}">
+      <Declaration><![CDATA[(*
+触发发送动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_SerialSend : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF TRUE THEN
+	Act_SerialSend:=serialExcute:=TRUE;
+ELSE
+	Act_SerialSend:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_SetPoint" Id="{5fd4003f-f531-4edf-9b53-ca8936b66728}">
+      <Declaration><![CDATA[METHOD Act_SetPoint : BOOL
+VAR_INPUT
+	setpoint:UDINT;
+	_settime:UDINT;
+	con_ctr:BOOL;
+END_VAR
+VAR_OUTPUT
+	outTime:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[setpower:=HMIItf.setpower:=setpoint;
+settime:=HMIItf.settime:=outTime:=_settime;
+co_control:=con_ctr;
+Act_Open();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Stop" Id="{06a081d5-44a2-4409-bad9-21db88c2b9d5}">
+      <Declaration><![CDATA[(*
+触发停止输出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Stop : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Stop:=stop:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Write" Id="{43df9a9b-98a1-49c0-b925-37b9c1e4fe98}">
+      <Declaration><![CDATA[(*
+触发缩回动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Write : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF writeStep<10 AND NOT readAndWriteLock THEN
+	writeStep:=10;
+	readAndWriteLock:=TRUE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Write_1" Id="{71c19d7d-5e73-4819-9bbf-2fc60a44a85b}">
+      <Declaration><![CDATA[(*
+触发缩回动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Write_1 : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF writeStep<10 AND readAndWriteLock THEN
+	writeStep:=10;
+	readAndWriteLock:=TRUE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Close_ACT" Id="{25266ad8-9fe3-4dae-9eda-cad5f09cc9e2}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//分子泵--close 触发
+IF close AND NOT closeCondition THEN
+	note_open:=FALSE;
+	note_close:=TRUE;
+	NoteHMI.showFlag:=TRUE;
+	NoteHMI.showText:='';
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,nameTXT);
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,' Close Condition Not Satisfied!');
+	operatorLog.append(CONCAT(nameTXT,' Close Not Done '));
+END_IF
+IF close AND enable AND closeCondition AND closeStep<20 THEN// AND NOT busy
+	note_open:=FALSE;
+	note_close:=FALSE;
+	busy:=TRUE;
+	writeStep:=0;
+	writeMaxStep:=0;
+	closebusy:=TRUE;
+	openbusy:=FALSE;
+	open:=FALSE;
+	// searial_send(0)**************************************
+	opendone:=FALSE;
+	closedone:=FALSE;
+	openStep:=0;
+	closeStep:=10;
+	readAndWriteLock:=TRUE;
+	PLC_SourceRF.WriteStop();
+	operatorLog.append(CONCAT(nameTXT,' Close Done '));
+	//errorStep:=0;
+END_IF
+close:=FALSE;
+
+CASE closeStep OF
+0:
+	//ready
+	
+10:
+	IF readStep<10 AND writeStep<10 AND writeMaxStep<10 THEN
+		closeErrorDelayTon(IN:=FALSE);
+		closeDoneDelayTon(IN:=FALSE);
+		closeRelay:=TRUE;
+		PLC_SourceRF.WriteStop();
+		openRelay:=FALSE;
+		closeStep:=15;
+		t2(IN:=FALSE);
+	END_IF
+15:
+	t2(IN:=TRUE,PT:=T#0.2S);
+	IF t2.Q THEN
+		t2(IN:=FALSE);
+		readAndWriteLock:=FALSE;
+		PLC_SourceRF.WriteStop();
+		closeStep:=20;
+		busy:=FALSE;
+	END_IF
+20:// DCC与ACC一样，只不过ACC在Open逻辑；DCC 在Close逻辑里；  DCC=forwardpower<setpoint
+	closeErrorDelayTon(IN:=(NOT (forwardpower=0 AND reflectedpower=0 AND rematime=0)),PT:=errorDelayTime);
+	IF closeErrorDelayTon.Q THEN
+		//done:=FALSE;
+		opendone:=FALSE;
+		closedone:=FALSE;
+		errorStep:=2;
+		closeStep:=40;
+		RETURN;
+	END_IF
+	IF enablecloseAprSw THEN
+		closeDoneDelayTon(IN:=(forwardpower=0 AND reflectedpower=0 AND rematime=0),PT:=doneDelayTimeShortcloseract);
+	END_IF
+	IF closeDoneDelayTon.Q THEN
+		closeErrorDelayTon(IN:=FALSE);
+		closeDoneDelayTon(IN:=FALSE);
+		closeStep:=30;
+	END_IF
+30:
+	busy:=FALSE;
+	closebusy:=FALSE;
+	openbusy:=FALSE;
+	//done:=TRUE;
+	opendone:=FALSE;
+	closedone:=TRUE;
+	errorStep:=0;
+	closeStep:=0;
+	readAndWriteLock:=FALSE;
+	t2(IN:=FALSE);
+40:
+	busy:=FALSE;
+	closebusy:=FALSE;
+	openbusy:=FALSE;
+	closeStep:=0;
+	readAndWriteLock:=FALSE;
+	t2(IN:=FALSE);
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Error_ACT" Id="{ef27fe77-084a-4d91-916e-74927c3eeb74}" FolderPath="Error\">
+      <Implementation>
+        <ST><![CDATA[CASE errorStep OF
+	0:
+		error:=FALSE;
+		errID:=0;
+		errTXT:='';
+ (*
+	1:
+		error:=TRUE;
+		errID:=errorID+errorStep;
+		errTXT:=CONCAT(STR1:=nameTXT,STR2:=' Extend Error!');
+		errWTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 伸出(打开)错误");
+	2:
+		error:=TRUE;
+		errID:=errorID+errorStep;
+		errTXT:=CONCAT(STR1:=nameTXT,STR2:=' Retract Error!');
+		errWTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 缩回(关闭)错误");
+		*)
+	1..6:
+		error:=TRUE;
+		errID:=getErrID(errorStep);
+		errTXT:=getErrTXT(errorStep);
+		errWTXT:=getErrWTXT(errorStep);
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="Get_Done_Close" Id="{1139e213-f501-46d3-ab2a-b147d074ef16}">
+      <Declaration><![CDATA[METHOD Get_Done_Close : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_Close:=closedone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_Done_Open" Id="{99f984d8-4b99-4739-974e-2fe7eb94a502}">
+      <Declaration><![CDATA[METHOD Get_Done_Open : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_Open:=opendone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrID" Id="{966ffbc3-0ea7-44e0-9d9d-783ef3b7d3d9}">
+      <Declaration><![CDATA[METHOD getErrID : UDINT
+VAR_INPUT
+	errID					:UDINT;//取值范围1~2
+END_VAR
+VAR
+	nErrID					:UDINT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[nErrID:=errorID+errID;
+
+getErrID:=nErrID;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrTXT" Id="{ecb39ad6-04fb-4320-8e42-b381f41c0ac1}">
+      <Declaration><![CDATA[METHOD getErrTXT : STRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~2
+END_VAR
+VAR
+	sErrTXT					:STRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Open(TimeOut) Error!');
+	2:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Close Error!');
+	3:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' NormalRun Error!');
+	4:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' CheckCondition Error!');
+	5:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' ParSet Fault!');
+	6:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Communication Error!');
+ELSE
+	sErrTXT:=CONCAT(STR1:=nameTXT,STR2:='');
+END_CASE
+getErrTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrWTXT" Id="{9560a7c8-c1de-4456-b80f-20bf95da9b62}">
+      <Declaration><![CDATA[METHOD getErrWTXT : WSTRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~16
+END_VAR
+VAR
+	sErrTXT					:WSTRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" RF启动错误");
+	2:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" RF停止错误");
+	3:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" RF正常运行出现异常情况");
+	4:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 检测到条件异常，关机处理");
+	5:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 参数设置有误");
+	6:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 通讯异常");
+		
+ELSE
+	sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:="");
+END_CASE
+getErrWTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Init_ACT" Id="{913daaa5-6901-4d7a-9e8b-d2719ee3305f}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[done:=(opendone OR closedone);
+powerTon(IN:=mainPower,PT:=T#10S);
+IF AlmAprSw AND powerTon.Q THEN
+	errorStep:=5;
+END_IF
+IF readerror OR NOT readCondition AND firstPowerTON.Q THEN
+	errorStep:=6;
+END_IF
+error:=error OR serialError OR NOT mainPower OR AlmAprSw;
+InitHMI_ACT();
+manualCtrl_ACT();
+IF (error OR AlmAprSw OR ErrorAprSw OR NOT openCondition) AND openRelay THEN
+	stop:=TRUE;
+	busy:=FALSE;
+	openRelay:=FALSE;
+END_IF
+
+noteTON_P(IN:=note_open,PT:=T#0.1S);
+noteRTrig_P(CLK:=noteTON_P.Q);
+IF noteRTrig_P.Q THEN
+//	gLog_Note.append_EX(noteWTXT_Open);
+END_IF
+noteTON_N(IN:=note_close,PT:=T#0.1S);
+noteRTrig_N(CLK:=noteTON_N.Q);
+IF noteRTrig_N.Q THEN
+//	gLog_Note.append_EX(noteWTXT_close);
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="InitHMI_ACT" Id="{d301f8bf-8781-4d62-af61-ca9984c45061}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[HMIItf.AlmAprSw:=AlmAprSw;
+HMIItf.ErrorAprSw:=ErrorAprSw;
+
+HMIItf.temperature:=temperature;
+HMIItf.current:=current;
+HMIItf.vol:=vol;
+
+HMIItf.enableOpen:=enableOpenAprSw;
+HMIItf.enableClose:=enableCloseAprSw;
+HMIItf.HMIEnable:=hmiEN;
+HMIItf.enable:=enable;
+HMIItf.done:=done;
+HMIItf.busy:=busy;
+HMIItf.error:=error;
+HMIItf.errID:=UDINT_TO_DINT(errID);
+HMIItf.errTXT:=errTXT;
+HMIItf.openRelay:=openRelay;
+HMIItf.resetRelay:=resetRelay;
+
+HMIItf.power:=power;
+HMIItf.nameTXT:=nameTXT;
+
+HMIItf.runTime:=runTime;
+HMIItf.opencondition:=openCondition;
+HMIItf.closecondition:=closeCondition;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ManualCtrl_ACT" Id="{101d9aad-82f8-4d3e-b058-c0092ee85d60}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//HMI手动控制
+//IF ctrlMode=eManualCtrMode THEN
+IF hmiEN THEN
+	extendTrigRAlc(CLK:=HMIItf.extendAndretract);
+	IF extendTrigRAlc.Q THEN// AND NOT busy
+		IF openRelay THEN// 如果启动继电器或全速，则认为已经已启动完毕
+			close:=TRUE;
+		END_IF
+		IF NOT openRelay THEN
+			open:=TRUE;
+		END_IF
+	END_IF
+	openendTrigR1_Aiko(CLK:=HMIItf.bopen);
+	IF openendTrigR1_Aiko.Q AND NOT busy AND NOT openRelay THEN
+		open:=TRUE;
+		close:=FALSE;
+	END_IF
+	IF openendTrigR1_Aiko.Q AND busy AND openRelay THEN
+		close:=TRUE;
+		open:=FALSE;
+	END_IF
+	
+	singleControltempR(CLK:=HMIItf.singleControltemp);
+	openendTrigR1(CLK:=HMIItf.open);
+	IF openendTrigR1.Q OR (singleControltempR.Q AND NOT openRelay ) THEN// AND NOT busy
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want to Open the ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,' ?');
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Open')>0 THEN
+		open:=TRUE;
+		operatorLog.append(CONCAT(CONCAT(nameTXT,' Open:'),UDINT_TO_STRING(setpower)));
+		operatorLog.append(CONCAT(CONCAT(nameTXT,' Open:'),UDINT_TO_STRING(settime)));
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Open')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	
+	closeractTrigR1(CLK:=HMIItf.close);
+	IF closeractTrigR1.Q OR (singleControltempR.Q AND openRelay) THEN// AND NOT busy
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want to Close the ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,' ?');
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Close')>0 THEN
+		close:=TRUE;
+		operatorLog.append(CONCAT(nameTXT,' Close'));
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Close')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	
+	resetTrigR1(CLK:=HMIItf.reset);
+	IF resetTrigR1.Q THEN// AND NOT busy
+		reset:=TRUE;
+	END_IF
+	
+	stopTrigR1(CLK:=HMIItf.stop);
+	IF stopTrigR1.Q THEN// AND NOT busy
+		stop:=TRUE;
+	END_IF
+	
+	powerTrigR1(CLK:=HMIItf.power);
+	IF powerTrigR1.Q THEN// AND NOT busy
+		IF power THEN
+			power:=FALSE;
+		ELSE
+			power:=TRUE;
+		END_IF
+	END_IF
+	
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Open_ACT" Id="{a74b6aa5-683f-405d-912b-2f4c5f06ef13}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//分子泵伸出--open 触发
+IF open AND NOT openCondition THEN
+	note_open:=TRUE;
+	note_close:=FALSE;
+	NoteHMI.showFlag:=TRUE;
+	NoteHMI.showText:='';
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,nameTXT);
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,' Open Condition Not Satisfied!');
+	operatorLog.append(CONCAT(nameTXT,' Open Not Done '));
+END_IF
+IF open AND enable AND openCondition AND NOT AlmAprSw AND NOT ErrorAprSw AND NOT openbusy AND mainPower AND NOT resetRelay THEN// AND NOT busy
+	note_open:=FALSE;
+	note_close:=FALSE;
+	busy:=TRUE;
+	closebusy:=FALSE;
+	openbusy:=TRUE;
+	close:=FALSE;
+	open:=FALSE;
+	done:=FALSE;
+	opendone:=FALSE;
+	closedone:=FALSE;
+	openStep:=10;
+	writeStep:=0;
+	writeMaxStep:=0;
+	readAndWriteLock:=TRUE;
+	// searial_send(setPoint)**************************************
+	closeStep:=0;
+	operatorLog.append(CONCAT(nameTXT,' Open Done '));
+END_IF
+open:=FALSE;
+runTimeClearR(CLK:=HMIItf.runTimeClear);
+runTON(IN:=NOT error AND openRelay AND NOT runTON.Q, PT:=T#60S);// 1小时计数一次,启动，无报错，且全速
+IF runTON.Q AND runTime<999999999999999 AND NOT runTimeClearR.Q THEN
+	runTime:=runTime+1;
+END_IF
+IF runTimeClearR.Q THEN
+	runTime:=0;
+END_IF
+//IF NOT openRelay AND NOT AccAprSw AND NOT DccAprSw AND NOT NormalAprSw THEN// 计数清零
+//	runTime:=0;
+//END_IF
+
+CASE openStep OF
+0:
+	//ready
+	runTON(IN:=FALSE);
+	openErrorDelayTon(IN:=FALSE);
+	openErrorDelayTon(IN:=FALSE);
+	openDoneDelayTon(IN:=FALSE);
+	t1(IN:=FALSE);
+	rematime:=0;
+10:
+	IF setpower<1 OR (NOT co_control AND settime<1) THEN 
+		open:=FALSE;
+		close:=FALSE;
+		openbusy:=FALSE;
+		closebusy:=FALSE;
+		errorStep:=5;
+		openStep:=60;
+	ELSE
+		t1(IN:=readStep<10 AND writeStep<10 AND writeMaxStep<10,PT:=T#0.5S);
+		IF t1.Q THEN
+			openErrorDelayTon(IN:=FALSE);
+			openDoneDelayTon(IN:=FALSE);
+			openStep:=15;
+			openRelay:=TRUE;
+			setpointdone:=FALSE;
+			Act_Write_1();
+			openbusy:=TRUE;
+			closebusy:=FALSE;
+			closeRelay:=FALSE;
+			t1(IN:=FALSE);
+		END_IF
+	END_IF
+15:
+	t1(IN:=setpointdone,PT:=T#0.1S);
+	IF t1.Q THEN
+		setpointdone:=FALSE;
+		t1(IN:=FALSE);
+		PLC_SourceRF.receiveFlag:=FALSE;
+		PLC_SourceRF.WriteStart();
+		openStep:=17;
+	END_IF
+17:
+	t1(IN:=PLC_SourceRF.receiveFlag,PT:=T#0.05S);
+	IF t1.Q THEN
+		t1(IN:=FALSE);
+		PLC_SourceRF.receiveFlag:=FALSE;
+		readAndWriteLock:=FALSE;
+		busy:=false;
+		openStep:=20;
+	END_IF
+20:
+	// AccAprSw可以看成是forward Power > 5 ,< set point - 5// 或者反射功率>0
+	openErrorDelayTon(IN:=(NOT (ABS(forwardpower)>=0 AND reflectedpower<10 AND ABS(setpower-forwardpower)<2)),PT:=errorDelayTime);
+	IF openErrorDelayTon.Q THEN
+		//done:=FALSE;
+		open:=FALSE;
+		close:=FALSE;
+		openbusy:=FALSE;
+		closebusy:=FALSE;
+		errorStep:=1;
+		openStep:=60;
+		RETURN;
+	END_IF
+	IF enableopenAprSw THEN
+		openDoneDelayTon(IN:=ABS(forwardpower)>=0 AND reflectedpower<10 AND ABS(setpower-forwardpower)<2,PT:=doneDelayTimeShortopenend);
+	END_IF
+	IF openDoneDelayTon.Q THEN
+		openErrorDelayTon(IN:=FALSE);
+		openDoneDelayTon(IN:=FALSE);
+		openStep:=30;
+	END_IF
+	
+	//状态实时检测
+	IF NOT openCondition AND (NOT closedone OR openRelay) THEN// 检测到开条件消失，强制关闭
+		openRelay:=FALSE;
+		errorStep:=4;
+		openbusy:=FALSE;
+		closebusy:=FALSE;
+		openStep:=60;
+	END_IF
+	IF (ErrorAprSw OR AlmAprSw) AND openRelay THEN//只要报错；启动线圈启动，强锁启动信号
+		openRelay:=FALSE;
+		openStep:=60;/////
+		errorStep:=3;
+		openbusy:=FALSE;
+		closebusy:=FALSE;
+	END_IF
+30:
+	openErrorDelayTon(IN:=NOT co_control,PT:=UDINT_TO_TIME(settime*1000));// 反射调整超时时间
+	rematime:=TIME_TO_UDINT(openErrorDelayTon.ET/1000);
+	rematime:=settime-rematime;
+	IF openErrorDelayTon.Q OR co_control THEN
+		openStep:=40;
+		rematime:=0;
+		openErrorDelayTon(IN:=FALSE);
+	END_IF
+	// 状态实时检测
+	IF NOT openCondition AND (NOT closedone OR openRelay) THEN//蝶阀单控，检测到开条件消失，强制关闭
+		openRelay:=FALSE;
+		errorStep:=4;
+		openStep:=60;
+		closebusy:=FALSE;
+		openbusy:=FALSE;
+	END_IF
+	IF (ErrorAprSw OR AlmAprSw) AND openRelay THEN//只要报错；启动线圈启动，强锁启动信号
+		openRelay:=FALSE;
+		stop:=TRUE;
+		openStep:=60;/////
+		errorStep:=3;
+		closebusy:=FALSE;
+		openbusy:=FALSE;
+	END_IF
+40:
+	busy:=FALSE;
+	IF NOT co_control THEN
+		openRelay:=FALSE;
+		close:=TRUE;
+	END_IF
+	openStep:=50;
+	openbusy:=FALSE;
+	readAndWriteLock:=FALSE;
+	opendone:=TRUE;
+50:
+	rematime:=0;
+60:
+	openRelay:=FALSE;
+	openStep:=70;
+	busy:=FALSE;
+	readAndWriteLock:=FALSE;
+	;//报错
+	co_control:=FALSE;
+	opendone:=FALSE;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Read_ACT" Id="{223440ad-43ec-4977-9351-da88e430f222}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//气缸收回--read 触发
+firstPowerTON(IN:=firstPower,PT:=T#10S);
+readTON(IN:=NOT readAndWriteLock AND NOT busy AND NOT readbusy AND readStep=0 AND readCondition,PT:=T#0.05S);
+IF readTON.Q THEN// AND NOT busy
+	readdone:=FALSE;
+	readStep:=10;
+	readbusy:=TRUE;
+	readerror:=FALSE;
+END_IF
+CASE readStep OF
+0:
+	//ready
+	readTon1(IN:=FALSE);
+	readTon2(IN:=FALSE);
+	readTon3(IN:=FALSE);
+10:// State
+	IF gICP.SourceRF.controlMode=2 THEN
+		PLC_SourceRF.readStateFlag:=FALSE;
+		PLC_SourceRF.ReadState();
+		readStep:=readStep+10;
+	ELSE
+		PLC_SourceRF.readStateFlag:=FALSE;
+		PLC_SourceRF.WriteRS232Mode();
+		readStep:=readStep+15;
+		PLC_SourceRF.receiveFlag:=FALSE;
+	END_IF
+20:
+	IF PLC_SourceRF.readStateFlag THEN
+		PLC_SourceRF.readStateFlag:=FALSE;
+		// 数据处理
+		readTon1(IN:=FALSE);
+		readStep:=readStep+10;
+		RETURN;
+	END_IF
+	readTon1(IN:=TRUE,PT:=T#500MS);// 超时
+	IF readTon1.Q THEN
+		readStep:=6000;
+		readTon1(IN:=FALSE);
+		readTon2(IN:=FALSE);
+		RETURN;
+	END_IF
+25:
+	IF PLC_SourceRF.receiveFlag THEN
+		PLC_SourceRF.receiveFlag:=FALSE;
+		// 数据处理
+		readTon1(IN:=FALSE);
+		readStep:=readStep+5;
+		RETURN;
+	END_IF
+	readTon1(IN:=TRUE,PT:=T#500MS);// 超时
+	IF readTon1.Q THEN
+		readStep:=6000;
+		readTon1(IN:=FALSE);
+		readTon2(IN:=FALSE);
+		RETURN;
+	END_IF
+30:
+	readTon3(IN:=TRUE,PT:=T#0.1S);
+	IF readTon3.Q THEN
+		readStep:=readStep+10;
+		readTon3(IN:=FALSE);
+	END_IF
+40:// State
+	PLC_SourceRF.readStateFlag:=FALSE;
+	PLC_SourceRF.ReadState();
+	readStep:=readStep+10;
+50:
+	IF PLC_SourceRF.readStateFlag THEN
+		PLC_SourceRF.readStateFlag:=FALSE;
+		// 数据处理
+		readTon1(IN:=FALSE);
+		readStep:=readStep+10;
+		RETURN;
+	END_IF
+	readTon1(IN:=TRUE,PT:=T#500MS);// 超时
+	IF readTon1.Q THEN
+		readStep:=6000;
+		readTon1(IN:=FALSE);
+		readTon2(IN:=FALSE);
+		RETURN;
+	END_IF
+60:
+	readStep:=90;
+90:
+	readTon3(IN:=TRUE,PT:=T#0.1S);
+	IF readTon3.Q THEN
+		readStep:=5000;
+		readTon3(IN:=FALSE);
+	END_IF
+5000:
+	readbusy:=FALSE;
+	readdone:=TRUE;
+	readStep:=0;
+	readerror:=FALSE;
+	PLC_SourceRF.ClearCom:=TRUE;
+6000:
+	readbusy:=FALSE;
+	readdone:=TRUE;
+	readStep:=0;
+	readErrorTimes:=readErrorTimes+1;
+	IF readErrorTimes>3 THEN
+		readErrorTimes:=0;
+		readerror:=TRUE;
+		gICP.SourceRF.setpowerRead:=0;
+		gICP.SourceRF.forwardpower:=0;
+		gICP.SourceRF.reflectedpower:=0;
+		gICP.SourceRF.maxpower:=0;
+	END_IF
+	gICP.SourceRF.controlMode:=0;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Reset_ACT" Id="{684a7dbe-d19f-45a2-90b4-bcdd5e50e02e}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[IF reset THEN
+	IF NOT power THEN
+		openRelay:=FALSE;
+		closeRelay:=FALSE;
+	END_IF
+	note_open:=FALSE;
+	note_close:=FALSE;
+	IF errorStep<>0 OR  AlmAprSw OR ErrorAprSw THEN
+		errorStep:=0;
+		busy:=FALSE;
+		closebusy:=FALSE;
+		openbusy:=FALSE;
+		resetRelay:=TRUE;
+		readAndWriteLock:=TRUE;
+		PLC_SourceRF.WriteReset();
+	END_IF
+	reset:=FALSE;
+	note_open:=FALSE;
+	note_close:=FALSE;
+END_IF
+resetRelayTON(IN:=resetRelay , PT:=resetRelayTONTime);
+IF resetRelayTON.Q THEN
+	errorStep:=0;
+	busy:=FALSE;
+	resetRelay:=FALSE;
+	readAndWriteLock:=FALSE;
+END_IF
+
+IF stop THEN
+	note_open:=FALSE;
+	note_close:=FALSE;
+	stop:=FALSE;
+	openRelay:=FALSE;
+	closeRelay:=FALSE;
+	//无自锁检测说法，直接停
+	openStep:=0;
+	closeStep:=0;
+	writeStep:=0;
+	writeMaxStep:=0;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="VersionLog" Id="{78c64ef6-c5d1-425f-8043-e19d9a652392}">
+      <Implementation>
+        <ST><![CDATA[(*
+版本: V1.0.0.0
+说明:
+	1. 首个版本
+	2. 含普通分子泵\泵组类型的控制
+	3. 可配置是否有到位信号, 以及到位稳定时间
+(--------------------------------------------------)
+新版本: V1.0.1.0
+更新时间: 2019/11/20 19:00
+更新说明:
+	1. 优化编写方式
+	2. 修改错误编码起始位，现改为从1开始
+(--------------------------------------------------)
+新版本: V1.0.1.1
+更新时间: 2020/03/23 23:00
+更新说明:
+	1. 优化报错方式
+	2. 增加伸出、缩回、复位和停止触发函数
+(--------------------------------------------------)
+新版本: V1.0.1.2
+更新时间: 2020/04/22 09:50
+更新说明:
+	1. 增加中文报警输出
+(--------------------------------------------------)
+新版本: V1.0.1.3
+更新时间: 2020/09/16
+更新说明:
+	1. 开放错误ID、错误文本信息获取接口
+(--------------------------------------------------)
+新版本: V1.0.1.4
+更新时间: 2020/10/06
+更新说明:
+	1. 移除控制模式变量，增加HMI启用条件
+	2. 增加外部获取伸出缩回完成信号接口函数
+(--------------------------------------------------)
+新版本: V1.0.1.5
+更新时间: 2020/10/14
+更新说明:
+	1. 优化代码
+(--------------------------------------------------)
+新版本: V2.0.1.0
+更新时间: 2023/11/17
+更新说明:
+	1. 分子泵控制独立
+(--------------------------------------------------)
+
+
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="WriteMaxPower_ACT" Id="{64791b05-bcd9-4f2f-b815-2a149d2013c2}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//分子泵--write 触发
+
+CASE writeMaxStep OF
+0:
+	//ready
+	writeMaxTON(IN:=FALSE);
+10:
+	readAndWriteLock:=TRUE;
+	writeMaxTON(IN:=TRUE,PT:=T#3S);
+	IF writeMaxTON.Q THEN
+		writeMaxTON(IN:=FALSE);
+		writeMaxStep:=writeMaxStep+10;
+	END_IF
+20:
+	IF readStep<10 AND openStep<10 AND closeStep<10 AND writeStep<10 THEN
+		PLC_SourceRF.WriteMaxPower(gICP.SourceRF.setpower);
+		writeMaxStep:=writeMaxStep+10;
+	END_IF
+30:
+	writeMaxTON(IN:=TRUE,PT:=T#3S);
+	IF writeMaxTON.Q THEN
+		writeMaxTON(IN:=FALSE);
+		writeMaxStep:=writeMaxStep+10;
+	END_IF
+40:
+	writeMaxStep:=100;
+100:
+	writeMaxStep:=0;	
+	readAndWriteLock:=FALSE;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="WritePower_ACT" Id="{4c19f6c2-22b0-4e99-9fce-76828c039964}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//分子泵--write 触发
+
+CASE writeStep OF
+0:
+	//ready
+	writeTON(IN:=FALSE);
+10:
+	writeTON(IN:=readStep<10,PT:=T#0.1S);
+	setpointdone:=FALSE;
+	IF writeTON.Q THEN
+		PLC_SourceRF.ClearCom:=TRUE;
+		writeTON(IN:=FALSE);
+		writeStep:=writeStep+10;
+	END_IF
+20:
+	IF readStep<10  AND writeMaxStep<10 THEN
+		PLC_SourceRF.WritePower(gICP.SourceRF.setpower);
+		PLC_SourceRF.receiveFlag:=FALSE;
+		writeStep:=writeStep+10;
+	END_IF
+30:
+	writeTON(IN:=NOT PLC_SourceRF.receiveFlag ,PT:=T#0.5S);
+	IF writeTON.Q THEN
+		PLC_SourceRF.receiveFlag:=FALSE;
+		writeTON(IN:=FALSE);
+		writeStep:=writeStep+10;
+		setpointdone:=FALSE;
+		RETURN;
+	END_IF
+	IF PLC_SourceRF.receiveFlag THEN
+		PLC_SourceRF.receiveFlag:=FALSE;
+		writeTON(IN:=FALSE);
+		writeStep:=writeStep+10;
+		setpointdone:=TRUE;
+		RETURN;
+	END_IF
+40:
+	writeStep:=100;
+100:
+	writeStep:=0;	
+	readAndWriteLock:=FALSE;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="RFModule_Source">
+      <LineId Id="589" Count="2" />
+      <LineId Id="735" Count="0" />
+      <LineId Id="593" Count="1" />
+      <LineId Id="868" Count="0" />
+      <LineId Id="1004" Count="0" />
+      <LineId Id="576" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.Act_Close">
+      <LineId Id="22" Count="3" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.Act_Open">
+      <LineId Id="22" Count="3" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.Act_Reset">
+      <LineId Id="5" Count="1" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.Act_SerialSend">
+      <LineId Id="22" Count="3" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.Act_SetPoint">
+      <LineId Id="5" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="13" Count="1" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.Act_Stop">
+      <LineId Id="6" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.Act_Write">
+      <LineId Id="5" Count="0" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="39" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.Act_Write_1">
+      <LineId Id="5" Count="0" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="39" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.Close_ACT">
+      <LineId Id="222" Count="7" />
+      <LineId Id="310" Count="0" />
+      <LineId Id="230" Count="16" />
+      <LineId Id="311" Count="0" />
+      <LineId Id="247" Count="62" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.Error_ACT">
+      <LineId Id="1" Count="0" />
+      <LineId Id="15" Count="2" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="12" Count="2" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="18" Count="2" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="27" Count="4" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="3" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.Get_Done_Close">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.Get_Done_Open">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.getErrID">
+      <LineId Id="22" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.getErrTXT">
+      <LineId Id="22" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="66" Count="1" />
+      <LineId Id="74" Count="1" />
+      <LineId Id="82" Count="1" />
+      <LineId Id="90" Count="1" />
+      <LineId Id="40" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.getErrWTXT">
+      <LineId Id="21" Count="2" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="81" Count="1" />
+      <LineId Id="89" Count="1" />
+      <LineId Id="97" Count="1" />
+      <LineId Id="106" Count="1" />
+      <LineId Id="105" Count="0" />
+      <LineId Id="55" Count="3" />
+      <LineId Id="14" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.Init_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="23" Count="2" />
+      <LineId Id="27" Count="2" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="3" Count="0" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="4" Count="1" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="11" Count="1" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="13" Count="3" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="17" Count="1" />
+      <LineId Id="10" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.InitHMI_ACT">
+      <LineId Id="18" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="24" Count="1" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="4" Count="1" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="6" Count="6" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="13" Count="1" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="29" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.ManualCtrl_ACT">
+      <LineId Id="2" Count="1" />
+      <LineId Id="53" Count="8" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="71" Count="1" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="79" Count="0" />
+      <LineId Id="75" Count="0" />
+      <LineId Id="77" Count="1" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="76" Count="0" />
+      <LineId Id="81" Count="0" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="148" Count="9" />
+      <LineId Id="183" Count="1" />
+      <LineId Id="158" Count="17" />
+      <LineId Id="182" Count="0" />
+      <LineId Id="176" Count="5" />
+      <LineId Id="109" Count="0" />
+      <LineId Id="13" Count="18" />
+      <LineId Id="70" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.Open_ACT">
+      <LineId Id="479" Count="7" />
+      <LineId Id="653" Count="0" />
+      <LineId Id="487" Count="17" />
+      <LineId Id="654" Count="0" />
+      <LineId Id="505" Count="22" />
+      <LineId Id="529" Count="111" />
+      <LineId Id="651" Count="0" />
+      <LineId Id="641" Count="8" />
+      <LineId Id="652" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.Read_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="470" Count="0" />
+      <LineId Id="402" Count="0" />
+      <LineId Id="3" Count="0" />
+      <LineId Id="94" Count="0" />
+      <LineId Id="100" Count="0" />
+      <LineId Id="176" Count="0" />
+      <LineId Id="259" Count="0" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="13" Count="2" />
+      <LineId Id="113" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="315" Count="0" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="404" Count="7" />
+      <LineId Id="425" Count="0" />
+      <LineId Id="204" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="412" Count="12" />
+      <LineId Id="183" Count="0" />
+      <LineId Id="426" Count="0" />
+      <LineId Id="428" Count="12" />
+      <LineId Id="427" Count="0" />
+      <LineId Id="132" Count="0" />
+      <LineId Id="316" Count="1" />
+      <LineId Id="320" Count="1" />
+      <LineId Id="319" Count="0" />
+      <LineId Id="332" Count="0" />
+      <LineId Id="441" Count="1" />
+      <LineId Id="345" Count="1" />
+      <LineId Id="443" Count="12" />
+      <LineId Id="365" Count="1" />
+      <LineId Id="331" Count="0" />
+      <LineId Id="393" Count="0" />
+      <LineId Id="396" Count="2" />
+      <LineId Id="400" Count="0" />
+      <LineId Id="395" Count="0" />
+      <LineId Id="172" Count="0" />
+      <LineId Id="177" Count="0" />
+      <LineId Id="175" Count="0" />
+      <LineId Id="179" Count="0" />
+      <LineId Id="257" Count="0" />
+      <LineId Id="403" Count="0" />
+      <LineId Id="173" Count="0" />
+      <LineId Id="178" Count="0" />
+      <LineId Id="174" Count="0" />
+      <LineId Id="180" Count="0" />
+      <LineId Id="461" Count="1" />
+      <LineId Id="465" Count="0" />
+      <LineId Id="463" Count="0" />
+      <LineId Id="467" Count="2" />
+      <LineId Id="466" Count="0" />
+      <LineId Id="464" Count="0" />
+      <LineId Id="401" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.Reset_ACT">
+      <LineId Id="2" Count="4" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="40" Count="1" />
+      <LineId Id="56" Count="1" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="70" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="44" Count="1" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="54" Count="1" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="68" Count="0" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="17" Count="1" />
+      <LineId Id="30" Count="1" />
+      <LineId Id="19" Count="2" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="27" Count="1" />
+      <LineId Id="71" Count="1" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.VersionLog">
+      <LineId Id="49" Count="16" />
+      <LineId Id="67" Count="7" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="76" Count="1" />
+      <LineId Id="79" Count="10" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="101" Count="3" />
+      <LineId Id="99" Count="1" />
+      <LineId Id="98" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.WriteMaxPower_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="12" Count="5" />
+      <LineId Id="209" Count="0" />
+      <LineId Id="221" Count="3" />
+      <LineId Id="210" Count="2" />
+      <LineId Id="215" Count="1" />
+      <LineId Id="214" Count="0" />
+      <LineId Id="198" Count="0" />
+      <LineId Id="201" Count="2" />
+      <LineId Id="205" Count="0" />
+      <LineId Id="199" Count="0" />
+      <LineId Id="207" Count="0" />
+      <LineId Id="217" Count="1" />
+      <LineId Id="220" Count="0" />
+      <LineId Id="219" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="RFModule_Source.WritePower_ACT">
+      <LineId Id="242" Count="40" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

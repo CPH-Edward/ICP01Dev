@@ -1,0 +1,264 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="MachineStatePOU" Id="{829eec1a-8959-4642-87f7-b52d2402a1c3}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM MachineStatePOU
+VAR
+	
+	itemp: INT;
+	forceStop:BOOL;
+	forceStopTON:TON;
+END_VAR
+VAR
+	//fbMachineState		:FB_MachineState;
+	//
+	start_R_Trig						:R_Trig;
+	start_TON							:TON;
+	start_R_Trig1						:R_Trig;
+	//
+	stop_F_Trig							:F_Trig;
+	stop_TON							:TON;
+	//
+	reset_TON							:TON;
+	reset_TimeoutTON					:TON;
+	reset_R_Trig						:R_Trig;
+	reset_F_Trig						:F_Trig;
+	//
+	e_stop_F_Trig						:F_Trig;
+	e_stop_TON							:TON;
+	//
+	ErrorAbort_TON						:TON;
+	
+	//error
+	ErrorR_Trig							:R_Trig;
+	ErrorF_Trig							:F_Trig;
+	ton1:TON;
+	t1:TON;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[fbMachineState(
+	RunningState:= gRunningState, 
+	HMI_E_Stop:= , 
+	HMI_Start:= , 
+	HMI_Stop:= , 
+	HMI_Reset:= , 
+	HMI_EnableBuzzer:= , 
+	HMI_AllStop:= , 
+	HMI_Version:= gVersion, 
+	Actual_E_Stop:= gMachineUtility.I_EStop, 
+	Actual_Start:= gMachineUtility.I_Start, 
+	Actual_Stop:= gMachineUtility.I_Stop, 
+	Actual_Reset:= gMachineUtility.I_Reset, 
+	iLanguage:= TO_UINT(gCNErrShow),
+	E_Stop=> , 
+	Reset=> , 
+	Stop=> , 
+	Start=> , 
+	StartLamp=> gMachineUtility.O_StartLamp, 
+	StopLamp=> gMachineUtility.O_StopLamp, 
+	ResetLamp=> gMachineUtility.O_ResetLamp, 
+	RedLamp=> gMachineUtility.O_RedLamp, 
+	GreenLamp=> gMachineUtility.O_GreenLamp, 
+	YellowLamp=> gMachineUtility.O_YellowLamp, 
+	Buzzer=> gMachineUtility.O_Buzzer, 
+	AllStop=> , 
+	RunStateTxt=> );
+IF fbMachineState.AllStop AND MAIN.tInit.Q THEN
+	gErrorAbort:=TRUE;
+	MainRunPOU.allAxisStop();
+END_IF
+//////////////////////////////////////////////////////////////////////////////
+(* Start *)
+	IF start_R_Trig.Q THEN//短按上升沿从暂停恢复自动 或者 切换控制模式为eAutoCtrMode
+		IF (RunningStatus.ePauseState=gRunningState) AND (gAutoRunningFlag)
+			AND ControlMode.eAutoCtrMode=gCtrlMode THEN
+			gRunningState:=RunningStatus.eAutoState;//进入自动运行状态
+		END_IF
+		IF ControlMode.eAutoCtrMode<>gCtrlMode AND NOT gAutoRunningFlag AND NOT(RunningStatus.eHomeState=gRunningState) THEN
+//			gCtrlMode:=ControlMode.eAutoCtrMode;
+		END_IF
+	END_IF
+	start_R_Trig(CLK:=fbMachineState.Start);
+	
+	IF start_R_Trig1.Q THEN//长按3s上升沿进入自动
+		IF (RunningStatus.eManualState=gRunningState) AND NOT gAutoRunningFlag
+			AND ControlMode.eManualCtrMode=gCtrlMode THEN
+			gRunningState:=RunningStatus.eAutoState;//进入自动运行状态
+			gAutoRunningFlag:=TRUE;
+		ELSE
+			;
+		END_IF
+	END_IF
+	start_TON(IN:=fbMachineState.Start, PT:=T#3000MS);
+	start_R_Trig1(CLK:=start_TON.Q);
+(* Stop *)
+	IF stop_F_Trig.Q THEN//短按下降沿进入暂停
+		IF (RunningStatus.eAutoState=gRunningState) AND (gAutoRunningFlag)
+			AND ControlMode.eAutoCtrMode=gCtrlMode THEN
+			gRunningState:=RunningStatus.ePauseState;//进入暂停状态
+		END_IF
+	END_IF
+	forceStopTON(IN:=forceStop AND NOT forceStopTON.Q , PT:=T#2S , Q=> , ET=> );//强制停止报错
+	IF forceStopTON.Q THEN
+		;;
+	END_IF
+	stop_F_Trig(CLK:=fbMachineState.Stop);
+	
+	stop_TON(IN:=fbMachineState.Stop, PT:=T#3000MS);//自动运行中长按stop按钮退出自动
+	IF stop_TON.Q THEN//长按3s退出自动
+		IF (gAutoRunningFlag) AND ControlMode.eAutoCtrMode=gCtrlMode THEN
+			gAutoRunningFlag:=FALSE;
+		END_IF
+		IF NOT gAutoRunningFlag AND ControlMode.eManualCtrMode<>gCtrlMode THEN
+			gCtrlMode:=ControlMode.eManualCtrMode;
+			IF RunningStatus.eErrorState<>gRunningState THEN
+				gRunningState:=RunningStatus.eManualState;
+			END_IF
+		END_IF
+		//加入回原点长按停止,复原状态
+		IF NOT gAutoRunningFlag AND (gRunningState=RunningStatus.eHomeState) THEN
+			gCtrlMode:=ControlMode.eManualCtrMode;
+			gRunningState:=RunningStatus.eManualState;
+			
+		END_IF
+	END_IF
+(* reset *)
+	reset_R_Trig(CLK:=fbMachineState.Reset);
+	reset_F_Trig(CLK:=fbMachineState.Reset);
+	IF reset_R_Trig.Q  THEN//短按上升沿清除错误
+		errorMonitor.resetFunc();//报错清除
+		IF (*ControlMode.eAutoCtrMode<>gCtrlMode AND*) NOT gAutoRunningFlag AND (gRunningState<>RunningStatus.eHomeState) THEN
+			gRunningState:=RunningStatus.eManualState;//进入手动运行状态
+		ELSE
+			;
+			//gRunningState:=RunningStatus.ePauseState;//进入暂停状态
+		END_IF		
+	END_IF
+	IF reset_R_Trig.Q AND RunningStatus.eErrorState=gRunningState THEN//短按上升沿清除错误--主要在自动模式下起作用
+		errorMonitor.resetFunc();//报错清除
+		gRunningState:=RunningStatus.ePauseState;//进入暂停状态
+	END_IF
+	//与复位按钮无关
+	IF (RunningStatus.eHomeState=gRunningState) (*OR Home_POU.busy*)  THEN//等待回原点完成
+		reset_TimeoutTON(IN:=NOT reset_TimeoutTON.Q,PT:=T#300S);
+		IF reset_TimeoutTON.Q THEN
+			error_Trigger(2);//回原点超时
+			gRunningState:=RunningStatus.eManualState;
+		END_IF
+//		IF Home_POU.done AND NOT gAutoRunningFlag THEN//回原完成时，是否需要回到手动状态？
+//			gRunningState:=RunningStatus.eManualState;
+//		END_IF
+//		IF Home_POU.errDone AND NOT gAutoRunningFlag THEN
+//			error_Trigger(3);//回原点错误
+//		END_IF
+	ELSE
+		reset_TimeoutTON(IN:=FALSE);
+	END_IF
+	IF reset_TON.Q AND reset_F_Trig.Q (*AND NOT Home_POU.busy *)THEN//长按下降沿整机回零
+		IF ControlMode.eManualCtrMode=gCtrlMode AND (RunningStatus.eManualState=gRunningState) THEN	
+			gRunningState:=RunningStatus.eHomeState;
+//			Home_POU.Act_init_status();//触发整机回零处理
+//			Home_POU.Act_Ex();
+		END_IF
+	END_IF
+	reset_TON(IN:=fbMachineState.Reset, PT:=T#3S);
+(* E-stop *)
+	e_stop_F_Trig(CLK:=fbMachineState.E_Stop);
+	IF e_stop_F_Trig.Q AND MAIN.tInit.Q THEN//下降沿报错
+		gAutoRunningFlag:=FALSE;
+		gCtrlMode:=ControlMode.eManualCtrMode;
+		gErrorAbort:=TRUE;
+		error_Trigger(1);//急停报警
+		gLog.append_EX(" 急停按下");
+	END_IF
+	IF NOT fbMachineState.E_Stop THEN
+		gRunningState:=RunningStatus.eErrorState;//进入Error状态
+	END_IF
+	e_stop_TON(IN:=NOT fbMachineState.E_Stop AND NOT fbMachineState.Reset, PT:=T#500MS);
+	IF e_stop_TON.Q AND MAIN.tInit.Q THEN
+		gAutoRunningFlag:=FALSE;
+		gErrorAbort:=TRUE;
+		e_stop_TON(IN:=FALSE);
+		//gErrTxtShow:=errorMonitor.getErrTXT(1);//急停报警显示
+		//gErrWTxtShow:=errorMonitor.getErrWTXT(1);//急停报警显示
+		MainRunPOU.allAxisStop();
+	END_IF
+(* Abort *)
+	ErrorAbort_TON(IN:=gErrorAbort,PT:=T#5000MS);
+	IF ErrorAbort_TON.Q THEN
+		gErrorAbort:=FALSE;
+		ErrorAbort_TON(IN:=FALSE);
+	END_IF
+//////////////////////////////////////////////////////////////////////////////
+IF gAutoRunningFlag THEN
+	gCtrlMode:=ControlMode.eAutoCtrMode;
+END_IF
+//////////////////////////////////////////////////////////////////////////////
+t1(IN:=(NOT gAutoRunningFlag OR gCtrlMode<>ControlMode.eManualCtrMode) AND
+	(gICP.LoadLockGauge.error OR
+	 gICP.ChamberGauge.error OR
+	 gICP.AIMGauge.error OR
+	 gICP.TBGauge.error OR
+	 gICP.ForeLineGauge.error OR
+	gICP.ChamberGauge.outputValue1>700.0 OR
+	gICP.TBGauge.outputValue>500.0 OR
+	(gICP.ForeLineGauge.outputValue>500.0 AND NOT gICP.FastPummingExtRelay AND NOT gICP.SlowPummingExtRelay)),PT:=T#2S);
+IF t1.Q THEN
+	gRoughRemain:=FALSE;// 粗抽记忆
+END_IF
+
+
+//ErrorR_Trig(CLK:=(gRunningState=RunningStatus.eErrorState) AND gAutoRunningFlag , Q=> );
+//ErrorF_Trig(CLK:=(gRunningState=RunningStatus.eErrorState) AND gAutoRunningFlag, Q=> );
+
+//ErrorR_Trig(CLK:=(gRunningState=RunningStatus.eErrorState) AND gCtrlMode=2, Q=> );//自动的时候报错
+//ErrorF_Trig(CLK:=(gRunningState=RunningStatus.eErrorState) AND gCtrlMode=2, Q=> );//自动恢复报错
+
+//IF ErrorR_Trig.Q THEN//报错停止操作
+//	AllPause:=TRUE;
+//END_IF
+//IF ErrorF_Trig.Q THEN
+//	;
+//END_IF]]></ST>
+    </Implementation>
+    <LineIds Name="MachineStatePOU">
+      <LineId Id="1325" Count="28" />
+      <LineId Id="2477" Count="0" />
+      <LineId Id="1354" Count="16" />
+      <LineId Id="1374" Count="12" />
+      <LineId Id="1390" Count="1" />
+      <LineId Id="1751" Count="1" />
+      <LineId Id="1760" Count="0" />
+      <LineId Id="1754" Count="0" />
+      <LineId Id="1392" Count="5" />
+      <LineId Id="1406" Count="10" />
+      <LineId Id="1422" Count="23" />
+      <LineId Id="1450" Count="1" />
+      <LineId Id="2265" Count="4" />
+      <LineId Id="1465" Count="5" />
+      <LineId Id="1475" Count="0" />
+      <LineId Id="2263" Count="1" />
+      <LineId Id="1477" Count="6" />
+      <LineId Id="2407" Count="0" />
+      <LineId Id="2262" Count="0" />
+      <LineId Id="1485" Count="0" />
+      <LineId Id="2541" Count="0" />
+      <LineId Id="1487" Count="6" />
+      <LineId Id="2443" Count="0" />
+      <LineId Id="1505" Count="0" />
+      <LineId Id="2270" Count="1" />
+      <LineId Id="2509" Count="0" />
+      <LineId Id="1506" Count="11" />
+      <LineId Id="2653" Count="7" />
+      <LineId Id="2652" Count="0" />
+      <LineId Id="2649" Count="0" />
+      <LineId Id="2573" Count="1" />
+      <LineId Id="2606" Count="0" />
+      <LineId Id="1540" Count="0" />
+      <LineId Id="1965" Count="0" />
+      <LineId Id="1541" Count="1" />
+      <LineId Id="2303" Count="7" />
+      <LineId Id="674" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

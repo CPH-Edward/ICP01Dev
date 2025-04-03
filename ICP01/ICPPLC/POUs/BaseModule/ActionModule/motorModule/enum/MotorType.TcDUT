@@ -1,0 +1,13 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="MotorType" Id="{45234b17-1d1e-4e33-a150-3db7dd4769cc}">
+    <Declaration><![CDATA[TYPE MotorType :
+(
+	MotorType_Default	 	:= 0, 		//增量式编码器(需要执行McHome)
+	MotorType_DDmotor_HC 	:= 1,		//横川DD马达(不需要执行McHome,使用高创驱动器自带的回原点方式)
+	MotorType_Absolute		:= 2		//绝对式编码器(不需要执行McHome)
+)UINT;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

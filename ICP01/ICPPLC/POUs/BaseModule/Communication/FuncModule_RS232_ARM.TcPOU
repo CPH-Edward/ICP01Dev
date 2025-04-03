@@ -1,0 +1,532 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="FuncModule_RS232_ARM" Id="{d2e09ead-1f26-470d-a0ce-598a902584f1}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM FuncModule_RS232_ARM
+VAR_INPUT
+	serialExcute				:BOOL;// RS232开始一次参数读取
+	serialSlaveID				:UINT;// 232从站节点号
+	sendstr						:STRING;
+	prefix						:STRING:='';// 字符串头
+	suffix						:STRING:= '';// 字符串尾
+	timeout						:TIME:=T#200MS;// 超时时间
+	goPosLoad					:LREAL;
+	goPosPhase					:LREAL;
+	setPresetExt				:BOOL;
+	readPosFlag					:BOOL;
+	readStateFlag				:BOOL;
+	readSopFlag					:BOOL;// 停止标志位
+END_VAR
+VAR_OUTPUT
+	serialBusy						:BOOL;
+	setPresetBusy					:BOOL;
+	serialDone						:BOOL;
+	setPresetDone						:BOOL;
+	serialError						:BOOL;
+	setPresetError						:BOOL;
+	serialConnected					:BOOL;
+	POS							:INT;// 
+	oldPOS							:int;// 
+	phase							:REAL;// Phase电容
+	rec_ManulOrAuto					:BOOL;// Manul OR Auto
+	rec_MAStr						:STRING:='Auto';
+	loadRunErr						:BOOL;
+	phashRunErr						:BOOL;
+END_VAR
+VAR
+	//Byte方式
+	send1:							SendData;
+	receive1:						ReceiveString;
+ 
+	Timer1:							TON;
+	TimerSetPreset:							TON;
+	t1:								TON;
+	ITemp:INT;
+	arr_SendData:					STRING;(*READ*)//发送数据
+	arr_RcvDataString:				STRING;// 接收数据
+	arr_RcvDataStringTemp:				STRING;// 接收数据
+	arr_RcvDataStringClear:			STRING;// 清除接收数据
+	RcvDataFlag:			BOOL;// 接收数据标志位
+	serialStep						:UINT;				//处理步数
+	serialErrorID					:UINT;
+	setPresetStep					:UINT;				//处理步数
+	serialTimeOut:BOOL;//接收数据超时
+	serialRecError:BOOL;//接收数据错误
+	reciveFtrig:F_TRIG;
+	recTon:TON;
+	againSendS3:TON;
+	//字符串方式
+	(*send1:							SendString;
+	receive1:						ReceiveString;
+	
+	Timer1:							TON;
+	
+	_sendString:					STRING:='4567';
+	_receive1string:				STRING;
+	_recvLast:						STRING;				//保存上一个周期接收的字符*)
+
+	
+	decimalvalue:INT;
+	decimalvalueP:INT;
+	hexString:STRING(8);
+	hexStringP:STRING(8);
+	i:INT;
+	hexChars:ARRAY [0..15] OF STRING[1]:=['0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'];
+	index:INT;
+	findposstart	:INT;
+	findposend		:INT;
+	find_pos		:INT;
+	recStrTemp		:STRING(255);
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(*
+ *功能块的作用，把 TxBuffer 缓存区的数据经过 Process Data 的 ComOut 发送出去，
+ *而把 ComIn 中的数据接收到 RxBuffer。引用这个功能块的程序执行周期越短，
+ *数据交换的效率就越高，所以这段程序应该放在快速任务中作为 Backgroud 代码无条件执行。
+*)
+IF receive1.Error <> COMERROR_NOERROR THEN
+	serialRecError:=TRUE;
+END_IF
+receive1(
+	Prefix:= prefix, 
+	Suffix:= suffix, 
+	Timeout:=timeout , 
+	Reset:= , 
+	StringReceived=> , 
+	Busy=> , 
+	Error=> , 
+	RxTimeout=> , 
+	ReceivedString:= arr_RcvDataStringTemp, 
+	RXbuffer:=gRxBuffer_ARM );
+
+//testReal:=BYTE_TO_REAL(arr_RcvData_Temp);
+//数据接收处理
+reciveFtrig(CLK:=receive1.busy);
+IF reciveFtrig.Q THEN
+	arr_RcvDataString:=arr_RcvDataStringTemp;
+	arr_RcvDataStringTemp:=arr_RcvDataStringClear;
+	RcvDataFlag:=TRUE;
+	serialConnected:=TRUE;
+END_IF
+recTon(IN:=RcvDataFlag, PT:=T#20MS);
+IF recTon.Q THEN
+	RcvDataFlag:=FALSE;
+END_IF
+againSendS3(IN:=NOT RcvDataFlag,PT:=T#5S);
+IF againSendS3.Q THEN
+	serialConnected:=FALSE;
+	againSendS3(IN:=FALSE);
+END_IF
+
+ACT_Send();
+
+ACT_RcvProcess();
+
+ ]]></ST>
+    </Implementation>
+    <Folder Name="CMD" Id="{bd078b2f-7f32-4f49-9fc1-3c176f5bd5d2}" />
+    <Folder Name="Processing" Id="{97a73d2a-61db-41f7-a0b7-b052d3999422}" />
+    <Action Name="ACT_RcvProcess" Id="{bccd5090-207b-4a8d-afa4-daa15dc61ea0}" FolderPath="Processing\">
+      <Implementation>
+        <ST><![CDATA[find_pos:=0;
+findposend:=0;
+findposstart:=0;
+
+IF MID(arr_RcvDataString,3,1)='?96' THEN
+	recStrTemp:=DELETE(arr_RcvDataString,5,1);
+	IF MID(recStrTemp,5,1)='Px.1='  THEN
+		readPosFlag:=TRUE;
+		IF  MID(recStrTemp,1,6)='-' THEN
+			POS:=oldPOS+STRING_TO_INT(MID(recStrTemp,LEN(recStrTemp)-7,6));
+		ELSE
+			POS:=STRING_TO_INT(MID(recStrTemp,LEN(recStrTemp)-7,6));
+			oldPOS:=POS;
+		END_IF
+	END_IF
+END_IF
+
+IF FIND(arr_RcvDataString,'Ux.1=8')>0 THEN
+	readSopFlag:=TRUE;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ACT_Send" Id="{7ec93d06-2b7a-43c6-a4fb-4f260d7b937b}">
+      <Implementation>
+        <ST><![CDATA[
+CASE serialStep OF
+	0:
+	IF serialExcute THEN
+		serialExcute:=FALSE;
+		IF NOT serialBusy THEN
+			serialStep:=90;
+			serialBusy:=TRUE;
+			serialDone:=FALSE;
+			serialError:=FALSE;
+			serialTimeOut:=FALSE;
+			serialRecError:=FALSE;
+		END_IF
+	END_IF
+	Timer1(IN:= FALSE);
+	;
+	90:
+		arr_SendData:=sendstr;
+		serialStep:=100;
+	100:
+		send1(
+			pSendData:= ADR(arr_SendData), 
+			Length:= INT_TO_UDINT(LEN(arr_SendData)), 
+			Busy=> , 
+			Error=> , 
+			TXbuffer:= gTxBuffer_ARM);
+		serialStep:=serialStep+10;
+	110:
+		Timer1(IN:= NOT timer1.q, PT:=T#10MS);
+		IF Timer1.Q THEN
+			serialStep:=serialStep+10;
+			Timer1(IN:= FALSE);
+		END_IF
+	120:
+		Timer1(IN:= NOT timer1.q, PT:=T#500MS);
+		IF Timer1.Q THEN
+			serialStep:=6000;
+			Timer1(IN:= FALSE);
+			serialTimeOut:=TRUE;
+			RETURN;
+		END_IF
+		IF NOT send1.busy  THEN
+			Timer1(IN:= FALSE);
+			serialTimeOut:=FALSE;
+			serialStep:=200;
+		END_IF
+		IF send1.Error <> COMERROR_NOERROR THEN
+			serialRecError:=TRUE;
+		END_IF
+	200://数据处理
+		serialStep:=serialStep+10;
+	210:
+		Timer1(IN:= NOT timer1.q, PT:=T#10MS);
+		IF Timer1.Q THEN
+			serialStep:=serialStep+10;
+			Timer1(IN:= FALSE);
+		END_IF
+	220:
+		//数据转换
+		Timer1(IN:= FALSE);
+		serialStep:=1000;
+	
+	1000:
+		Timer1(IN:= NOT timer1.q, PT:=T#50MS);
+		IF Timer1.Q THEN
+			serialStep:=5000;
+			Timer1(IN:= FALSE);
+			// sendstr:='';
+			serialTimeOut:=FALSE;
+		END_IF
+	;
+	5000://done
+		serialBusy:=FALSE;
+		serialDone:=TRUE;
+		serialError:=FALSE;
+		serialStep:=0;
+	;
+	6000://error
+		serialBusy:=FALSE;
+		serialDone:=FALSE;
+		serialError:=TRUE;
+		serialStep:=0;
+	;
+	
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="ArmHOME" Id="{3db5e7c7-b746-4d92-bf17-e4a822c77c3b}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD ArmHOME : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendstr:='';
+sendstr:='|$R';
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ArmIN" Id="{61a5f203-f76a-4d51-a825-8873db09065a}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD ArmIN : BOOL
+VAR_INPUT
+	pos:DINT;
+	vel:DINT;
+	acc:DINT;
+END_VAR
+VAR
+	str:STRING;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[str:='';
+str:=CONCAT(str,'P=');
+str:=CONCAT(str,DINT_TO_STRING(pos));
+str:=CONCAT(str,',S=');
+str:=CONCAT(str,DINT_TO_STRING(vel));
+str:=CONCAT(str,',A=');
+str:=CONCAT(str,DINT_TO_STRING(acc));
+str:=CONCAT(str,',^$R');
+sendstr:='';
+sendstr:=str;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ArmStop" Id="{ae21c13e-e2c2-4826-a357-258b87de2c85}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD ArmStop : BOOL
+VAR_INPUT
+END_VAR
+VAR
+	diraction:STRING:='+';
+	str:STRING;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[str:='';
+str:=CONCAT(str,']$R');
+sendstr:='';
+sendstr:=str;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="CalASII_Str" Id="{a80ce921-da24-44b0-99f5-34e9f92d8d3c}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD CalASII_Str : STRING
+VAR_INPUT
+	date1:UINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF date1=10 THEN
+	CalASII_Str:='A';
+END_IF
+IF date1=11 THEN
+	CalASII_Str:='B';
+END_IF
+IF date1=12 THEN
+	CalASII_Str:='C';
+END_IF
+IF date1=13 THEN
+	CalASII_Str:='D';
+END_IF
+IF date1=14 THEN
+	CalASII_Str:='E';
+END_IF
+IF date1=15 THEN
+	CalASII_Str:='F';
+END_IF
+IF date1<10 THEN
+	CalASII_Str:=UINT_TO_STRING(date1);
+END_IF
+IF date1>15 THEN
+	CalASII_Str:=UINT_TO_STRING(date1);
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="CalMeth" Id="{4977064b-9d3d-4c73-8046-7ea216598879}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD CalMeth : INT
+VAR_INPUT
+	byteIn:BYTE;
+END_VAR
+VAR_OUTPUT
+	outInt:INT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF byteIn>=48 AND byteIn<=57 THEN
+	outInt:=byteIn-48;
+ELSE
+	outInt:=byteIn-65+10;
+END_IF
+CalMeth:=outInt;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="GetPos" Id="{280f4a83-11b0-438e-84eb-861a23868428}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD GetPos : BOOL
+VAR_INPUT
+END_VAR
+VAR
+	str:STRING;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[str:='?96$R';
+sendstr:='';
+sendstr:=str;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="GetState" Id="{4e5d867b-69c8-4e80-912b-02b5d2c7afab}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD GetState : BOOL
+VAR_INPUT
+END_VAR
+VAR
+	str:STRING;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[str:='GetState^';
+sendstr:='';
+sendstr:=str;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="IncN" Id="{e986cf4f-c669-4433-949b-34b193a4b630}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD IncN : BOOL
+VAR_INPUT
+	dis:DINT;
+	vel:DINT;
+	acc:DINT;
+END_VAR
+VAR
+	diraction:STRING:='+';
+	str:STRING;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[str:='';
+str:=CONCAT(str,'P:');
+str:=CONCAT(str,DINT_TO_STRING(dis));
+str:=CONCAT(str,',S:');
+str:=CONCAT(str,DINT_TO_STRING(vel));
+str:=CONCAT(str,',A:');
+str:=CONCAT(str,DINT_TO_STRING(acc));
+str:=CONCAT(str,',D:');
+str:=CONCAT(str,diraction);
+str:=CONCAT(str,',^$R');
+sendstr:='';
+sendstr:=str;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="IncP" Id="{3065acda-7ce2-486c-8732-e5798c5a23b6}" FolderPath="CMD\">
+      <Declaration><![CDATA[METHOD IncP : BOOL
+VAR_INPUT
+	dis:DINT;
+	vel:DINT;
+	acc:DINT;
+END_VAR
+VAR
+	diraction:STRING:='+';
+	str:STRING;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[str:='';
+str:=CONCAT(str,'P:');
+str:=CONCAT(str,DINT_TO_STRING(dis));
+str:=CONCAT(str,',S:');
+str:=CONCAT(str,DINT_TO_STRING(vel));
+str:=CONCAT(str,',A:');
+str:=CONCAT(str,DINT_TO_STRING(acc));
+str:=CONCAT(str,',D:');
+str:=CONCAT(str,diraction);
+str:=CONCAT(str,',^$R');
+sendstr:='';
+sendstr:=str;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="FuncModule_RS232_ARM">
+      <LineId Id="402" Count="4" />
+      <LineId Id="416" Count="2" />
+      <LineId Id="939" Count="9" />
+      <LineId Id="938" Count="0" />
+      <LineId Id="433" Count="0" />
+      <LineId Id="891" Count="0" />
+      <LineId Id="893" Count="0" />
+      <LineId Id="914" Count="0" />
+      <LineId Id="916" Count="1" />
+      <LineId Id="920" Count="0" />
+      <LineId Id="922" Count="0" />
+      <LineId Id="1426" Count="0" />
+      <LineId Id="918" Count="0" />
+      <LineId Id="1119" Count="3" />
+      <LineId Id="1190" Count="0" />
+      <LineId Id="1195" Count="0" />
+      <LineId Id="1425" Count="0" />
+      <LineId Id="1192" Count="1" />
+      <LineId Id="1035" Count="0" />
+      <LineId Id="564" Count="0" />
+      <LineId Id="1574" Count="0" />
+      <LineId Id="1573" Count="0" />
+      <LineId Id="600" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_ARM.ACT_RcvProcess">
+      <LineId Id="37" Count="2" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="64" Count="0" />
+      <LineId Id="49" Count="0" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="51" Count="1" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="50" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_ARM.ACT_Send">
+      <LineId Id="2" Count="14" />
+      <LineId Id="54" Count="49" />
+      <LineId Id="105" Count="18" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_ARM.ArmHOME">
+      <LineId Id="11" Count="1" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_ARM.ArmIN">
+      <LineId Id="13" Count="7" />
+      <LineId Id="5" Count="2" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_ARM.ArmStop">
+      <LineId Id="13" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="5" Count="2" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_ARM.CalASII_Str">
+      <LineId Id="5" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="13" Count="1" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="16" Count="1" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="19" Count="1" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="22" Count="1" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="25" Count="8" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_ARM.CalMeth">
+      <LineId Id="5" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="12" Count="1" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="14" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_ARM.GetPos">
+      <LineId Id="13" Count="0" />
+      <LineId Id="5" Count="2" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_ARM.GetState">
+      <LineId Id="13" Count="0" />
+      <LineId Id="5" Count="2" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_ARM.IncN">
+      <LineId Id="13" Count="6" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="5" Count="2" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_ARM.IncP">
+      <LineId Id="13" Count="6" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="5" Count="2" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

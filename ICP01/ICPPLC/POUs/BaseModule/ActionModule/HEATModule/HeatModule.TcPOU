@@ -1,0 +1,1227 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="HeatModule" Id="{004e545e-d1b3-42d1-986b-08493d229117}" SpecialFunc="None">
+    <Declaration><![CDATA[(*
+--报错编号0: 无报错
+--报错编号1: Heatting Error
+*)
+FUNCTION_BLOCK HeatModule
+VAR_IN_OUT
+	WarmHMI					:WARMStruct;
+END_VAR
+VAR_INPUT
+	HeatType					:HeatType:=HEATType_Default;//设置加热器的类型, 可通过该变量修改为其他类型加热器
+	
+	real_TimeMonitor			:BOOL:=TRUE;//实时状态检测
+	
+	heat						:BOOL:=FALSE;// 加热触发信号
+	ATLearning					:BOOL:=FALSE;// 加热自学习触发信号
+	MVManul						:BOOL:=FALSE;// 手动控制
+	heatCondition				:BOOL:=TRUE;// 加热启停条件
+	ATLCondition				:BOOL:=TRUE;// 自学习启停条件
+	MVCondition					:BOOL:=TRUE;// 手动控制启停条件
+	reset						:BOOL:=FALSE;// 复位信号
+	stop						:BOOL:=FALSE;// 停止信号
+	power						:BOOL:=TRUE;// 加热动作后是否关闭继电器得电状态, TRUE--保持得电,FALSE--断开得电
+	enable						:BOOL:=TRUE;// 加热禁用条件
+	//ctrlMode					:ControlMode:=ControlMode.eManualCtrMode;//eManualCtrMode or eAutoCtrMode
+	hmiEN						:BOOL:=TRUE;//HMI 启用条件
+	
+	errorID						:UDINT:=0;//加热错误报警分配的起始ID
+	nameTXT						:STRING(255):='';//加热名字
+	
+	ctrl_heatStart				: BOOL;//bit0 开始加热
+	
+	para_SV						:REAL;// 温度设定值
+	para_HLimit					:REAL:=200.0;// 温控报警上限参数
+	para_LLimit					:REAL:=-10.0;// 温控报警下限参数
+	para_setTOffset				:REAL:=1.0;// 温控偏差值
+	HMIItf						:HEATModuleHMI;//每个加热对象都关联了一个HMI
+	noteWTXT					:WSTRING(255):="";//气缸动作NoteTXT 中文
+END_VAR
+VAR_OUTPUT
+	status_PV					:REAL;// 温控反馈测量值
+	status_MV					:INT;// 温控反馈Manul设定值
+	status_OutAndAlm			:INT;// 温控反馈输出状态及报警信息
+	status_P					:INT;// 温控反馈P参数
+	status_I					:INT;// 温控反馈I参数
+	status_D					:INT;// 温控反馈D参数
+		
+	//heatRelay					:BOOL;// 加热输出
+	note_heat					:BOOL:=false;// 加热触发无法执行
+	busy						:BOOL;//加热动作Busy状态
+	done						:BOOL;//加热动作Done状态
+	heatdone					:BOOL;//加热动作完成
+	ATLdone						:BOOL;// AT加热动作完成
+	manuldone					:BOOL;// Manul加热动作完成
+	error						:BOOL;//加热动作error状态
+	errID						:UDINT;//加热动作errID
+	errTXT						:STRING(255):='';//加热动作errTXT
+	errWTXT						:WSTRING(255):="";//加热动作errTXT 中文
+	heatting					:BOOL;// 加热中标志位
+	status_OperSta				:UINT;// 温控反馈运行状态
+END_VAR
+	
+VAR
+		
+	errorDelayTime				:TIME:=T#3000MS;//加热感应器感应超时
+	//doneDelayTimeShort			:TIME:=T#100MS;//加热感应到位延时---取消使用
+	//doneDelayTimeLong			:TIME:=T#500MS;//无加热感应到位延时---取消使用
+	doneDelayTimeShortHeat		:TIME:=T#100MS;//加热感应到位延时_
+	doneDelayTimeLongHeat		:TIME:=T#500MS;//无加热感应到位延时_
+	
+	ctrl_heatATStart			: BOOL;//bit2 100%AT实行中
+	ctrl_heatATStop				: BOOL;//bit4 AT取消
+	ctrl_heatAuto				: BOOL;//bit5 0: Auto,1: Manul
+	ctrl_OperCmd				: UINT;// 控制命令字
+
+	para_Manual_MV				:INT;// 手动MV	
+	//para_OperCmd				:INT;// 命令字，链接加热ECT数据
+	para_P						:INT;// 温控P参数
+	para_I						:INT;// 温控I参数
+	para_D						:INT;// 温控D参数
+	
+	Set_SV						AT%Q* :INT;// 温度设定值
+	Set_Manual_MV				AT%Q* :INT;// 手动MV	
+	Set_OperCmd					AT%Q* :UINT;// 命令字，链接加热ECT数据
+	Set_P						AT%Q* :INT;// 温控P参数
+	Set_I						AT%Q* :INT;// 温控I参数
+	Set_D						AT%Q* :INT;// 温控D参数
+		
+	heatErrorDelayTon			:Ton;
+	heatDoneDelayTon			:Ton;
+	
+	heatTrigRAlc				:R_Trig;//上升沿触发
+	
+	heatTrigR1					:R_Trig;//上升沿触发
+	heatTrigR1_Aiko				:R_Trig;//上升沿触发
+	manuleTrigR1				:R_Trig;//上升沿触发
+	ATLTrigR1					:R_Trig;//上升沿触发
+	resetTrigR1					:R_Trig;//上升沿触发
+	stopTrigR1					:R_Trig;//上升沿触发
+	powerTrigR1					:R_Trig;//上升沿触发
+	
+	heatStep					:UINT:=0;
+	atlStep						:UINT:=0;
+	manulStep					:UINT:=0;
+	errorStep					:UINT:=0;
+	
+	notBusyMonitorDelayTon		:TON;//动作不切换时，延迟检测
+	notBusyMonitorDelayTime 	:TIME:=T#2S;//动作不切换延迟检测时间
+	firstPower			   		:BOOL:=FALSE;//首次上电标志位
+	
+	ATLearRest					:TON;// AT Learning 参数自复位
+	
+	HeatDoneTon					:TON; // 加热完成检测超时时间
+	
+	Act_PV					AT%I* :INT;// 温控反馈测量值
+	Act_MV					AT%I* :INT;// 温控反馈Manul设定值
+	Act_OutAndAlm			AT%I* :INT;// 温控反馈输出状态及报警信息
+	Act_P					AT%I* :INT;// 温控反馈P参数
+	Act_I					AT%I* :INT;// 温控反馈I参数
+	Act_D					AT%I* :INT;// 温控反馈D参数
+	Act_OperSta					AT%I* :UINT;// 温控反馈运行状态
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[Init_ACT();
+Error_ACT();
+Heat_ACT();
+ATL_ACT();
+Manul_ACT();
+Reset_ACT();
+Error_ACT();
+SafeMonitor_ACT();
+IOMap();]]></ST>
+    </Implementation>
+    <Folder Name="Error" Id="{6dea4f68-4e64-4ec0-adf4-fdf66764b8ab}" />
+    <Folder Name="Private" Id="{97af7a61-2d88-4bdc-9877-81d84d1c7c55}" />
+    <Method Name="Act_ATL" Id="{8c5d9812-a1ce-4c43-a2b7-d3037cd6cf1e}">
+      <Declaration><![CDATA[(*
+触发伸出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_ATL : BOOL
+VAR_INPUT
+	;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND ATLearning THEN// AND NOT busy
+	Act_ATL:=ATLearning:=TRUE;
+ELSE
+	Act_ATL:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Heat" Id="{fe203c27-267f-46e1-a0ff-bca2f0463361}">
+      <Declaration><![CDATA[(*
+触发伸出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Heat : BOOL
+VAR_INPUT
+	//heatSV:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND heatCondition THEN// AND NOT busy
+	Act_Heat:=heat:=TRUE;
+	//para_SV:=heatSV;
+ELSE
+	Act_Heat:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Reset" Id="{a46a659d-1113-4f81-ab79-acc6c9c8a3f6}">
+      <Declaration><![CDATA[(*
+触发复位报警动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Reset : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Reset:=reset:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Stop" Id="{af0ab410-744e-4ab0-883c-753593ce9d5b}">
+      <Declaration><![CDATA[(*
+触发停止输出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Stop : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Stop:=stop:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="ATL_ACT" Id="{41697e04-78c1-449c-bd57-fac43b5e55ad}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//自学习控制输出
+IF ATLearning AND enable AND ATLCondition AND NOT busy THEN// AND NOT busy
+	busy:=TRUE;
+	ATLdone:=FALSE;
+	heatdone:=FALSE;
+	manuldone:=FALSE;
+	atlStep:=10;
+	note_heat:=FALSE;
+	//errorStep:=0;
+END_IF
+ATLearning:=FALSE;
+
+CASE atlStep OF
+0:
+	//ready
+	
+10:
+	heatErrorDelayTon(IN:=FALSE);
+	heatDoneDelayTon(IN:=FALSE);
+	
+	IF para_SV<para_HLimit AND para_SV>para_LLimit THEN//温度设定正常
+		atlStep:=11;
+	ELSE
+		errorStep:=1;//加热设置错误
+		atlStep:=60;
+	END_IF
+11:
+	IF NOT status_OperSta.0 THEN// 非自动运行中
+		atlStep:=13;
+	ELSE
+		errorStep:=5;
+		atlStep:=60;
+	END_IF
+13:
+	ctrl_OperCmd.2:=1;// AT 执行
+	atlStep:=20;
+	
+20:
+	heatErrorDelayTon(IN:=(NOT status_OperSta.2),PT:=errorDelayTime);
+	IF heatErrorDelayTon.Q THEN
+		//done:=FALSE;
+		ATLdone:=FALSE;
+		errorStep:=6;// 等待AT加热反馈超时
+		RETURN;
+	END_IF
+	heatDoneDelayTon(IN:=status_OperSta.2,PT:=doneDelayTimeShortHeat);
+	
+	IF heatDoneDelayTon.Q THEN
+		errorStep:=0;
+		atlStep:=30;
+		heatErrorDelayTon(IN:=FALSE);
+		heatDoneDelayTon(IN:=FALSE);
+	END_IF
+30:
+	IF NOT status_OperSta.2 THEN//等待AT完成
+		errorStep:=0;
+		atlStep:=50;
+		heatErrorDelayTon(IN:=FALSE);
+		heatDoneDelayTon(IN:=FALSE);
+	END_IF
+	IF status_OutAndAlm.0 OR status_OutAndAlm.1 OR status_OutAndAlm.2 OR status_OutAndAlm.3
+	OR status_OutAndAlm.4 OR status_OutAndAlm.5 OR status_OutAndAlm.6 THEN
+		errorStep:=3;
+		heatStep:=60;
+	END_IF
+50:
+	busy:=FALSE;
+	ATLdone:=TRUE;
+60://报错
+	ctrl_OperCmd.0:=0;
+	ctrl_OperCmd.4:=1;// AT 取消执行
+	busy:=FALSE;
+	ATLdone:=FALSE;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Error_ACT" Id="{dcfe115e-e4e0-4bb6-8b9d-1d82cc1f09d9}" FolderPath="Error\">
+      <Implementation>
+        <ST><![CDATA[CASE errorStep OF
+	0:
+		error:=FALSE;
+		errID:=0;
+		errTXT:='';
+ (*
+	1:
+		error:=TRUE;
+		errID:=errorID+errorStep;
+		errTXT:=CONCAT(STR1:=nameTXT,STR2:=' Extend Error!');
+		errWTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 伸出(打开)错误");
+	2:
+		error:=TRUE;
+		errID:=errorID+errorStep;
+		errTXT:=CONCAT(STR1:=nameTXT,STR2:=' Retract Error!');
+		errWTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 缩回(关闭)错误");
+		*)
+	1..8:
+		error:=TRUE;
+		errID:=getErrID(errorStep);
+		errTXT:=getErrTXT(errorStep);
+		errWTXT:=getErrWTXT(errorStep);
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="Get_Done_Heat" Id="{4e30718b-b0bd-4863-a199-dfbf802f49f2}">
+      <Declaration><![CDATA[METHOD Get_Done_Heat : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_Heat:=heatdone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrID" Id="{abd9e924-b6b3-4034-a77b-bab0b2603a48}">
+      <Declaration><![CDATA[METHOD getErrID : UDINT
+VAR_INPUT
+	errID					:UDINT;//取值范围1~2
+END_VAR
+VAR
+	nErrID					:UDINT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[nErrID:=errorID+errID;
+
+getErrID:=nErrID;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrTXT" Id="{57e8955a-a31e-46bf-9e9a-68034c9370f7}">
+      <Declaration><![CDATA[METHOD getErrTXT : STRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~2
+END_VAR
+VAR
+	sErrTXT					:STRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' heat Error!');
+	2:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' stopheat Error!');
+	3:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' heat Return Statues Error!');
+	4:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' ATing Heat Error!');
+	5:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Manuling Heat Error!');
+	6:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' AT Heat TimeOUT Error!');
+	7:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Manule Heat Control Error!');
+	8:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Heat TimeOut Error!');
+ELSE
+	sErrTXT:=CONCAT(STR1:=nameTXT,STR2:='');
+END_CASE
+getErrTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrWTXT" Id="{2a6b2f3d-1f8d-44a4-802b-6b5f73c10819}">
+      <Declaration><![CDATA[METHOD getErrWTXT : WSTRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~16
+END_VAR
+VAR
+	sErrTXT					:WSTRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 启动加热错误");
+	2:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 停止加热错误");
+	3:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 加热反馈异常");
+	4:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" AT中加热异常");
+	5:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 手动中自动加热异常");
+	6:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 等待AT执行超时");
+	7:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 手动控制失控");
+	8:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 加热超时");
+ELSE
+	sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:="");
+END_CASE
+getErrWTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Heat_ACT" Id="{a81b2b4b-112f-4f48-9628-f15b499c2779}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//正常加热控制输出
+IF heat AND NOT heatCondition THEN
+	note_heat:=FALSE;
+END_IF
+IF heat AND enable AND heatCondition AND NOT status_OperSta.2 AND NOT busy THEN// AND NOT busy
+	busy:=TRUE;
+	ATLdone:=FALSE;
+	heatdone:=FALSE;
+	manuldone:=FALSE;
+	heatStep:=10;
+	heatting:=FALSE;
+	note_heat:=FALSE;
+	//errorStep:=0;
+END_IF
+heat:=FALSE;
+
+CASE heatStep OF
+0:
+	//ready
+	
+10:
+	heatErrorDelayTon(IN:=FALSE);
+	heatDoneDelayTon(IN:=FALSE);
+	HeatDoneTon(IN:=FALSE);
+	IF para_SV<para_HLimit AND para_SV>para_LLimit THEN//温度设定正常
+		heatStep:=11;
+	ELSE
+		errorStep:=1;//加热设置错误
+		heatStep:=60;
+	END_IF
+11:
+	IF NOT status_OperSta.2 THEN// 非AT中
+		heatStep:=12;
+	ELSE
+		errorStep:=4;
+		heatStep:=60;
+	END_IF
+12:
+	ctrl_heatStart:=TRUE;
+	status_OperSta.5:=0;
+	heatStep:=13;
+13:
+	ctrl_OperCmd.0:=ctrl_heatStart;
+	heatStep:=20;
+	
+20:
+	IF NOT( para_SV<para_HLimit AND para_SV>para_LLimit) THEN//温度设定正常
+		errorStep:=1;//加热设置错误
+		heatStep:=60;
+		RETURN;
+	END_IF
+	heatErrorDelayTon(IN:=(NOT status_OperSta.0),PT:=errorDelayTime);
+	IF heatErrorDelayTon.Q THEN
+		//done:=FALSE;
+		heatdone:=FALSE;
+		errorStep:=1;// 等待加热反馈超时
+		heatStep:=60;
+		heatErrorDelayTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	heatDoneDelayTon(IN:=status_OperSta.0,PT:=doneDelayTimeShortHeat);
+	
+	IF heatDoneDelayTon.Q THEN
+		IF status_OperSta.0 THEN
+			errorStep:=0;
+			heatStep:=30;
+			heatting:=TRUE;
+			heatErrorDelayTon(IN:=FALSE);
+			heatDoneDelayTon(IN:=FALSE);
+		ELSE
+			IF status_OperSta.2 THEN//AT 中，报错
+				busy:=FALSE;
+				heatdone:=FALSE;
+				errorStep:=3;
+				heatStep:=60;
+				heatErrorDelayTon(IN:=FALSE);
+				heatDoneDelayTon(IN:=FALSE);
+			END_IF
+		END_IF
+	END_IF
+30:
+	HeatDoneTon(IN:=ABS(para_SV-status_PV)>=para_setTOffset,PT:=DINT_TO_TIME(HMIItf.heatDoneCheckMaxTime*1000));
+	IF HeatDoneTon.Q THEN
+		errorStep:=8;
+		heatStep:=60;
+		HeatDoneTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	IF ABS(para_SV-status_PV)<para_setTOffset-0.1 THEN
+		errorStep:=0;
+		heatStep:=50;
+		heatErrorDelayTon(IN:=FALSE);
+		heatDoneDelayTon(IN:=FALSE);
+	END_IF
+	IF status_OutAndAlm.0 OR status_OutAndAlm.1 OR status_OutAndAlm.2 OR status_OutAndAlm.3
+	OR status_OutAndAlm.4 OR status_OutAndAlm.5 OR status_OutAndAlm.6 THEN
+		errorStep:=3;
+		heatStep:=60;
+	END_IF
+50:
+	busy:=FALSE;
+	heatdone:=TRUE;
+	heatting:=FALSE;
+	IF ABS(para_SV-status_PV)>para_setTOffset THEN
+		heatErrorDelayTon(IN:=FALSE);
+		heatDoneDelayTon(IN:=FALSE);
+		HeatDoneTon(IN:=FALSE);
+		busy:=TRUE;
+		heatdone:=FALSE;
+		heatStep:=20;//重新返回检测
+	END_IF
+60://报错
+
+	ctrl_heatStart:=FALSE;
+	ctrl_OperCmd.0:=ctrl_heatStart;
+	busy:=FALSE;
+	heatdone:=FALSE;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Init_ACT" Id="{879aba7b-17a9-471f-a46f-074b0ae56dc3}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[IF status_OutAndAlm.0 OR status_OutAndAlm.1 OR status_OutAndAlm.2 OR status_OutAndAlm.3
+OR status_OutAndAlm.4 OR status_OutAndAlm.5 OR status_OutAndAlm.6 OR
+NOT( status_PV<para_HLimit AND status_PV>para_LLimit) THEN
+	stop:=TRUE;
+	ctrl_heatStart:=FALSE;
+	ctrl_OperCmd.0:=ctrl_heatStart;
+END_IF
+done:=(heatdone OR manuldone OR ATLdone);
+InitHMI_ACT();
+manualCtrl_ACT();]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="InitHMI_ACT" Id="{cc466a96-11e8-4a11-aefd-52140a399470}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[HMIItf.done:=done;
+HMIItf.busy:=busy;
+HMIItf.error:=error;
+HMIItf.errID:=UDINT_TO_DINT(errID);
+HMIItf.errTXT:=errTXT;
+HMIItf.power:=power;
+HMIItf.nameTXT:=nameTXT;
+
+HMIItf.status_PV:=status_PV;// 温控反馈测量值
+HMIItf.status_MV:=status_MV;// 温控反馈Manul设定值
+HMIItf.oheatStart:=busy AND ctrl_OperCmd.0;// 加热在执行
+HMIItf.iheatStart:=heatting AND status_OperSta.0 AND ctrl_OperCmd.0; // 加热运行中
+HMIItf.status_P:=Act_P;// 温控反馈P参数
+HMIItf.status_I:=Act_I;// 温控反馈I参数
+HMIItf.status_D:=Act_D;// 温控反馈D参数
+
+//para_HLimit:=HMIItf.para_HLimit;// 温控最大值
+para_SV:=HMIItf.para_SV;// 温度设定值
+para_Manual_MV:=HMIItf.para_Manual_MV;
+para_setTOffset:=HMIItf.para_setTOffset;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="IOMap" Id="{e54c9461-e35c-4ffb-a188-ecee347cc2ee}">
+      <Implementation>
+        <ST><![CDATA[status_PV:=INT_TO_REAL(Act_PV)*0.1;
+status_OutAndAlm:=Act_OutAndAlm;
+status_MV:=Act_MV;
+status_OperSta:=Act_OperSta;
+
+
+
+Set_OperCmd:=ctrl_OperCmd;
+Set_SV:=REAL_TO_INT(para_SV)*10;
+Set_Manual_MV:=para_Manual_MV;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ManualCtrl_ACT" Id="{55506f28-95f6-4b29-921a-ff5286327057}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//HMI手动控制
+//IF ctrlMode=eManualCtrMode THEN
+IF hmiEN THEN
+//	extendTrigRAlc(CLK:=HMIItf.extendAndretract);
+//	IF extendTrigRAlc.Q THEN// AND NOT busy
+//		IF extRelay THEN//如果伸出继电器或伸出传感器亮，则认为已经伸出过
+//			retract:=TRUE;
+//		END_IF
+//		IF retRelay THEN
+//			extend:=TRUE;
+//		END_IF
+//		IF NOT extRelay AND NOT retRelay THEN
+//			IF extAprSw THEN
+//				retract:=TRUE;
+//			END_IF
+//			IF retAprSw THEN
+//				extend:=TRUE;
+//			END_IF
+//		END_IF
+//	END_IF
+	heatTrigR1_Aiko(CLK:=HMIItf.bHeat);
+	IF heatTrigR1_Aiko.Q AND NOT ctrl_heatStart AND NOT status_OperSta.0 THEN// AND NOT busy
+		para_SV:=HMIItf.para_SV;
+		heat:=TRUE;
+	END_IF
+	IF heatTrigR1_Aiko.Q AND (ctrl_heatStart OR status_OperSta.0) THEN// AND NOT busy
+		para_SV:=0;
+		para_Manual_MV:=0;
+		stop:=TRUE;
+	END_IF
+	heatTrigR1(CLK:=HMIItf.heat);
+	IF heatTrigR1.Q THEN// AND NOT busy
+		para_SV:=HMIItf.para_SV;
+		heat:=TRUE;
+	END_IF
+	ATLTrigR1(CLK:=HMIItf.ATLearning);
+	IF ATLTrigR1.Q THEN// AND NOT busy
+		para_SV:=HMIItf.para_SV;
+		ATLearning:=TRUE;
+	END_IF
+	manuleTrigR1(CLK:=HMIItf.manuleHeat);
+	IF manuleTrigR1.Q THEN// AND NOT busy
+		para_Manual_MV:=HMIItf.para_Manual_MV;
+		MVManul:=TRUE;
+	END_IF
+		
+	resetTrigR1(CLK:=HMIItf.reset);
+	IF resetTrigR1.Q THEN// AND NOT busy
+		para_SV:=0;
+		para_Manual_MV:=0;
+		reset:=TRUE;
+	END_IF
+	
+	stopTrigR1(CLK:=HMIItf.stop);
+	IF stopTrigR1.Q THEN// AND NOT busy
+		para_SV:=0;
+		para_Manual_MV:=0;
+		stop:=TRUE;
+	END_IF
+	powerTrigR1(CLK:=HMIItf.power);
+	IF powerTrigR1.Q THEN// AND NOT busy
+		IF power THEN
+			power:=FALSE;
+		ELSE
+			power:=TRUE;
+		END_IF
+	END_IF
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Manul_ACT" Id="{ff66d82e-6c33-43db-a76d-edbafab83591}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//手动加热比例设置输出
+IF MVManul AND enable AND MVCondition AND NOT busy THEN// AND NOT busy
+	busy:=TRUE;
+	ATLdone:=FALSE;
+	heatdone:=FALSE;
+	manuldone:=FALSE;
+	manulStep:=10;
+	note_heat:=FALSE;
+	//errorStep:=0;
+END_IF
+MVManul:=FALSE;
+
+CASE manulStep OF
+0:
+	//ready
+	
+10:
+	heatErrorDelayTon(IN:=FALSE);
+	heatDoneDelayTon(IN:=FALSE);
+	
+	IF para_Manual_MV<30 AND para_Manual_MV>0.1 THEN//温度设定正常
+		manulStep:=11;
+	ELSE
+		errorStep:=1;//加热设置错误
+		manulStep:=60;
+	END_IF
+11:
+	IF NOT status_OperSta.0 AND NOT status_OperSta.2 THEN// 非自动运行中
+		manulStep:=13;
+	ELSE
+		errorStep:=5;
+		manulStep:=60;
+	END_IF
+13:
+	ctrl_OperCmd.0:=1;
+	ctrl_OperCmd.5:=1;// manul 执行
+	manulStep:=20;
+	
+20:
+	heatErrorDelayTon(IN:=(NOT status_OperSta.0 OR NOT status_OperSta.5),PT:=errorDelayTime);
+	IF heatErrorDelayTon.Q THEN
+		//done:=FALSE;
+		manuldone:=FALSE;
+		errorStep:=6;// 等待AT加热反馈超时
+		RETURN;
+	END_IF
+	heatDoneDelayTon(IN:=status_OperSta.0 OR status_OperSta.5,PT:=doneDelayTimeShortHeat);
+	
+	IF heatDoneDelayTon.Q THEN
+		errorStep:=0;
+		manulStep:=30;
+		heatErrorDelayTon(IN:=FALSE);
+		heatDoneDelayTon(IN:=FALSE);
+	END_IF
+30:
+	IF status_MV=para_Manual_MV THEN//等待AT完成
+		errorStep:=0;
+		manulStep:=40;
+		heatErrorDelayTon(IN:=FALSE);
+		heatDoneDelayTon(IN:=FALSE);
+	END_IF
+	IF status_OutAndAlm.0 OR status_OutAndAlm.1 OR status_OutAndAlm.2 OR status_OutAndAlm.3
+	OR status_OutAndAlm.4 OR status_OutAndAlm.5 OR status_OutAndAlm.6 THEN
+		errorStep:=3;
+		manulStep:=60;
+	END_IF
+40:
+	heatDoneDelayTon(IN:=TRUE,PT:=T#2S);
+	IF heatDoneDelayTon.Q THEN
+		IF status_MV<=para_Manual_MV THEN
+			manulStep:=50;
+			heatDoneDelayTon(IN:=FALSE);
+		ELSE
+			errorStep:=7;//手动控制失控
+			manulStep:=60;
+		END_IF
+	END_IF
+50:
+	busy:=FALSE;
+	manuldone:=TRUE;
+60://报错
+	ctrl_OperCmd.0:=0;
+	ctrl_OperCmd.5:=0;// manul 取消执行
+	busy:=FALSE;
+	manuldone:=FALSE;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Reset_ACT" Id="{68747339-64cd-4d52-a90a-f00b1d794db4}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[IF reset THEN
+	IF NOT status_OperSta.0 AND NOT status_OperSta.1 THEN
+		busy:=FALSE;
+		stop:=FALSE;
+		heatting:=FALSE;
+	END_IF
+	
+	//done:=FALSE;
+	heatdone:=FALSE;
+	ATLdone:=FALSE;
+	manuldone:=FALSE;
+	errorStep:=0;
+	ctrl_OperCmd.0:=0;//停止加热
+	ctrl_OperCmd.4:=1;//切换为NOT AT
+	ctrl_OperCmd.5:=0;//切换为自动
+	heatting:=FALSE;
+	reset:=FALSE;
+	note_heat:=FALSE;
+END_IF
+
+IF stop THEN
+	note_heat:=FALSE;
+	heatStep:=0;
+	atlStep:=0;
+	manulStep:=0;
+	ctrl_OperCmd.0:=0;//停止加热
+	ctrl_OperCmd.4:=1;//切换为NOT AT
+	ctrl_OperCmd.5:=0;//切换为自动
+	para_SV:=0;//温度设定为0
+	IF NOT status_OperSta.0 AND NOT status_OperSta.1 THEN
+		busy:=FALSE;
+		stop:=FALSE;
+		heatting:=FALSE;
+	END_IF
+END_IF
+//100ms保持后复位，模拟上升沿
+ATLearRest(IN:=ctrl_OperCmd.2 OR ctrl_OperCmd.4,PT:=T#1S);
+IF ATLearRest.Q THEN
+	ctrl_OperCmd.2:=0;
+	ctrl_OperCmd.4:=0;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="SafeMonitor_ACT" Id="{029c6687-2482-4324-9735-b3f134032733}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//notBusyMonitorDelayTon(IN:=NOT busy,PT:=notBusyMonitorDelayTime);
+//IF real_TimeMonitor THEN
+//	IF notBusyMonitorDelayTon.Q THEN
+//		//加热实时检测
+//		IF (enableExtAprSw AND NOT extAprSw) AND extRelay THEN
+//			errorStep:=1;
+//		END_IF
+
+//		IF cylinderType=CylinderType_ButV THEN
+//			IF NOT extCondition AND (NOT retdone OR extRelay) THEN//蝶阀单控，检测到开条件消失，强制关闭
+//				retract:=TRUE;
+//				extRelay:=FALSE;
+//			END_IF
+//		END_IF
+//	END_IF
+//END_IF
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="VersionLog" Id="{9865ba3b-4265-47b7-9da6-79dfb4f9b362}">
+      <Implementation>
+        <ST><![CDATA[(*
+版本: V1.0.0.0
+说明:
+	1. 首个版本
+	2. 含普通气缸\真空吸类型的控制
+	3. 可配置是否有到位信号, 以及到位稳定时间
+(--------------------------------------------------)
+新版本: V1.0.1.0
+更新时间: 2019/11/20 19:00
+更新说明:
+	1. 优化编写方式
+	2. 修改错误编码起始位，现改为从1开始
+(--------------------------------------------------)
+新版本: V1.0.1.1
+更新时间: 2020/03/23 23:00
+更新说明:
+	1. 优化报错方式
+	2. 增加伸出、缩回、复位和停止触发函数
+(--------------------------------------------------)
+新版本: V1.0.1.2
+更新时间: 2020/04/22 09:50
+更新说明:
+	1. 增加中文报警输出
+(--------------------------------------------------)
+新版本: V1.0.1.3
+更新时间: 2020/09/16
+更新说明:
+	1. 开放错误ID、错误文本信息获取接口
+(--------------------------------------------------)
+新版本: V1.0.1.4
+更新时间: 2020/10/06
+更新说明:
+	1. 移除控制模式变量，增加HMI启用条件
+	2. 增加外部获取伸出缩回完成信号接口函数
+(--------------------------------------------------)
+新版本: V1.0.1.5
+更新时间: 2020/10/14
+更新说明:
+	1. 优化代码
+(--------------------------------------------------)
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="HeatModule">
+      <LineId Id="447" Count="2" />
+      <LineId Id="554" Count="0" />
+      <LineId Id="561" Count="0" />
+      <LineId Id="451" Count="1" />
+      <LineId Id="212" Count="0" />
+      <LineId Id="686" Count="0" />
+    </LineIds>
+    <LineIds Name="HeatModule.Act_ATL">
+      <LineId Id="22" Count="3" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="HeatModule.Act_Heat">
+      <LineId Id="22" Count="1" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="24" Count="1" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="HeatModule.Act_Reset">
+      <LineId Id="5" Count="1" />
+    </LineIds>
+    <LineIds Name="HeatModule.Act_Stop">
+      <LineId Id="6" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="HeatModule.ATL_ACT">
+      <LineId Id="2" Count="2" />
+      <LineId Id="210" Count="1" />
+      <LineId Id="209" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="226" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="10" Count="9" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="112" Count="0" />
+      <LineId Id="119" Count="0" />
+      <LineId Id="116" Count="0" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="120" Count="0" />
+      <LineId Id="114" Count="0" />
+      <LineId Id="133" Count="0" />
+      <LineId Id="138" Count="0" />
+      <LineId Id="140" Count="1" />
+      <LineId Id="143" Count="2" />
+      <LineId Id="135" Count="0" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="153" Count="0" />
+      <LineId Id="118" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="25" Count="3" />
+      <LineId Id="32" Count="3" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="212" Count="2" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="216" Count="6" />
+      <LineId Id="227" Count="3" />
+      <LineId Id="206" Count="0" />
+      <LineId Id="199" Count="0" />
+      <LineId Id="202" Count="1" />
+      <LineId Id="122" Count="0" />
+      <LineId Id="155" Count="0" />
+      <LineId Id="215" Count="0" />
+      <LineId Id="123" Count="0" />
+      <LineId Id="125" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="HeatModule.Error_ACT">
+      <LineId Id="1" Count="0" />
+      <LineId Id="15" Count="2" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="12" Count="2" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="18" Count="2" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="27" Count="4" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="3" Count="0" />
+    </LineIds>
+    <LineIds Name="HeatModule.Get_Done_Heat">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="HeatModule.getErrID">
+      <LineId Id="22" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="HeatModule.getErrTXT">
+      <LineId Id="22" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="66" Count="1" />
+      <LineId Id="74" Count="7" />
+      <LineId Id="88" Count="1" />
+      <LineId Id="40" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="HeatModule.getErrWTXT">
+      <LineId Id="21" Count="2" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="81" Count="1" />
+      <LineId Id="89" Count="7" />
+      <LineId Id="103" Count="1" />
+      <LineId Id="55" Count="3" />
+      <LineId Id="14" Count="0" />
+    </LineIds>
+    <LineIds Name="HeatModule.Heat_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="227" Count="2" />
+      <LineId Id="3" Count="1" />
+      <LineId Id="213" Count="1" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="222" Count="0" />
+      <LineId Id="226" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="10" Count="9" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="112" Count="0" />
+      <LineId Id="119" Count="0" />
+      <LineId Id="116" Count="0" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="120" Count="0" />
+      <LineId Id="114" Count="0" />
+      <LineId Id="133" Count="0" />
+      <LineId Id="138" Count="0" />
+      <LineId Id="140" Count="1" />
+      <LineId Id="143" Count="1" />
+      <LineId Id="137" Count="0" />
+      <LineId Id="134" Count="0" />
+      <LineId Id="232" Count="0" />
+      <LineId Id="234" Count="0" />
+      <LineId Id="152" Count="0" />
+      <LineId Id="135" Count="0" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="153" Count="0" />
+      <LineId Id="118" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="237" Count="0" />
+      <LineId Id="240" Count="2" />
+      <LineId Id="236" Count="0" />
+      <LineId Id="25" Count="3" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="225" Count="0" />
+      <LineId Id="243" Count="0" />
+      <LineId Id="33" Count="2" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="91" Count="1" />
+      <LineId Id="158" Count="0" />
+      <LineId Id="223" Count="0" />
+      <LineId Id="184" Count="1" />
+      <LineId Id="102" Count="0" />
+      <LineId Id="126" Count="0" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="131" Count="0" />
+      <LineId Id="127" Count="0" />
+      <LineId Id="157" Count="0" />
+      <LineId Id="186" Count="1" />
+      <LineId Id="128" Count="0" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="159" Count="0" />
+      <LineId Id="215" Count="1" />
+      <LineId Id="219" Count="0" />
+      <LineId Id="221" Count="0" />
+      <LineId Id="217" Count="0" />
+      <LineId Id="220" Count="0" />
+      <LineId Id="218" Count="0" />
+      <LineId Id="192" Count="3" />
+      <LineId Id="160" Count="0" />
+      <LineId Id="196" Count="0" />
+      <LineId Id="204" Count="0" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="205" Count="0" />
+      <LineId Id="207" Count="0" />
+      <LineId Id="206" Count="0" />
+      <LineId Id="199" Count="0" />
+      <LineId Id="202" Count="1" />
+      <LineId Id="224" Count="0" />
+      <LineId Id="208" Count="0" />
+      <LineId Id="245" Count="1" />
+      <LineId Id="235" Count="0" />
+      <LineId Id="209" Count="0" />
+      <LineId Id="211" Count="1" />
+      <LineId Id="210" Count="0" />
+      <LineId Id="122" Count="0" />
+      <LineId Id="154" Count="0" />
+      <LineId Id="156" Count="0" />
+      <LineId Id="155" Count="0" />
+      <LineId Id="123" Count="0" />
+      <LineId Id="125" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="HeatModule.Init_ACT">
+      <LineId Id="5" Count="1" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="2" Count="1" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="HeatModule.InitHMI_ACT">
+      <LineId Id="7" Count="4" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="31" Count="2" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="34" Count="1" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="38" Count="2" />
+    </LineIds>
+    <LineIds Name="HeatModule.IOMap">
+      <LineId Id="1" Count="0" />
+      <LineId Id="6" Count="2" />
+      <LineId Id="4" Count="1" />
+      <LineId Id="3" Count="0" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="9" Count="1" />
+    </LineIds>
+    <LineIds Name="HeatModule.ManualCtrl_ACT">
+      <LineId Id="2" Count="1" />
+      <LineId Id="32" Count="1" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="45" Count="1" />
+      <LineId Id="48" Count="4" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="87" Count="0" />
+      <LineId Id="89" Count="2" />
+      <LineId Id="88" Count="0" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="96" Count="1" />
+      <LineId Id="94" Count="0" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="4" Count="1" />
+      <LineId Id="79" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="72" Count="1" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="76" Count="1" />
+      <LineId Id="81" Count="0" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="75" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="14" Count="1" />
+      <LineId Id="84" Count="1" />
+      <LineId Id="16" Count="4" />
+      <LineId Id="82" Count="1" />
+      <LineId Id="21" Count="1" />
+      <LineId Id="24" Count="7" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="HeatModule.Manul_ACT">
+      <LineId Id="2" Count="2" />
+      <LineId Id="210" Count="1" />
+      <LineId Id="209" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="229" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="10" Count="9" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="112" Count="0" />
+      <LineId Id="119" Count="0" />
+      <LineId Id="116" Count="0" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="120" Count="0" />
+      <LineId Id="114" Count="0" />
+      <LineId Id="133" Count="0" />
+      <LineId Id="138" Count="0" />
+      <LineId Id="140" Count="1" />
+      <LineId Id="143" Count="2" />
+      <LineId Id="135" Count="0" />
+      <LineId Id="230" Count="0" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="153" Count="0" />
+      <LineId Id="118" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="25" Count="3" />
+      <LineId Id="32" Count="3" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="212" Count="2" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="159" Count="0" />
+      <LineId Id="192" Count="3" />
+      <LineId Id="160" Count="0" />
+      <LineId Id="231" Count="2" />
+      <LineId Id="205" Count="0" />
+      <LineId Id="207" Count="0" />
+      <LineId Id="206" Count="0" />
+      <LineId Id="216" Count="2" />
+      <LineId Id="222" Count="1" />
+      <LineId Id="225" Count="3" />
+      <LineId Id="224" Count="0" />
+      <LineId Id="220" Count="0" />
+      <LineId Id="199" Count="0" />
+      <LineId Id="202" Count="1" />
+      <LineId Id="122" Count="0" />
+      <LineId Id="155" Count="0" />
+      <LineId Id="215" Count="0" />
+      <LineId Id="123" Count="0" />
+      <LineId Id="125" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="HeatModule.Reset_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="49" Count="0" />
+      <LineId Id="52" Count="0" />
+      <LineId Id="48" Count="0" />
+      <LineId Id="7" Count="3" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="13" Count="1" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="51" Count="0" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="16" Count="2" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="38" Count="2" />
+      <LineId Id="36" Count="1" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="41" Count="1" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="50" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="26" Count="2" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="29" Count="0" />
+    </LineIds>
+    <LineIds Name="HeatModule.SafeMonitor_ACT">
+      <LineId Id="6" Count="0" />
+      <LineId Id="36" Count="5" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="57" Count="2" />
+      <LineId Id="55" Count="1" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="51" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="HeatModule.VersionLog">
+      <LineId Id="49" Count="16" />
+      <LineId Id="67" Count="7" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="76" Count="1" />
+      <LineId Id="79" Count="10" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

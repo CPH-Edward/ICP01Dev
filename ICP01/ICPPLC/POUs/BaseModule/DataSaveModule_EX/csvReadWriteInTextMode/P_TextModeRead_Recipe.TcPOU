@@ -1,0 +1,174 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="P_TextModeRead_Recipe" Id="{e7cf6fd4-4da3-43ba-b841-d28144f20809}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK P_TextModeRead_Recipe
+VAR_IN_OUT
+	database		: ARRAY[0..gRecipeMAX_CSV_ROWS, 0..gREcipeMAX_CSV_COLUMNS ] OF STRING(30);(* Target PLC database *)
+	csv_rows		: UDINT;
+	csv_columns		: UDINT;
+END_VAR
+VAR_INPUT
+	bRead			: BOOL := FALSE;(* Rising edge starts program execution *)	
+	sFileName		: T_MaxString := '';(* CSV source file path and name *)
+END_VAR
+VAR_OUTPUT
+	bBusy			: BOOL;
+	error			: BOOL;
+	nErrId			: UDINT;	
+END_VAR
+VAR
+	bError			: BOOL;
+	readData:ARRAY[gNumBegin..(gMaxNumLength+gNumBegin-1)]OF BYTE;
+	readDataClear:ARRAY[gNumBegin..(gMaxNumLength+gNumBegin-1)]OF BYTE;
+	sNetId			: T_AmsNetId := '';	(* TwinCAT system network address *)
+	sCSVLine		: T_MaxString := '';(* Single CSV text line (row, record), we are using string as record buffer (your are able to see read fields)  *)
+	sCSVField		: T_MaxString := '';(* Single CSV field value (column, record field) *)
+	nRow	 		: UDINT 	:= 0;(* Row number (record) *)
+	nColumn			: UDINT 	:= 0;(* Column number (record field) *)
+	hFile			: UINT		:= 0;(* File handle of the source file *)
+	step			: DWORD 	:= 0;
+	fbFileOpen		: FB_FileOpen;(* Opens file *)
+	fbFileClose		: FB_FileClose;(* Closes file *)
+	fbFileGets		: FB_FileGets;(* Reads one record (line) *)
+	fbFileRead		: FB_FileRead;//---------------------------------------
+	fbReader		: FB_CSVMemBufferReader;(* Helper function block used to parse CSV data bytes (single record line) *)
+
+	strTemp : T_MaxString;
+	strT : T_MaxString;
+	i : UDINT:=0;
+	iTemp : UDINT:=0;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[DEFAULT_CSV_FIELD_SEP:= 16#2C;  //配置CSV文件的分割符，16#2C表明各个参数之间是用逗号分隔的。
+CASE step OF
+	0:	(* Wait for rising edge at bRead variable *)
+		IF bRead THEN
+			bRead 	:= FALSE;
+			bBusy 	:= TRUE;
+			error:= bError	:= FALSE;
+			nErrId	:= 0;
+			hFile	:= 0;
+			nRow	:= 0;
+			nColumn	:= 0;
+			MEMSET( ADR( database ), 0, SIZEOF( database ) );
+			step 		:= 1;
+			readData:=readDataClear;
+		END_IF
+
+	1:	(* Open source file *)
+		fbFileOpen(  bExecute := FALSE  );
+		fbFileOpen( sNetId := sNetId, sPathName := sFileName, nMode := FOPEN_MODEREAD OR FOPEN_MODETEXT,(* Open file in TEXT mode! *)
+					ePath := PATH_GENERIC, bExecute := TRUE );
+		step := 2;
+
+	2:(* Wait until open not busy *)
+		fbFileOpen( bExecute := FALSE, bError => bError, nErrID => nErrID, hFile => hFile );
+		IF NOT fbFileOpen.bBusy THEN
+			IF NOT fbFileOpen.bError THEN
+				step := 3;
+			ELSE(* Error: file not found? *)
+				step := 100;
+			END_IF
+		END_IF
+		
+	3:
+		step := 4;
+	4:
+		fbFileRead(
+			sNetId:= sNetId, 
+			hFile:= hFile, 
+			bExecute:= FALSE,);
+		step := 5;
+	5:(*Read data from file*)
+		fbFileRead(
+			sNetId:= sNetId, 
+			hFile:= hFile, 
+			pReadBuff:= ADR(readData),
+			cbReadLen:= gMaxNumLength,
+			bExecute:= TRUE, 
+			tTimeout:= , 
+			bBusy=> , 
+			bError=> , 
+			nErrId=> , 
+			cbRead=> , 
+			bEOF=> );
+		IF NOT fbFileRead.bBusy AND NOT fbFileRead.bError THEN
+			IF fbFileRead.bEOF THEN
+				step := 6;
+			END_IF
+			step := 6;
+			fbFileRead(
+				sNetId:= sNetId, 
+				hFile:= hFile, 
+				bExecute:= FALSE,);
+		ELSIF fbFileRead.bError THEN
+			step := 100;
+		END_IF
+		sCSVLine := '';
+		iTemp:=1;
+	6:
+		FOR nRow:=0 TO csv_rows BY 1 DO
+			sCSVLine := '';
+			FOR i:=iTemp TO gMaxNumLength BY 1 DO
+				strT := F_ToCHR(c:=readData[i]);
+				IF '$L' = strT THEN
+					strTemp:=CONCAT(STR1:=sCSVLine,STR2:='$R$L');
+					iTemp:=i+1;
+					EXIT;
+				ELSE
+					sCSVLine:=CONCAT(STR1:=sCSVLine,STR2:=strT);
+				END_IF
+			END_FOR
+			fbReader.eCmd := eEnumCmd_First;(* Read first field value *)
+			FOR nColumn := 0 TO csv_columns BY 1 DO
+				fbReader( pBuffer := ADR( sCSVLine ), cbBuffer := SIZEOF( sCSVLine ), getValue => sCSVField);
+				IF fbReader.bOk THEN
+					fbReader.eCmd := eEnumCmd_Next;
+					IF ( nRow <= csv_rows ) THEN
+						IF ( nColumn <= csv_columns ) THEN
+							database[nRow, nColumn] := CSVFIELD_TO_STRING( sCSVField, FALSE );
+						END_IF
+					END_IF
+				END_IF
+			END_FOR
+			IF fbReader.bCRLF THEN(* CRLF == TRUE => End of reacord reached *)
+				nColumn := 0;
+			END_IF
+		END_FOR
+		step := 10;
+
+	10:	(* Close source file *)
+		fbFileClose( bExecute := FALSE );
+		fbFileClose( sNetId := sNetId, hFile := hFile, bExecute := TRUE );
+		step := 11;
+
+	11:(* Wait until close not busy *)
+		fbFileClose( bExecute := FALSE, bError => bError, nErrID => nErrID );
+		IF ( NOT fbFileClose.bBusy ) THEN
+			hFile := 0;
+			step := 100;
+		END_IF
+
+	100: (* Error or ready step => cleanup *)
+		IF ( hFile <> 0 ) THEN
+			step := 10; (* Close the source file *)
+		ELSE
+			bBusy := FALSE;
+			error := bError;
+			step := 0;	(* Ready *)
+		END_IF
+
+END_CASE
+
+
+
+]]></ST>
+    </Implementation>
+    <LineIds Name="P_TextModeRead_Recipe">
+      <LineId Id="320" Count="12" />
+      <LineId Id="478" Count="0" />
+      <LineId Id="333" Count="108" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

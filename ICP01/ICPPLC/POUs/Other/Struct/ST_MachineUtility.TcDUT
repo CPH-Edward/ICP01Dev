@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="ST_MachineUtility" Id="{abb55754-7e82-4e0e-8eb1-9714724462c7}">
+    <Declaration><![CDATA[TYPE ST_MachineUtility :
+STRUCT
+  	(*外罩按钮及三色灯*)
+ 	I_Start:BOOL;// 测试机 Start 按钮
+	I_Stop:BOOL;// 测试机 Stop 按钮
+	I_Reset:BOOL;// 测试机 Reset 按钮
+	I_EStop:BOOL;// 测试机 E-Stop 按钮
+	
+ 	O_StartLamp:BOOL;// 测试机 Start 按钮
+	O_StopLamp:BOOL;// 测试机 Stop 按钮
+	O_ResetLamp:BOOL;// 测试机 Reset 按钮
+	O_RedLamp:BOOL;// 测试机 三色灯 红灯
+	O_GreenLamp:BOOL;// 测试机 三色灯 绿灯
+	O_YellowLamp:BOOL;// 测试机 三色灯 黄灯
+	O_Buzzer:BOOL;// 测试机 三色灯 蜂鸣器
+	
+ 	(*安全门信号*)
+ 	I_SafeDoor_1:BOOL;// 前安全门1
+	I_SafeDoor_2:BOOL;// 后安全门1
+	I_SafeDoor_3:BOOL;// 前安全门2
+	I_SafeDoor_4:BOOL;// 后安全门2
+
+	(*压力检测*)
+	I_PressureDetection1:BOOL;
+	(* 温度检测*)
+	I_Temperature:BOOL;
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -1,0 +1,255 @@
+<?xml version="1.0"?>
+<VarLinks>
+	<OwnerA Name="InputDst" Prefix="TIPC^ICPPLC^ICPPLC Instance" Type="1">
+		<OwnerB Name="TIID^Device 1 (EtherCAT)^Term 1 (EK1200)^Term 2 (EL1889)">
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[1].io[10]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 10^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[1].io[11]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 11^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[1].io[12]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 12^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[1].io[13]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 13^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[1].io[14]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 14^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[1].io[15]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 15^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[1].io[16]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 16^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[1].io[1]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 1^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[1].io[2]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 2^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[1].io[3]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 3^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[1].io[4]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 4^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[1].io[5]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 5^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[1].io[6]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 6^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[1].io[7]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 7^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[1].io[8]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 8^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[1].io[9]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 9^Input" Size="1"/>
+		</OwnerB>
+		<OwnerB Name="TIID^Device 1 (EtherCAT)^Term 1 (EK1200)^Term 3 (EL1889)">
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[2].io[10]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 10^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[2].io[11]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 11^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[2].io[12]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 12^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[2].io[13]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 13^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[2].io[14]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 14^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[2].io[15]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 15^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[2].io[16]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 16^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[2].io[1]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 1^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[2].io[2]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 2^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[2].io[3]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 3^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[2].io[4]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 4^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[2].io[5]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 5^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[2].io[6]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 6^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[2].io[7]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 7^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[2].io[8]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 8^Input" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Input.stIOBase[2].io[9]" GrpA="IOTask Inputs" TypeA="BOOL" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 9^Input" Size="1"/>
+		</OwnerB>
+		<OwnerB Name="TIID^Device 1 (EtherCAT)^Term 1 (EK1200)^Term 7 (EL3174)">
+			<Link VarA="GVL_AllGLOBAL.gICP.AI_AIMGauge" GrpA="PlcTask Inputs" TypeA="INT" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000006}" VarB="AI Standard Channel 2^Value"/>
+			<Link VarA="GVL_AllGLOBAL.gICP.AI_ChamberGauge" GrpA="PlcTask Inputs" TypeA="INT" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000006}" VarB="AI Standard Channel 4^Value"/>
+			<Link VarA="GVL_AllGLOBAL.gICP.AI_ForeLineGauge" GrpA="PlcTask Inputs" TypeA="INT" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000006}" VarB="AI Standard Channel 1^Value"/>
+			<Link VarA="GVL_AllGLOBAL.gICP.AI_LoadLockGauge" GrpA="PlcTask Inputs" TypeA="INT" InOutA="0" GuidA="{18071995-0000-0000-0000-000000000006}" VarB="AI Standard Channel 3^Value"/>
+		</OwnerB>
+		<OwnerB Name="TIID^Device 6 (EtherCAT)^Box 12 (EC SERIES)">
+			<Link VarA="GVL_AllGLOBAL.gICP.HeMFC_ActFlow" GrpA="PlcTask Inputs" TypeA="REAL" InOutA="0" GuidA="{18071995-0000-0000-0000-00000000000D}" VarB="SDP TxPDO Map^Flow Reading"/>
+		</OwnerB>
+		<OwnerB Name="TIID^Device 1 (EtherCAT)^Term 1 (EK1200)^Term 10 (EL6022)">
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[0]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 0"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[10]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 10"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[11]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 11"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[12]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 12"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[13]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 13"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[14]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 14"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[15]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 15"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[16]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 16"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[17]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 17"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[18]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 18"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[19]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 19"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[1]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 1"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[20]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 20"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[21]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 21"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[2]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 2"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[3]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 3"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[4]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 4"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[5]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 5"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[6]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 6"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[7]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 7"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[8]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 8"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^D[9]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Inputs Channel 2^Data In 9"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMin^Status" GrpA="ComTask Inputs" TypeA="WORD" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000004}" VarB="COM Inputs Channel 2^Status"/>
+		</OwnerB>
+		<OwnerB Name="TIID^Device 1 (EtherCAT)^Term 1 (EK1200)^Term 9 (EL6002)">
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[0]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 0"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[10]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 10"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[11]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 11"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[12]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 12"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[13]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 13"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[14]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 14"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[15]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 15"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[16]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 16"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[17]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 17"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[18]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 18"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[19]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 19"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[1]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 1"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[20]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 20"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[21]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 21"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[2]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 2"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[3]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 3"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[4]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 4"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[5]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 5"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[6]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 6"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[7]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 7"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[8]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 8"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^D[9]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 1^Data In 9"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMin^Status" GrpA="ComTask Inputs" TypeA="WORD" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000004}" VarB="COM TxPDO-Map Inputs Channel 1^Status"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[0]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 0"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[10]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 10"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[11]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 11"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[12]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 12"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[13]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 13"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[14]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 14"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[15]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 15"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[16]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 16"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[17]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 17"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[18]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 18"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[19]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 19"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[1]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 1"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[20]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 20"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[21]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 21"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[2]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 2"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[3]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 3"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[4]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 4"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[5]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 5"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[6]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 6"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[7]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 7"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[8]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 8"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^D[9]" GrpA="ComTask Inputs" TypeA="BYTE" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM TxPDO-Map Inputs Channel 2^Data In 9"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMin^Status" GrpA="ComTask Inputs" TypeA="WORD" InOutA="0" ParentTypeA="KL6inData22B" GuidA="{18071995-0000-0000-0000-000000000004}" VarB="COM TxPDO-Map Inputs Channel 2^Status"/>
+		</OwnerB>
+	</OwnerA>
+	<OwnerA Name="OutputSrc" Prefix="TIPC^ICPPLC^ICPPLC Instance" Type="2">
+		<OwnerB Name="TIID^Device 1 (EtherCAT)^Term 1 (EK1200)^Term 4 (EL2889)">
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[1].io[10]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 10^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[1].io[11]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 11^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[1].io[12]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 12^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[1].io[13]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 13^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[1].io[14]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 14^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[1].io[15]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 15^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[1].io[16]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 16^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[1].io[1]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 1^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[1].io[2]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 2^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[1].io[3]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 3^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[1].io[4]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 4^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[1].io[5]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 5^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[1].io[6]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 6^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[1].io[7]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 7^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[1].io[8]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 8^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[1].io[9]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 9^Output" Size="1"/>
+		</OwnerB>
+		<OwnerB Name="TIID^Device 1 (EtherCAT)^Term 1 (EK1200)^Term 5 (EL2889)">
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[2].io[10]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 10^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[2].io[11]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 11^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[2].io[12]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 12^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[2].io[13]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 13^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[2].io[14]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 14^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[2].io[15]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 15^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[2].io[16]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 16^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[2].io[1]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 1^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[2].io[2]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 2^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[2].io[3]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 3^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[2].io[4]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 4^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[2].io[5]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 5^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[2].io[6]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 6^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[2].io[7]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 7^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[2].io[8]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 8^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[2].io[9]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 9^Output" Size="1"/>
+		</OwnerB>
+		<OwnerB Name="TIID^Device 1 (EtherCAT)^Term 1 (EK1200)^Term 6 (EL2889)">
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[3].io[10]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 10^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[3].io[11]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 11^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[3].io[12]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 12^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[3].io[13]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 13^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[3].io[14]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 14^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[3].io[15]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 15^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[3].io[16]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 16^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[3].io[1]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 1^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[3].io[2]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 2^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[3].io[3]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 3^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[3].io[4]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 4^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[3].io[5]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 5^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[3].io[6]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 6^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[3].io[7]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 7^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[3].io[8]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 8^Output" Size="1"/>
+			<Link VarA="TesterIO.fbIOBase_Output.stIOBase[3].io[9]" GrpA="IOTask Outputs" TypeA="BOOL" InOutA="1" GuidA="{18071995-0000-0000-0000-000000000030}" VarB="Channel 9^Output" Size="1"/>
+		</OwnerB>
+		<OwnerB Name="TIID^Device 6 (EtherCAT)^Box 12 (EC SERIES)">
+			<Link VarA="GVL_AllGLOBAL.gICP.HeMFC_SetFlow" GrpA="PlcTask Outputs" TypeA="REAL" InOutA="1" GuidA="{18071995-0000-0000-0000-00000000000D}" VarB="SDP RxPDO Map^Flow SP"/>
+		</OwnerB>
+		<OwnerB Name="TIID^Device 1 (EtherCAT)^Term 1 (EK1200)^Term 10 (EL6022)">
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^Ctrl" GrpA="ComTask Outputs" TypeA="WORD" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000004}" VarB="COM Outputs Channel 2^Ctrl"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[0]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 0"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[10]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 10"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[11]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 11"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[12]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 12"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[13]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 13"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[14]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 14"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[15]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 15"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[16]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 16"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[17]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 17"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[18]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 18"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[19]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 19"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[1]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 1"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[20]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 20"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[21]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 21"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[2]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 2"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[3]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 3"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[4]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 4"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[5]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 5"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[6]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 6"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[7]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 7"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[8]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 8"/>
+			<Link VarA="RS232_485_ALLEL.MFC_COMout^D[9]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM Outputs Channel 2^Data Out 9"/>
+		</OwnerB>
+		<OwnerB Name="TIID^Device 1 (EtherCAT)^Term 1 (EK1200)^Term 9 (EL6002)">
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^Ctrl" GrpA="ComTask Outputs" TypeA="WORD" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000004}" VarB="COM RxPDO-Map Outputs Channel 1^Ctrl"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[0]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 0"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[10]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 10"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[11]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 11"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[12]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 12"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[13]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 13"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[14]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 14"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[15]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 15"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[16]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 16"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[17]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 17"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[18]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 18"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[19]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 19"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[1]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 1"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[20]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 20"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[21]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 21"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[2]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 2"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[3]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 3"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[4]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 4"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[5]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 5"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[6]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 6"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[7]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 7"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[8]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 8"/>
+			<Link VarA="RS232_485_ALLEL.ARM_COMout^D[9]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 1^Data Out 9"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^Ctrl" GrpA="ComTask Outputs" TypeA="WORD" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000004}" VarB="COM RxPDO-Map Outputs Channel 2^Ctrl"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[0]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 0"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[10]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 10"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[11]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 11"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[12]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 12"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[13]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 13"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[14]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 14"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[15]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 15"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[16]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 16"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[17]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 17"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[18]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 18"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[19]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 19"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[1]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 1"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[20]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 20"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[21]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 21"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[2]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 2"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[3]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 3"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[4]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 4"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[5]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 5"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[6]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 6"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[7]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 7"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[8]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 8"/>
+			<Link VarA="RS232_485_ALLEL.TBP_COMout^D[9]" GrpA="ComTask Outputs" TypeA="BYTE" InOutA="1" ParentTypeA="KL6outData22B" GuidA="{18071995-0000-0000-0000-000000000001}" VarB="COM RxPDO-Map Outputs Channel 2^Data Out 9"/>
+		</OwnerB>
+	</OwnerA>
+</VarLinks>

@@ -1,0 +1,1730 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="VPEModule" Id="{5ed23cb7-99d1-43be-b6c1-2039530f0677}" SpecialFunc="None">
+    <Declaration><![CDATA[(*
+--报错编号0: 无报错
+--报错编号1: openend Error
+--报错编号2: closeract Error
+*)
+FUNCTION_BLOCK VPEModule
+VAR_IN_OUT
+	WarmHMI					:WARMStruct;
+	NoteHMI					:NoteStruct;
+	operatorLog				:printLogModule_EX;
+END_VAR
+VAR_INPUT
+	VPEType						:VPEType:=VPEType_Default;//设置泵组的类型
+	real_TimeMonitor			:BOOL:=TRUE;//实时状态检测
+	enabletcp					:BOOL:=TRUE;//启用TCP读取参数
+	tcpSendDelayTime			:TIME:=T#0.5S;
+	ACCMaxtime					:TIME:=T#30S;
+	DCCMaxtime					:TIME:=T#10S;
+	open						:BOOL:=FALSE;//启动触发信号
+	openCondition				:BOOL:=TRUE;//启动条件
+	close						:BOOL:=FALSE;//停止触发信号
+	closeCondition				:BOOL:=TRUE;//停止条件
+	reset						:BOOL:=FALSE;//复位信号
+	stop						:BOOL:=FALSE;//停止信号
+	power						:BOOL:=TRUE;//泵组动作后是否关闭继电器得电状态, TRUE--保持得电,FALSE--断开得电
+	enable						:BOOL:=TRUE;//泵组禁用条件
+	//ctrlMode					:ControlMode:=ControlMode.eManualCtrMode;//eManualCtrMode or eAutoCtrMode
+	hmiEN						:BOOL:=TRUE;//HMI 启用条件
+	
+	errorDelayTime				:TIME:=T#5000MS;//泵组感应器感应超时		
+	
+	doneDelayTimeShortopenend	:TIME:=T#100MS;//泵组启动感应到位延时_伸出
+	doneDelayTimeShortcloseract	:TIME:=T#50MS;//泵组感应到位延时_收回
+	doneDelayTimeLongopenend	:TIME:=T#500MS;//无泵组感应到位延时_伸出
+	doneDelayTimeLongcloseract	:TIME:=T#50MS;//无泵组感应到位延时_收回
+	errorID						:UDINT:=0;//泵组错误报警分配的起始ID
+	nameTXT						:STRING(255):='';//泵组名字
+	
+	Accing						:BOOL;// 加速中
+	Dccing						:BOOL;// 减速中
+	Normal						:BOOL;// 泵组全速中
+
+	AccAprSw					:BOOL:=FALSE;// 泵组预热加速启动信号,需要链接到实际的IO点
+	AlmAprSw					:BOOL:=FALSE;// 泵组报警信号,需要链接到实际的IO点;有信号，无报错
+	
+	sHost						:STRING(20):='127.0.0.1';// 通讯IP地址; server时表示本地host; client时表示远程host
+	nPort						:UDINT:=8900;// 通讯端口号;
+	bEnable						:BOOL:=TRUE;// 通讯启用\禁用连接
+	sSendSuffix					:STRING:='';//此处可统一添加发送后缀字符 $R$N
+	slaveID						:UINT;// 从站号
+	noteWTXT_open				:WSTRING(255):="";// 泵组打开动作NoteTXT 中文
+	noteWTXT_close				:WSTRING(255):="";// 泵组关闭动作NoteTXT 中文
+END_VAR
+VAR_OUTPUT
+	note_open				:BOOL:=FALSE;// 开执行条件不满足提示
+	note_close				:BOOL:=FALSE;// 关执行条件不满足提示
+	openRelay				:BOOL:=FALSE;// 泵组启动执行继电器,需要链接到实际的IO点
+	closeRelay				:BOOL:=FALSE;// 泵组停止执行继电器,需要链接到实际的IO点
+	resetRelay				:BOOL:=FALSE;// 泵组复位执行继电器,需要链接到实际的IO点
+	
+	bDryPump				:BOOL;// 螺杆泵启动状态
+	bBooster				:BOOL;// 罗茨泵启动状态
+	VPEStart				:BOOL;// 泵组运行状态
+	runTime						: LINT;// 泵组运行时间
+	DryPumpSpeed			:DWORD:=0;// 螺杆泵速度
+	DryPumpTemperature		:DWORD:=0;// 螺杆泵温度
+	DryPumpCurrent			:DWORD:=0;// 螺杆泵电流
+	DryPumpPower			:DWORD:=0;// 螺杆泵功率
+	
+	DryPumpAlm				:BOOL;// 螺杆泵报警标志位
+	
+	BoosterSpeed			:DWORD:=0;// 罗茨泵速度
+	BoosterTemperature		:DWORD:=0;// 罗茨泵温度
+	BoosterCurrent			:DWORD:=0;// 罗茨泵电流
+	BoosterPower			:DWORD:=0;// 罗茨泵功率
+	
+	BoosterAlm				:BOOL;// 罗茨泵报警标志位
+	
+	VPEAlm					:BOOL;// 泵组报警
+	
+	VPEFasteStop			:BOOL;// 泵组快速停机标志位
+	VPETailRowPre			:REAL:=0;// 尾排压力
+	tcpConnected			:BOOL;// TCP 通讯链接成功
+	
+	busy					:BOOL;//泵组动作Busy状态
+	done					:BOOL;//泵组动作Done状态
+	opendone				:BOOL;//泵组动作伸出完成
+	closedone				:BOOL;//泵组动作收回完成
+	error					:BOOL;//泵组动作error状态
+	errID					:UDINT;//泵组动作errID
+	errTXT					:STRING(255):='';//泵组动作errTXT
+	errWTXT					:WSTRING(255):="";//泵组动作errTXT 中文
+END_VAR
+	
+VAR
+	HMIItf					:VPEHMIStruts;//每个泵组对象都关联了一个HMI
+	writeDataSize			:UINT;// 写入数据长度
+	modebusAddr				:UINT;
+	modebuseNum				:UINT;
+	(*后续根据情况决定是否放到输入接口中；方便TCP远程通讯控制*)
+	modeCtrl				:UINT:=2;// 控制模式（0：近控；2：远程；）
+	CoModeCtrl				:UINT:=0;// 协调模式控制，默认0
+	DryPumpCtrl				:UINT:=1;// 螺杆泵控制(0=关; 1=开; 2=待机)
+	BoosterCtrl				:UINT:=1;// 罗茨泵控制(0=关; 1=开; 2=待机)
+	FastStopCtrl			:UINT:=0;// 快速停机(0-自动停机; 1-快速停机)
+	
+	AccessModeStatus		:UINT:=0;// 控制状态（2：远程）
+	DryPumpState			:DWORD:=100;// 螺杆泵状态（1=开; 0=关； 2=加减速）
+	BoosteState				:DWORD:=100;// 罗茨泵状态（1=开; 0=关； 2=加减速）
+	FastStopState			:DWORD:=0;// 快速停机已激活(0=否;1=是）
+	
+	DryPumpAlarm1			: DWORD:=0;// 螺杆泵报警1
+	DryPumpAlarm2			: DWORD:=0;// 螺杆泵报警1
+	
+	BoosterAlarm1			: DWORD:=0;// 罗茨泵报警1
+	BoosterAlarm2			: DWORD:=0;// 罗茨泵报警1
+	
+	runTON					: TON;
+	
+	openErrorDelayTon		:Ton;
+	openDoneDelayTon		:Ton;
+	closeErrorDelayTon		:Ton;
+	closeDoneDelayTon		:Ton;
+	
+	extendTrigRAlc			:R_Trig;//上升沿触发
+	runTimeClearR			:R_Trig;//上升沿触发
+	openendTrigRAlc			:R_Trig;//上升沿触发
+	
+	singleControlR			:R_Trig;//上升沿触发
+	singleControlF			:F_Trig;//上升沿触发
+	
+	openendTrigR1			:R_Trig;//上升沿触发
+	closeractTrigR1			:R_Trig;//上升沿触发
+	resetTrigR1				:R_Trig;//上升沿触发
+	stopTrigR1				:R_Trig;//上升沿触发
+	powerTrigR1				:R_Trig;//上升沿触发
+	
+	openStep				:UINT:=0;
+	closeStep				:UINT:=0;
+	errorStep				:UINT:=0;
+	
+	resetRelayTON			:TON;
+	resetRelayTONTime		:TIME:=T#0.2S;
+	
+	notBusyMonitorDelayTon	:TON;//动作不切换时，延迟检测
+	notBusyMonitorDelayTime :TIME:=T#2S;//动作不切换延迟检测时间
+	firstPower			    :BOOL:=FALSE;//首次上电标志位
+	
+	AccRTrig:R_TRIG;//检测加速信号下降延
+	AccTON:TON;//检测加速信号保持时间
+	NormalRTrig:R_TRIG;//匀速上升沿
+	DccRTrig:R_TRIG;// 检测减速信号下降延
+	
+	
+	tcpStep						:UINT;				//处理步数
+	tcpExcute					:BOOL;//
+	tcpBusy						:BOOL;
+	tcpDone						:BOOL;
+	tcpError					:BOOL;
+	tcpErrorID					:UINT;
+	
+	Timer1						:TON;
+	
+	tcpConnectedF_Trig			:F_TRIG;
+	
+	tcpipClient					:tcpipClientModule_EX;
+	
+	receveTemp:BOOL;
+	
+	tcpipSendDataBuff_Client	:ARRAY [1..12] OF BYTE;
+	tcpipSendDataBuff_ClientTemp	:ARRAY [1..2] OF BYTE;
+	tcpipRecDataBuff_Client	:ARRAY [1..100] OF BYTE;
+	tcpipRecDataBuff_ClientTemp	:ARRAY [1..2] OF BYTE;
+	tcpipRecDataBuff_clear	:ARRAY [1..100] OF BYTE;//数据清空
+	bSendCondition:BOOL;
+	tcpTimeOut:BOOL;//接收数据超时
+	tcpRecError:BOOL;//接收数据错误
+	tcpConnectR_Trig			:R_Trig;//初始连接上升沿
+	tcpConnectF_Trig			:F_Trig;//初始连接下降沿
+	VPEStateDate:POINTER TO VPETestStruts530;// 泵组运行、报警、停止等各种状态数据
+	VPETempCurPowerDate:POINTER TO VPETestStruts540;// 泵组温度、速度、电流、功率等各种状态数据
+	tcpComErrorTimes			:INT;
+	tcpComErrorRestartT			:Ton;
+	noteTON_P:tON;            // 操作提示标志位延时继电器
+	noteTON_N:tON;            // 操作提示标志位延时继电器
+	noteRTrig_P:R_TRIG;          // 操作提示
+	noteRTrig_N:R_TRIG;          // 操作提示
+	extRealayRtrig:R_TRIG;
+	retRealayRtrig:R_TRIG;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[Init_ACT();
+Error_ACT();
+Open_ACT();
+Close_ACT();
+Reset_ACT();
+Error_ACT();
+tcp_Act();]]></ST>
+    </Implementation>
+    <Folder Name="Error" Id="{4235e49c-8a8f-4bca-8d3d-0137d99bd59c}" />
+    <Folder Name="Private" Id="{11cda29f-3ca1-40cd-b5c5-1268bf93ca2f}" />
+    <Method Name="Act_Close" Id="{fdc9afff-2733-4d8b-8670-79b83b644f9e}">
+      <Declaration><![CDATA[(*
+触发缩回动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Close : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND closeCondition THEN// AND NOT busy
+	Act_Close:=close:=TRUE;
+ELSE
+	Act_Close:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Open" Id="{9459faee-d010-49c2-9fe9-db285417b069}">
+      <Declaration><![CDATA[(*
+触发伸出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Open : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND openCondition THEN// AND NOT busy
+	Act_Open:=open:=TRUE;
+ELSE
+	Act_Open:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Reset" Id="{228b3078-aa5d-445e-99fa-2cb9a4f7022e}">
+      <Declaration><![CDATA[(*
+触发复位报警动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Reset : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Reset:=reset:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Stop" Id="{1f92f66b-2274-43fe-ab5d-6bb4839caf42}">
+      <Declaration><![CDATA[(*
+触发停止输出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Stop : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Stop:=stop:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_TCPSend" Id="{63cbb2ea-12d6-4a5d-9ba0-2ed07f22c6ed}">
+      <Declaration><![CDATA[(*
+触发发送动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_TCPSend : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF TRUE THEN
+	Act_TCPSend:=tcpExcute:=TRUE;
+ELSE
+	Act_TCPSend:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Close_ACT" Id="{ef1cf2e7-1502-488e-9f2e-da45f5908e11}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//分子泵--close 触发
+IF close AND NOT closeCondition THEN
+	note_open:=FALSE;
+	note_close:=TRUE;
+	NoteHMI.showFlag:=TRUE;
+	NoteHMI.showText:='';
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,nameTXT);
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,' Close Condition Not Satisfied!');
+END_IF
+IF close AND enable AND closeCondition THEN// 
+	note_open:=FALSE;
+	note_close:=FALSE;
+	busy:=TRUE;
+	open:=FALSE;
+	opendone:=FALSE;
+	closedone:=FALSE;
+	openStep:=0;
+	closeStep:=10;
+	Accing:=FALSE;
+	Normal:=FALSE;
+	Dccing:=FALSE;
+	//errorStep:=0;
+END_IF
+close:=FALSE;
+
+CASE closeStep OF
+0:
+	//ready
+	
+10:
+	closeErrorDelayTon(IN:=FALSE);
+	closeDoneDelayTon(IN:=FALSE);
+	closeRelay:=TRUE;
+	IF NOT openRelay AND AlmAprSw THEN
+		closeStep:=40;
+	ELSE
+		closeStep:=20;
+		openRelay:=FALSE;
+	END_IF
+20:
+	closeErrorDelayTon(IN:=(NOT VPEFasteStop OR NOT openRelay),PT:=errorDelayTime);
+	IF closeErrorDelayTon.Q THEN
+		//done:=FALSE;
+		opendone:=FALSE;
+		closedone:=FALSE;
+		errorStep:=2;
+		Accing:=FALSE;
+		Normal:=FALSE;
+		Dccing:=FALSE;
+		RETURN;
+	END_IF
+	IF (DryPumpState=2 OR BoosteState=2 OR VPEFasteStop) AND NOT openRelay THEN
+		closeDoneDelayTon(IN:=(DryPumpState=2 OR BoosteState=2 OR VPEFasteStop) AND NOT openRelay,PT:=doneDelayTimeShortcloseract);
+	END_IF
+	IF closeDoneDelayTon.Q THEN
+		Accing:=FALSE;
+		Dccing:=TRUE;
+		Normal:=FALSE;
+		closeErrorDelayTon(IN:=FALSE);
+		closeDoneDelayTon(IN:=FALSE);
+		closeStep:=30;
+	END_IF
+30:
+	closeErrorDelayTon(IN:=Dccing AND NOT openRelay,PT:=DCCMaxtime);
+	IF closeErrorDelayTon.Q THEN
+		//done:=FALSE;
+		Accing:=FALSE;
+		Dccing:=FALSE;
+		Normal:=FALSE;
+		opendone:=FALSE;
+		closedone:=FALSE;
+		closeStep:=60;
+		openRelay:=FALSE;
+		errorStep:=2;
+		closeErrorDelayTon(IN:=FALSE);
+	END_IF
+	DccRTrig(CLK:=VPEFasteStop);
+	IF DccRTrig.Q OR VPEFasteStop THEN
+		closeStep:=40;
+		Accing:=FALSE;
+		Dccing:=FALSE;
+		Normal:=FALSE;
+		closeErrorDelayTon(IN:=FALSE);
+	END_IF
+40:
+	IF NOT AccAprSw AND NOT VPEStart AND VPEFasteStop THEN
+		busy:=FALSE;
+		//done:=TRUE;
+		opendone:=FALSE;
+		closedone:=TRUE;
+		errorStep:=0;
+		closeStep:=50;
+		IF NOT power (*AND NOT (CylinderType_Vacuum=cylinderType)*) THEN
+			openRelay:=FALSE;
+			closeRelay:=FALSE;
+		END_IF
+		closeRelay:=FALSE;
+	ELSE
+		busy:=FALSE;
+		//done:=TRUE;
+		opendone:=FALSE;
+		closedone:=FALSE;
+		errorStep:=3;
+		closeStep:=60;
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Error_ACT" Id="{ff5150e1-73f9-45c3-96da-05e3e50fbb97}" FolderPath="Error\">
+      <Implementation>
+        <ST><![CDATA[CASE errorStep OF
+	0:
+		error:=FALSE;
+		errID:=0;
+		errTXT:='';
+ (*
+	1:
+		error:=TRUE;
+		errID:=errorID+errorStep;
+		errTXT:=CONCAT(STR1:=nameTXT,STR2:=' Extend Error!');
+		errWTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 伸出(打开)错误");
+	2:
+		error:=TRUE;
+		errID:=errorID+errorStep;
+		errTXT:=CONCAT(STR1:=nameTXT,STR2:=' Retract Error!');
+		errWTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 缩回(关闭)错误");
+		*)
+	1..4:
+		error:=TRUE;
+		errID:=getErrID(errorStep);
+		errTXT:=getErrTXT(errorStep);
+		errWTXT:=getErrWTXT(errorStep);
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="Get_Done_Close" Id="{07d8efd6-6aa8-4e5e-908a-82c28ae4403b}">
+      <Declaration><![CDATA[METHOD Get_Done_Close : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_Close:=closedone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_Done_Open" Id="{80b787fb-8aa7-465d-adbd-20e736920fc7}">
+      <Declaration><![CDATA[METHOD Get_Done_Open : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_Open:=opendone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_TCPSendBusy" Id="{9d621eb4-0be1-41ba-851c-a208d420e9e5}">
+      <Declaration><![CDATA[(*
+触发发送动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Get_TCPSendBusy : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_TCPSendBusy:=tcpDone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_TCPSendDone" Id="{bde1586c-b564-4742-a25f-5be6b66e584e}">
+      <Declaration><![CDATA[(*
+触发发送动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Get_TCPSendDone : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_TCPSendDone:=tcpDone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_TCPSendError" Id="{50f1af07-9f44-4846-adb3-a9eded1c0ce3}">
+      <Declaration><![CDATA[(*
+触发发送动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Get_TCPSendError : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_TCPSendError:=tcpError;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrID" Id="{548291ae-050c-4b38-821f-5160240b44df}">
+      <Declaration><![CDATA[METHOD getErrID : UDINT
+VAR_INPUT
+	errID					:UDINT;//取值范围1~2
+END_VAR
+VAR
+	nErrID					:UDINT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[nErrID:=errorID+errID;
+
+getErrID:=nErrID;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrTXT" Id="{83072177-f09f-433d-9740-2a95652d8d49}">
+      <Declaration><![CDATA[METHOD getErrTXT : STRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~2
+END_VAR
+VAR
+	sErrTXT					:STRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Open Error!');
+	2:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Close Error!');
+	3:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' NormalRun Error!');
+	4:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' CheckCondition Error!');
+ELSE
+	sErrTXT:=CONCAT(STR1:=nameTXT,STR2:='');
+END_CASE
+getErrTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrWTXT" Id="{d999d864-f8f8-4057-b22d-503203387c96}">
+      <Declaration><![CDATA[METHOD getErrWTXT : WSTRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~16
+END_VAR
+VAR
+	sErrTXT					:WSTRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 分子泵启动错误");
+	2:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 分子泵停止错误");
+	3:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 分子泵正常运行出线异常情况");
+	4:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 检测到条件异常，关机处理");
+ELSE
+	sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:="");
+END_CASE
+getErrWTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Init_ACT" Id="{4f1adbd6-8e4b-4599-a69a-37bc27d6ad35}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[done:=(opendone OR closedone);
+InitHMI_ACT();
+manualCtrl_ACT();
+stateMonitor();//状态监控
+
+
+noteTON_P(IN:=note_open,PT:=T#0.1S);
+noteRTrig_P(CLK:=noteTON_P.Q);
+IF noteRTrig_P.Q THEN
+//	gLog_Note.append_EX(noteWTXT_Open);
+END_IF
+noteTON_N(IN:=note_close,PT:=T#0.1S);
+noteRTrig_N(CLK:=noteTON_N.Q);
+IF noteRTrig_N.Q THEN
+//	gLog_Note.append_EX(noteWTXT_close);
+END_IF
+extRealayRtrig(CLK:=openRelay);
+IF extRealayRtrig.Q THEN
+	HMIItf.singleControl:=TRUE;
+END_IF
+retRealayRtrig(CLK:=NOT openRelay);
+IF retRealayRtrig.Q THEN
+	HMIItf.singleControl:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="InitHMI_ACT" Id="{a31e5d45-02f1-4536-b569-f8317f902d2f}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[HMIItf.HMIEnable:=hmiEN;
+HMIItf.enable:=enable;
+HMIItf.done:=done;
+HMIItf.busy:=busy;
+HMIItf.error:=error OR VPEAlm;
+HMIItf.errID:=UDINT_TO_DINT(errID);
+HMIItf.errTXT:=errTXT;
+HMIItf.openRelay:=openRelay;
+HMIItf.power:=power;
+HMIItf.nameTXT:=nameTXT;
+
+HMIItf.AlmAprSw:=AlmAprSw;
+HMIItf.AccAprSw:=AccAprSw;
+
+HMIItf.runTime:=runTime;
+
+//HMIItf.BoosterAlarm1:=BoosterAlarm1;
+//HMIItf.BoosterAlarm2:=BoosterAlarm2;
+HMIItf.BoosterCurrent:=DWORD_TO_REAL(BoosterCurrent)*0.1;
+HMIItf.BoosterPower:=DWORD_TO_REAL(BoosterPower)*0.1;
+HMIItf.BoosterSpeed:=DWORD_TO_REAL(BoosterSpeed)*0.1;
+HMIItf.BoosterTemperature:=DWORD_TO_REAL(BoosterTemperature)*0.1;
+HMIItf.BoosterStart:=bBooster;
+HMIItf.BoosterError:=BoosterAlm;
+
+//HMIItf.DryPumpAlarm1:=BoosterAlarm1;
+//HMIItf.DryPumpAlarm2:=BoosterAlarm2;
+HMIItf.DryPumpCurrent:=DWORD_TO_REAL(DryPumpCurrent)*0.1;
+HMIItf.DryPumpPower:=DWORD_TO_REAL(DryPumpPower)*0.1;
+HMIItf.DryPumpSpeed:=DWORD_TO_REAL(DryPumpSpeed)*0.1;
+HMIItf.DryPumpTemperature:=DWORD_TO_REAL(DryPumpTemperature)*0.1;
+HMIItf.DryPumpStart:=bDryPump;
+HMIItf.DryPumpError:=DryPumpAlm;
+
+HMIItf.Accing:=Accing;
+HMIItf.Dccing:=Dccing;
+HMIItf.Normal:=Normal;
+HMIItf.tailrowPre:=VPETailRowPre;
+HMIItf.opencondition:=openCondition;
+HMIItf.closecondition:=closeCondition;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ManualCtrl_ACT" Id="{f60d928e-ad7d-44c9-a853-74550dcd3b47}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//HMI手动控制
+IF hmiEN THEN
+	extendTrigRAlc(CLK:=HMIItf.extendAndretract);
+	IF extendTrigRAlc.Q THEN// AND NOT busy
+		IF openRelay THEN// 如果启动继电器或全速，则认为已经已启动完毕
+			close:=TRUE;
+		END_IF
+		IF NOT openRelay THEN
+			open:=TRUE;
+		END_IF
+	END_IF
+	
+	singleControlR(CLK:=HMIItf.singleControltemp);
+	openendTrigR1(CLK:=HMIItf.open);
+	IF (openendTrigR1.Q OR (HMIItf.singleControltemp AND NOT HMIItf.singleControl)) THEN
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want to Open the ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,' ?');
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Open')>0 THEN
+		open:=TRUE;
+		operatorLog.append(CONCAT(nameTXT,' Open'));
+		close:=FALSE;
+		HMIItf.singleControl:=NOT HMIItf.singleControl;
+		WarmHMI.showText:='';
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Open')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	closeractTrigR1(CLK:=HMIItf.close);
+	IF (closeractTrigR1.Q OR (HMIItf.singleControltemp AND HMIItf.singleControl)) THEN
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want to Close the ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,' ?');
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Close')>0 THEN
+		close:=TRUE;
+		operatorLog.append(CONCAT(nameTXT,' Close'));
+		open:=FALSE;
+		HMIItf.singleControl:=NOT HMIItf.singleControl;
+		WarmHMI.showText:='';
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Close')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	
+	resetTrigR1(CLK:=HMIItf.reset);
+	IF resetTrigR1.Q THEN// AND NOT busy
+		reset:=TRUE;
+	END_IF
+	
+	stopTrigR1(CLK:=HMIItf.stop);
+	IF stopTrigR1.Q THEN// AND NOT busy
+		stop:=TRUE;
+	END_IF
+	
+	powerTrigR1(CLK:=HMIItf.power);
+	IF powerTrigR1.Q THEN// AND NOT busy
+		IF power THEN
+			power:=FALSE;
+		ELSE
+			power:=TRUE;
+		END_IF
+	END_IF
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Open_ACT" Id="{c0c0d4b9-7b93-485c-9ffc-c8b71e1f0b0c}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//分子泵伸出--open 触发
+IF open AND NOT openCondition THEN
+	note_open:=TRUE;
+	note_close:=FALSE;
+	NoteHMI.showFlag:=TRUE;
+	NoteHMI.showText:='';
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,nameTXT);
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,' Open Condition Not Satisfied!');
+END_IF
+IF open AND enable AND openCondition AND NOT BoosterAlm AND NOT DryPumpAlm AND NOT AlmAprSw AND openStep<20 AND NOT openRelay AND NOT VPEStart THEN// AND NOT busy
+	note_open:=FALSE;
+	note_close:=FALSE;
+	busy:=TRUE;
+	close:=FALSE;
+	open:=FALSE;
+	done:=FALSE;
+	opendone:=FALSE;
+	closedone:=FALSE;
+	openStep:=10;
+	closeStep:=0;
+	
+	Accing:=FALSE;
+	Dccing:=FALSE;
+	Normal:=FALSE;
+END_IF
+open:=FALSE;
+runTimeClearR(CLK:=HMIItf.runTimeClear);
+runTON(IN:=NOT error AND (openRelay OR VPEStart) AND AccAprSw AND NOT runTON.Q, PT:=T#36S);// 1小时计数一次,启动，无报错，且全速
+IF runTON.Q AND runTime<999999999999999 AND NOT runTimeClearR.Q  THEN
+	runTime:=runTime+1;
+END_IF
+IF runTimeClearR.Q THEN
+	runTime:=0;
+END_IF
+//IF NOT openRelay AND NOT AccAprSw THEN// 计数清零
+//	runTime:=0;
+//END_IF
+CASE openStep OF
+0:
+	//ready
+	
+10:
+	openErrorDelayTon(IN:=FALSE);
+	openDoneDelayTon(IN:=FALSE);
+	AccTON(IN:=FALSE);
+	openStep:=20;
+	openRelay:=TRUE;
+	closeRelay:=FALSE;
+	tcpConnectedF_Trig(CLK:=FALSE);
+20:
+	(*
+	通讯方式启动；不适用IO控制
+	ModeCtrl:=2;
+	CoModeCtrl:=0;
+	DryPumpCtrl:=1;
+	BoosterCtrl:=1;*)
+	openErrorDelayTon(IN:=VPEFasteStop,PT:=T#30S);// 检测停止信号
+	IF openErrorDelayTon.Q THEN
+		opendone:=FALSE;
+		closedone:=FALSE;
+		openStep:=60;
+		openRelay:=FALSE;
+		errorStep:=1;
+		openErrorDelayTon(IN:=FALSE);
+		Accing:=FALSE;
+		Normal:=FALSE;
+		Dccing:=FALSE;
+	ELSE
+		IF NOT VPEFasteStop THEN
+			openErrorDelayTon(IN:=FALSE);
+			openStep:=30;
+		END_IF
+	END_IF
+	
+30:
+	AccTON(IN:=((DryPumpState=2 OR BoosteState=2) OR (DryPumpState=1 AND BoosteState=1)) AND openRelay AND NOT VPEFasteStop,PT:=T#5S);// 检测虚假加速信号
+	AccRTrig(CLK:=(DryPumpState=2 OR BoosteState=2));
+	IF AccRTrig.Q OR AccTON.Q THEN
+		Accing:=TRUE;
+		Normal:=FALSE;
+		Dccing:=FALSE;
+		openStep:=40;
+		openErrorDelayTon(IN:=FALSE);
+	END_IF
+	//状态实时检测
+	IF (AlmAprSw OR VPEAlm) AND openRelay THEN//只要报错；启动线圈启动，强锁启动信号
+		openRelay:=FALSE;
+		close:=TRUE;
+		stop:=TRUE;
+		openStep:=60;/////
+		errorStep:=3;
+		Accing:=FALSE;
+		Dccing:=FALSE;
+		Normal:=FALSE;
+	END_IF
+40:
+	openErrorDelayTon(IN:=NOT VPEStart ,PT:=ACCMaxtime);//检测预热信号
+	IF openErrorDelayTon.Q THEN
+		//done:=FALSE;
+		opendone:=FALSE;
+		closedone:=FALSE;
+		openStep:=60;
+		openRelay:=FALSE;
+		errorStep:=1;
+		openErrorDelayTon(IN:=FALSE);
+		Accing:=FALSE;
+		Normal:=FALSE;
+		Dccing:=FALSE;
+	END_IF
+	IF VPEStart THEN
+		Accing:=FALSE;
+		Dccing:=FALSE;
+		Normal:=TRUE;
+		busy:=FALSE;
+		//done:=TRUE;
+		opendone:=TRUE;
+		closedone:=FALSE;
+		openStep:=50;
+		IF NOT power (*AND NOT (CylinderType_Vacuum=cylinderType)*) THEN
+			openRelay:=FALSE;
+			closeRelay:=FALSE;
+		END_IF
+	END_IF
+50:
+	IF real_TimeMonitor THEN
+		//启动实时检测
+		IF NOT openRelay THEN//启动后，检测到关信号
+			errorStep:=1;
+			openRelay:=FALSE;
+			openStep:=60;
+		END_IF
+		IF (AlmAprSw OR VPEAlm) AND openRelay THEN//只要报错；启动线圈启动，强锁启动信号
+			openRelay:=FALSE;
+			close:=TRUE;
+			stop:=TRUE;
+			openStep:=60;/////
+			errorStep:=3;
+		END_IF
+		tcpConnectedF_Trig(CLK:=tcpConnected);//通讯掉线
+		IF tcpConnectedF_Trig.Q THEN
+			tcpConnectedF_Trig(CLK:=FALSE);
+			errorStep:=4;//通讯异常
+		END_IF
+	END_IF
+60:
+	;//报错
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Reset_ACT" Id="{671a5778-d2be-4f9b-aaaf-8c978172df33}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[IF reset THEN
+	IF NOT power THEN
+		openRelay:=FALSE;
+		closeRelay:=FALSE;
+	END_IF
+	IF error THEN
+		busy:=FALSE;
+	END_IF
+	//done:=FALSE;
+	errorStep:=0;
+	resetRelay:=TRUE;
+	
+	reset:=FALSE;
+	note_open:=FALSE;
+	note_close:=FALSE;
+END_IF
+resetRelayTON(IN:=resetRelay , PT:=resetRelayTONTime);
+IF resetRelayTON.Q THEN
+	resetRelay:=FALSE;
+END_IF
+
+IF stop THEN
+	stop:=FALSE;
+	openRelay:=FALSE;
+	closeRelay:=FALSE;
+	//无自锁检测说法，直接停
+	openStep:=0;
+	closeStep:=0;
+	busy:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="stateMonitor" Id="{15768d0c-b77b-423a-a430-5789f692e91e}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[IF tcpConnected THEN//状态监控
+	bDryPump:=DryPumpState=1;//等于1 启动
+	bBooster:=BoosteState=1;//等于1 启动
+	VPEStart:=bDryPump AND bBooster AND AccAprSw;
+	DryPumpAlm:=(DryPumpAlarm1<>0 AND DryPumpAlarm2<>0) OR tcpError ;
+	BoosterAlm:=(BoosterAlarm1<>0 AND BoosterAlarm2<>0) OR tcpError;
+	VPEAlm:=DryPumpAlm OR BoosterAlm OR AlmAprSw (*OR tcpError*);
+	VPEFasteStop:=FastStopState=0 OR (DryPumpState=0 AND BoosteState=0);//快速停机标志位
+ELSE
+	VPEAlm:=AlmAprSw OR tcpError;
+END_IF
+IF enabletcp AND errorStep=4 AND tcpConnected THEN
+	errorStep:=0;
+END_IF
+IF VPEAlm AND openRelay THEN
+	close:=TRUE;
+	stop:=TRUE;
+	openRelay:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="tcp_Act" Id="{0060b098-31d4-440b-8a51-60e82aacf27d}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[tcpipClient(
+		sSrvNetId:= , 
+		sRemoteHost:=sHost , 
+		nRemotePort:=nPort , 
+		bStartConnect:=bEnable , 
+		tcpipSDataLen:=SIZEOF(tcpipSendDataBuff_Client) , 
+		tcpipSData:=ADR(tcpipSendDataBuff_Client) , 
+		bSend:= , 
+		tcpipRecDataLen:=SIZEOF(tcpipRecDataBuff_Client) , 
+		tcpipRecData:=ADR(tcpipRecDataBuff_Client) , 
+		bConnected=>tcpConnected , 
+		bSendBusy=> , 
+		bRecData=> );
+	bSendCondition:=tcpipClient.bConnected AND NOT tcpipClient.bSendBusy;
+	tcpConnectR_Trig(CLK:=tcpConnected);
+	tcpConnectF_Trig(CLK:=tcpConnected);
+	IF tcpConnectR_Trig.Q THEN
+		gLog.append(CONCAT(nameTXT, ' has been connected'));
+		tcpStep:=0;
+		tcpBusy:=FALSE;
+		tcpDone:=FALSE;
+		tcpError:=FALSE;
+		tcpTimeOut:=FALSE;
+		tcpRecError:=FALSE;
+		tcpExcute:=TRUE;
+		tcpComErrorTimes:=0;
+	END_IF
+	IF tcpConnectF_Trig.Q THEN
+		gLog.append(CONCAT(nameTXT, ' has been disconnected'));
+		IF enabletcp THEN
+			tcpStep:=0;
+			tcpBusy:=FALSE;
+			tcpDone:=FALSE;
+			tcpError:=TRUE;
+			tcpTimeOut:=FALSE;
+			tcpRecError:=FALSE;
+		ELSE
+			tcpStep:=0;
+			tcpBusy:=FALSE;
+			tcpDone:=FALSE;
+			tcpError:=FALSE;
+			tcpTimeOut:=FALSE;
+			tcpRecError:=FALSE;
+		END_IF
+	END_IF
+	IF  tcpipClient.bRecData THEN//接收完成
+		receveTemp:=TRUE;
+	END_IF
+CASE tcpStep OF
+	0:
+	IF enabletcp AND tcpExcute THEN
+		tcpExcute:=FALSE;
+		IF NOT tcpBusy AND tcpConnected THEN
+			tcpStep:=10;
+			tcpBusy:=TRUE;
+			tcpDone:=FALSE;
+			tcpError:=FALSE;
+			tcpTimeOut:=FALSE;
+			tcpRecError:=FALSE;
+			//复位
+		END_IF
+	END_IF
+	Timer1(IN:= FALSE);
+	;
+	10:
+		receveTemp:=FALSE;
+		tcpipSendDataBuff_Client[1]:=0;
+		tcpipSendDataBuff_Client[2]:=0;
+		tcpipSendDataBuff_Client[3]:=0;
+		tcpipSendDataBuff_Client[4]:=0;
+		tcpipSendDataBuff_Client[5]:=0;
+		tcpipSendDataBuff_Client[6]:=16#06;
+		tcpipSendDataBuff_Client[7]:=UINT_TO_BYTE(slaveID);
+		tcpipSendDataBuff_Client[8]:=16#03;
+		modebusAddr:=530;
+		MEMMOVE(ADR(tcpipSendDataBuff_ClientTemp[1]),ADR(modebusAddr),2);
+		tcpipSendDataBuff_Client[9]:=tcpipSendDataBuff_ClientTemp[2];
+		tcpipSendDataBuff_Client[10]:=tcpipSendDataBuff_ClientTemp[1];
+		modebuseNum:=10;
+		MEMMOVE(ADR(tcpipSendDataBuff_ClientTemp[1]),ADR(modebuseNum),2);
+		tcpipSendDataBuff_Client[11]:=tcpipSendDataBuff_ClientTemp[2];
+		tcpipSendDataBuff_Client[12]:=tcpipSendDataBuff_ClientTemp[1];
+		
+		tcpStep:=100;
+		Timer1(IN:= FALSE);
+	100:
+		tcpipClient.bSend:=TRUE;
+		tcpStep:=tcpStep+20;
+	110:
+		tcpStep:=tcpStep+10;
+	120:
+		Timer1(IN:= NOT timer1.q, PT:=T#3000MS);
+		IF Timer1.Q THEN
+			tcpipClient.bSend:=FALSE;
+			tcpStep:=6000;
+			tcpTimeOut:=TRUE;
+			Timer1(IN:= FALSE);
+			RETURN;
+		END_IF
+		//接收数据
+		IF  receveTemp THEN//接收完成
+			tcpipClient.bSend:=FALSE;
+			Timer1(IN:= FALSE);
+			receveTemp:=FALSE;
+			tcpStep:=200;
+		END_IF
+	200://数据处理
+		tcpStep:=tcpStep+10;
+	210:
+		IF  tcpipRecDataBuff_Client[1]=tcpipSendDataBuff_Client[1] AND  tcpipRecDataBuff_Client[2]=tcpipSendDataBuff_Client[2] AND  
+			tcpipRecDataBuff_Client[3]=tcpipSendDataBuff_Client[3] AND  tcpipRecDataBuff_Client[4]=tcpipSendDataBuff_Client[4] AND  
+			tcpipRecDataBuff_Client[7]=tcpipSendDataBuff_Client[7] THEN//数据判断,反馈数据与发送数据匹配无误
+				
+			DryPumpState:=BYTE_TO_WORD(tcpipRecDataBuff_Client[10])*256+BYTE_TO_WORD(tcpipRecDataBuff_Client[11]);
+			BoosteState:=BYTE_TO_WORD(tcpipRecDataBuff_Client[12])*256+BYTE_TO_WORD(tcpipRecDataBuff_Client[13]);
+			FastStopState:=BYTE_TO_WORD(tcpipRecDataBuff_Client[14])*256+BYTE_TO_WORD(tcpipRecDataBuff_Client[15]);
+			DryPumpAlarm1:=BYTE_TO_WORD(tcpipRecDataBuff_Client[18])*256+BYTE_TO_WORD(tcpipRecDataBuff_Client[19]);
+			BoosterAlarm1:=BYTE_TO_WORD(tcpipRecDataBuff_Client[20])*256+BYTE_TO_WORD(tcpipRecDataBuff_Client[21]);
+			DryPumpAlarm2:=BYTE_TO_WORD(tcpipRecDataBuff_Client[22])*256+BYTE_TO_WORD(tcpipRecDataBuff_Client[23]);
+			BoosterAlarm2:=BYTE_TO_WORD(tcpipRecDataBuff_Client[24])*256+BYTE_TO_WORD(tcpipRecDataBuff_Client[25]);
+			DryPumpSpeed:=BYTE_TO_WORD(tcpipRecDataBuff_Client[26])*256+BYTE_TO_WORD(tcpipRecDataBuff_Client[27]);
+			BoosterSpeed:=BYTE_TO_WORD(tcpipRecDataBuff_Client[28])*256+BYTE_TO_WORD(tcpipRecDataBuff_Client[29]);
+			tcpipRecDataBuff_Client:=tcpipRecDataBuff_clear;
+			tcpStep:=tcpStep+10;
+		ELSE//数据接线错误
+			tcpStep:=6000;
+			tcpRecError:=TRUE;
+		END_IF
+	220:
+		//数据转换
+		tcpTimeOut:=FALSE;
+		tcpRecError:=FALSE;
+		tcpStep:=300;
+		Timer1(IN:= FALSE);
+	;
+	300:
+		tcpError:=FALSE;
+		tcpStep:=400;
+	400:
+		Timer1(IN:= NOT timer1.q, PT:=T#2000MS);
+		IF Timer1.Q THEN
+			Timer1(IN:= FALSE);
+			tcpStep:=tcpStep+10;
+		END_IF
+	410://第二次轮询
+		receveTemp:=FALSE;
+		tcpipSendDataBuff_Client[1]:=0;
+		tcpipSendDataBuff_Client[2]:=0;
+		tcpipSendDataBuff_Client[3]:=0;
+		tcpipSendDataBuff_Client[4]:=0;
+		tcpipSendDataBuff_Client[5]:=0;
+		tcpipSendDataBuff_Client[6]:=16#06;
+		tcpipSendDataBuff_Client[7]:=UINT_TO_BYTE(slaveID);
+		tcpipSendDataBuff_Client[8]:=16#03;
+		modebusAddr:=540;
+		MEMMOVE(ADR(tcpipSendDataBuff_ClientTemp[1]),ADR(modebusAddr),2);
+		tcpipSendDataBuff_Client[9]:=tcpipSendDataBuff_ClientTemp[2];
+		tcpipSendDataBuff_Client[10]:=tcpipSendDataBuff_ClientTemp[1];
+		modebuseNum:=10;
+		MEMMOVE(ADR(tcpipSendDataBuff_ClientTemp[1]),ADR(modebuseNum),2);
+		tcpipSendDataBuff_Client[11]:=tcpipSendDataBuff_ClientTemp[2];
+		tcpipSendDataBuff_Client[12]:=tcpipSendDataBuff_ClientTemp[1];
+		
+		tcpStep:=500;
+		Timer1(IN:= FALSE);
+	500:
+		tcpipClient.bSend:=TRUE;
+		tcpStep:=tcpStep+20;
+	510:
+		tcpStep:=tcpStep+10;
+	520:
+		Timer1(IN:= NOT timer1.q, PT:=T#3000MS);
+		IF Timer1.Q THEN
+			tcpipClient.bSend:=FALSE;
+			tcpStep:=6000;
+			tcpTimeOut:=TRUE;
+			Timer1(IN:= FALSE);
+			RETURN;
+		END_IF
+		//接收数据
+		IF  receveTemp THEN//接收完成
+			tcpipClient.bSend:=FALSE;
+			Timer1(IN:= FALSE);
+			receveTemp:=FALSE;
+			tcpStep:=600;
+		END_IF
+	600://数据处理
+		tcpStep:=tcpStep+10;
+	610:
+		IF  tcpipRecDataBuff_Client[1]=tcpipSendDataBuff_Client[1] AND  tcpipRecDataBuff_Client[2]=tcpipSendDataBuff_Client[2] AND  
+			tcpipRecDataBuff_Client[3]=tcpipSendDataBuff_Client[3] AND  tcpipRecDataBuff_Client[4]=tcpipSendDataBuff_Client[4] AND  
+			tcpipRecDataBuff_Client[7]=tcpipSendDataBuff_Client[7] THEN//数据判断,反馈数据与发送数据匹配无误
+			DryPumpTemperature:=BYTE_TO_WORD(tcpipRecDataBuff_Client[10])*256+BYTE_TO_WORD(tcpipRecDataBuff_Client[11]);
+			BoosterTemperature:=BYTE_TO_WORD(tcpipRecDataBuff_Client[14])*256+BYTE_TO_WORD(tcpipRecDataBuff_Client[15]);
+			DryPumpPower:=BYTE_TO_WORD(tcpipRecDataBuff_Client[18])*256+BYTE_TO_WORD(tcpipRecDataBuff_Client[19]);
+			BoosterPower:=BYTE_TO_WORD(tcpipRecDataBuff_Client[20])*256+BYTE_TO_WORD(tcpipRecDataBuff_Client[21]);
+			DryPumpCurrent:=BYTE_TO_WORD(tcpipRecDataBuff_Client[22])*256+BYTE_TO_WORD(tcpipRecDataBuff_Client[23]);
+			BoosterCurrent:=BYTE_TO_WORD(tcpipRecDataBuff_Client[24])*256+BYTE_TO_WORD(tcpipRecDataBuff_Client[25]);
+			tcpStep:=tcpStep+10;
+			tcpipRecDataBuff_Client:=tcpipRecDataBuff_clear;
+		ELSE//数据接线错误
+			tcpStep:=6000;
+			tcpRecError:=TRUE;
+		END_IF
+	620:
+		tcpTimeOut:=FALSE;
+		tcpRecError:=FALSE;
+		tcpComErrorTimes:=0;
+		tcpStep:=700;
+	700:
+		Timer1(IN:= NOT timer1.q, PT:=T#2000MS);
+		IF Timer1.Q THEN
+			Timer1(IN:= FALSE);
+			tcpStep:=tcpStep+10;
+		END_IF
+	710:
+		tcpStep:=800;
+	;
+	800:
+		receveTemp:=FALSE;
+		tcpipSendDataBuff_Client[1]:=0;
+		tcpipSendDataBuff_Client[2]:=0;
+		tcpipSendDataBuff_Client[3]:=0;
+		tcpipSendDataBuff_Client[4]:=0;
+		tcpipSendDataBuff_Client[5]:=0;
+		tcpipSendDataBuff_Client[6]:=16#06;
+		tcpipSendDataBuff_Client[7]:=UINT_TO_BYTE(slaveID);
+		tcpipSendDataBuff_Client[8]:=16#03;
+		modebusAddr:=552;
+		MEMMOVE(ADR(tcpipSendDataBuff_ClientTemp[1]),ADR(modebusAddr),2);
+		tcpipSendDataBuff_Client[9]:=tcpipSendDataBuff_ClientTemp[2];
+		tcpipSendDataBuff_Client[10]:=tcpipSendDataBuff_ClientTemp[1];
+		modebuseNum:=1;
+		MEMMOVE(ADR(tcpipSendDataBuff_ClientTemp[1]),ADR(modebuseNum),2);
+		tcpipSendDataBuff_Client[11]:=tcpipSendDataBuff_ClientTemp[2];
+		tcpipSendDataBuff_Client[12]:=tcpipSendDataBuff_ClientTemp[1];
+		
+		tcpStep:=tcpStep+10;
+		Timer1(IN:= FALSE);
+	810:
+		tcpipClient.bSend:=TRUE;
+		tcpStep:=tcpStep+20;
+	820:
+		tcpStep:=tcpStep+10;
+	830:
+		Timer1(IN:= NOT timer1.q, PT:=T#3000MS);
+		IF Timer1.Q THEN
+			tcpipClient.bSend:=FALSE;
+			tcpStep:=6000;
+			tcpTimeOut:=TRUE;
+			Timer1(IN:= FALSE);
+			RETURN;
+		END_IF
+		//接收数据
+		IF  receveTemp THEN//接收完成
+			tcpipClient.bSend:=FALSE;
+			Timer1(IN:= FALSE);
+			receveTemp:=FALSE;
+			tcpStep:=900;
+		END_IF
+	900://数据处理
+		tcpStep:=tcpStep+10;
+	910:
+		IF  tcpipRecDataBuff_Client[1]=tcpipSendDataBuff_Client[1] AND  tcpipRecDataBuff_Client[2]=tcpipSendDataBuff_Client[2] AND  
+			tcpipRecDataBuff_Client[3]=tcpipSendDataBuff_Client[3] AND  tcpipRecDataBuff_Client[4]=tcpipSendDataBuff_Client[4] AND  
+			tcpipRecDataBuff_Client[7]=tcpipSendDataBuff_Client[7] THEN//数据判断,反馈数据与发送数据匹配无误
+				
+			VPETailRowPre:=BYTE_TO_WORD(tcpipRecDataBuff_Client[10])*256+BYTE_TO_WORD(tcpipRecDataBuff_Client[11]);
+
+			tcpipRecDataBuff_Client:=tcpipRecDataBuff_clear;
+			tcpStep:=tcpStep+10;
+		ELSE//数据接线错误
+			tcpStep:=6000;
+			tcpRecError:=TRUE;
+		END_IF
+	920:
+		//数据转换
+		tcpTimeOut:=FALSE;
+		tcpRecError:=FALSE;
+		tcpStep:=tcpStep+10;
+		Timer1(IN:= FALSE);
+	;
+	930:
+		Timer1(IN:= NOT timer1.q, PT:=T#2000MS);
+		IF Timer1.Q THEN
+			Timer1(IN:= FALSE);
+			tcpStep:=tcpStep+10;
+			tcpError:=FALSE;
+		END_IF
+	940:
+		tcpStep:=10;
+	5000://done
+		tcpBusy:=FALSE;
+		tcpDone:=TRUE;
+		tcpError:=FALSE;
+		tcpStep:=0;
+		tcpipRecDataBuff_Client:=tcpipRecDataBuff_clear;
+	;
+	6000://error
+		tcpDone:=FALSE;
+		tcpError:=TRUE;
+		tcpComErrorTimes:=tcpComErrorTimes+1;
+		tcpComErrorRestartT(IN:=tcpComErrorTimes>30 AND NOT tcpComErrorRestartT.Q ,PT:=T#2S);
+		IF tcpComErrorRestartT.Q THEN
+			tcpComErrorTimes:=0;
+			tcpStep:=0;
+			tcpBusy:=FALSE;
+			bEnable:=TRUE;
+			RETURN;
+		END_IF
+		IF tcpComErrorTimes>10 THEN
+			bEnable:=FALSE;
+			RETURN;
+		END_IF
+		tcpipRecDataBuff_Client:=tcpipRecDataBuff_clear;
+		tcpStep:=10;
+	;
+	
+END_CASE
+ ]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="VersionLog" Id="{06753501-1b5b-489f-9349-71bee71d7dd0}">
+      <Implementation>
+        <ST><![CDATA[(*
+版本: V1.0.0.0
+说明:
+	1. 首个版本
+	2. 含普通分子泵\泵组类型的控制
+	3. 可配置是否有到位信号, 以及到位稳定时间
+(--------------------------------------------------)
+新版本: V1.0.1.0
+更新时间: 2019/11/20 19:00
+更新说明:
+	1. 优化编写方式
+	2. 修改错误编码起始位，现改为从1开始
+(--------------------------------------------------)
+新版本: V1.0.1.1
+更新时间: 2020/03/23 23:00
+更新说明:
+	1. 优化报错方式
+	2. 增加伸出、缩回、复位和停止触发函数
+(--------------------------------------------------)
+新版本: V1.0.1.2
+更新时间: 2020/04/22 09:50
+更新说明:
+	1. 增加中文报警输出
+(--------------------------------------------------)
+新版本: V1.0.1.3
+更新时间: 2020/09/16
+更新说明:
+	1. 开放错误ID、错误文本信息获取接口
+(--------------------------------------------------)
+新版本: V1.0.1.4
+更新时间: 2020/10/06
+更新说明:
+	1. 移除控制模式变量，增加HMI启用条件
+	2. 增加外部获取伸出缩回完成信号接口函数
+(--------------------------------------------------)
+新版本: V1.0.1.5
+更新时间: 2020/10/14
+更新说明:
+	1. 优化代码
+(--------------------------------------------------)
+新版本: V2.0.1.0
+更新时间: 2023/11/17
+更新说明:
+	1. 分子泵控制独立
+(--------------------------------------------------)
+
+
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="VPEModule">
+      <LineId Id="920" Count="5" />
+      <LineId Id="1097" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.Act_Close">
+      <LineId Id="22" Count="3" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.Act_Open">
+      <LineId Id="22" Count="3" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.Act_Reset">
+      <LineId Id="5" Count="1" />
+    </LineIds>
+    <LineIds Name="VPEModule.Act_Stop">
+      <LineId Id="6" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.Act_TCPSend">
+      <LineId Id="44" Count="3" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.Close_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="161" Count="1" />
+      <LineId Id="164" Count="0" />
+      <LineId Id="166" Count="2" />
+      <LineId Id="165" Count="0" />
+      <LineId Id="163" Count="0" />
+      <LineId Id="3" Count="0" />
+      <LineId Id="160" Count="0" />
+      <LineId Id="158" Count="0" />
+      <LineId Id="4" Count="5" />
+      <LineId Id="143" Count="0" />
+      <LineId Id="157" Count="0" />
+      <LineId Id="144" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="10" Count="9" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="136" Count="1" />
+      <LineId Id="140" Count="2" />
+      <LineId Id="138" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="25" Count="4" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="145" Count="0" />
+      <LineId Id="156" Count="0" />
+      <LineId Id="146" Count="0" />
+      <LineId Id="33" Count="1" />
+      <LineId Id="89" Count="3" />
+      <LineId Id="147" Count="1" />
+      <LineId Id="155" Count="0" />
+      <LineId Id="93" Count="2" />
+      <LineId Id="79" Count="1" />
+      <LineId Id="105" Count="2" />
+      <LineId Id="149" Count="1" />
+      <LineId Id="154" Count="0" />
+      <LineId Id="108" Count="1" />
+      <LineId Id="112" Count="0" />
+      <LineId Id="114" Count="0" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="116" Count="0" />
+      <LineId Id="104" Count="0" />
+      <LineId Id="99" Count="2" />
+      <LineId Id="151" Count="2" />
+      <LineId Id="115" Count="0" />
+      <LineId Id="98" Count="0" />
+      <LineId Id="97" Count="0" />
+      <LineId Id="117" Count="18" />
+      <LineId Id="56" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.Error_ACT">
+      <LineId Id="1" Count="0" />
+      <LineId Id="15" Count="2" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="12" Count="2" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="18" Count="2" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="27" Count="4" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="3" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.Get_Done_Close">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.Get_Done_Open">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.Get_TCPSendBusy">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.Get_TCPSendDone">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.Get_TCPSendError">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.getErrID">
+      <LineId Id="22" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="VPEModule.getErrTXT">
+      <LineId Id="22" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="66" Count="1" />
+      <LineId Id="74" Count="1" />
+      <LineId Id="40" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="VPEModule.getErrWTXT">
+      <LineId Id="21" Count="2" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="81" Count="1" />
+      <LineId Id="89" Count="1" />
+      <LineId Id="55" Count="3" />
+      <LineId Id="14" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.Init_ACT">
+      <LineId Id="2" Count="1" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="22" Count="3" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="26" Count="3" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="30" Count="1" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="35" Count="6" />
+      <LineId Id="34" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.InitHMI_ACT">
+      <LineId Id="15" Count="0" />
+      <LineId Id="6" Count="6" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="19" Count="2" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="23" Count="3" />
+      <LineId Id="28" Count="2" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="34" Count="3" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="47" Count="1" />
+      <LineId Id="56" Count="1" />
+      <LineId Id="42" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.ManualCtrl_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="38" Count="7" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="46" Count="1" />
+      <LineId Id="50" Count="9" />
+      <LineId Id="89" Count="0" />
+      <LineId Id="60" Count="19" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="80" Count="8" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="13" Count="18" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.Open_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="256" Count="2" />
+      <LineId Id="295" Count="2" />
+      <LineId Id="294" Count="0" />
+      <LineId Id="255" Count="0" />
+      <LineId Id="3" Count="1" />
+      <LineId Id="260" Count="0" />
+      <LineId Id="259" Count="0" />
+      <LineId Id="5" Count="1" />
+      <LineId Id="109" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="8" Count="1" />
+      <LineId Id="234" Count="2" />
+      <LineId Id="250" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="251" Count="0" />
+      <LineId Id="228" Count="3" />
+      <LineId Id="261" Count="0" />
+      <LineId Id="254" Count="0" />
+      <LineId Id="252" Count="0" />
+      <LineId Id="232" Count="1" />
+      <LineId Id="12" Count="7" />
+      <LineId Id="292" Count="0" />
+      <LineId Id="20" Count="2" />
+      <LineId Id="227" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="207" Count="0" />
+      <LineId Id="211" Count="0" />
+      <LineId Id="210" Count="0" />
+      <LineId Id="208" Count="1" />
+      <LineId Id="206" Count="0" />
+      <LineId Id="262" Count="1" />
+      <LineId Id="270" Count="7" />
+      <LineId Id="267" Count="0" />
+      <LineId Id="264" Count="0" />
+      <LineId Id="266" Count="0" />
+      <LineId Id="278" Count="0" />
+      <LineId Id="268" Count="1" />
+      <LineId Id="265" Count="0" />
+      <LineId Id="166" Count="0" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="293" Count="0" />
+      <LineId Id="119" Count="0" />
+      <LineId Id="118" Count="0" />
+      <LineId Id="237" Count="0" />
+      <LineId Id="248" Count="0" />
+      <LineId Id="238" Count="0" />
+      <LineId Id="120" Count="0" />
+      <LineId Id="139" Count="0" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="200" Count="0" />
+      <LineId Id="185" Count="3" />
+      <LineId Id="219" Count="0" />
+      <LineId Id="189" Count="0" />
+      <LineId Id="239" Count="1" />
+      <LineId Id="247" Count="0" />
+      <LineId Id="178" Count="0" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="280" Count="11" />
+      <LineId Id="279" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="243" Count="2" />
+      <LineId Id="94" Count="3" />
+      <LineId Id="122" Count="0" />
+      <LineId Id="99" Count="2" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="140" Count="0" />
+      <LineId Id="142" Count="0" />
+      <LineId Id="144" Count="2" />
+      <LineId Id="201" Count="0" />
+      <LineId Id="165" Count="0" />
+      <LineId Id="147" Count="0" />
+      <LineId Id="213" Count="3" />
+      <LineId Id="218" Count="0" />
+      <LineId Id="217" Count="0" />
+      <LineId Id="159" Count="0" />
+      <LineId Id="220" Count="2" />
+      <LineId Id="225" Count="0" />
+      <LineId Id="223" Count="0" />
+      <LineId Id="141" Count="0" />
+      <LineId Id="160" Count="1" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.Reset_ACT">
+      <LineId Id="2" Count="4" />
+      <LineId Id="33" Count="2" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="14" Count="1" />
+      <LineId Id="36" Count="1" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="23" Count="3" />
+      <LineId Id="17" Count="4" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="31" Count="1" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.stateMonitor">
+      <LineId Id="2" Count="6" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="9" Count="1" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="12" Count="1" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="15" Count="1" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="17" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.tcp_Act">
+      <LineId Id="287" Count="12" />
+      <LineId Id="283" Count="0" />
+      <LineId Id="311" Count="1" />
+      <LineId Id="315" Count="0" />
+      <LineId Id="319" Count="0" />
+      <LineId Id="415" Count="4" />
+      <LineId Id="414" Count="0" />
+      <LineId Id="432" Count="0" />
+      <LineId Id="649" Count="0" />
+      <LineId Id="320" Count="1" />
+      <LineId Id="325" Count="0" />
+      <LineId Id="397" Count="0" />
+      <LineId Id="408" Count="4" />
+      <LineId Id="407" Count="0" />
+      <LineId Id="398" Count="0" />
+      <LineId Id="402" Count="4" />
+      <LineId Id="401" Count="0" />
+      <LineId Id="336" Count="0" />
+      <LineId Id="313" Count="0" />
+      <LineId Id="526" Count="0" />
+      <LineId Id="529" Count="0" />
+      <LineId Id="525" Count="0" />
+      <LineId Id="159" Count="0" />
+      <LineId Id="162" Count="0" />
+      <LineId Id="170" Count="1" />
+      <LineId Id="173" Count="1" />
+      <LineId Id="221" Count="2" />
+      <LineId Id="331" Count="0" />
+      <LineId Id="335" Count="0" />
+      <LineId Id="249" Count="0" />
+      <LineId Id="175" Count="0" />
+      <LineId Id="172" Count="0" />
+      <LineId Id="199" Count="0" />
+      <LineId Id="163" Count="1" />
+      <LineId Id="665" Count="0" />
+      <LineId Id="177" Count="0" />
+      <LineId Id="301" Count="1" />
+      <LineId Id="305" Count="0" />
+      <LineId Id="506" Count="2" />
+      <LineId Id="511" Count="0" />
+      <LineId Id="509" Count="1" />
+      <LineId Id="539" Count="1" />
+      <LineId Id="512" Count="0" />
+      <LineId Id="442" Count="0" />
+      <LineId Id="541" Count="1" />
+      <LineId Id="443" Count="0" />
+      <LineId Id="184" Count="0" />
+      <LineId Id="282" Count="0" />
+      <LineId Id="185" Count="0" />
+      <LineId Id="306" Count="0" />
+      <LineId Id="194" Count="0" />
+      <LineId Id="192" Count="0" />
+      <LineId Id="197" Count="0" />
+      <LineId Id="200" Count="0" />
+      <LineId Id="237" Count="1" />
+      <LineId Id="475" Count="0" />
+      <LineId Id="239" Count="0" />
+      <LineId Id="307" Count="0" />
+      <LineId Id="241" Count="0" />
+      <LineId Id="263" Count="0" />
+      <LineId Id="240" Count="0" />
+      <LineId Id="201" Count="0" />
+      <LineId Id="216" Count="0" />
+      <LineId Id="489" Count="0" />
+      <LineId Id="530" Count="1" />
+      <LineId Id="217" Count="0" />
+      <LineId Id="243" Count="0" />
+      <LineId Id="267" Count="0" />
+      <LineId Id="269" Count="0" />
+      <LineId Id="422" Count="0" />
+      <LineId Id="469" Count="1" />
+      <LineId Id="272" Count="0" />
+      <LineId Id="599" Count="0" />
+      <LineId Id="640" Count="4" />
+      <LineId Id="601" Count="0" />
+      <LineId Id="645" Count="2" />
+      <LineId Id="309" Count="0" />
+      <LineId Id="664" Count="0" />
+      <LineId Id="277" Count="1" />
+      <LineId Id="334" Count="0" />
+      <LineId Id="274" Count="0" />
+      <LineId Id="279" Count="0" />
+      <LineId Id="281" Count="0" />
+      <LineId Id="332" Count="1" />
+      <LineId Id="280" Count="0" />
+      <LineId Id="565" Count="0" />
+      <LineId Id="625" Count="2" />
+      <LineId Id="220" Count="0" />
+      <LineId Id="380" Count="0" />
+      <LineId Id="382" Count="0" />
+      <LineId Id="385" Count="1" />
+      <LineId Id="388" Count="0" />
+      <LineId Id="381" Count="0" />
+      <LineId Id="339" Count="0" />
+      <LineId Id="666" Count="0" />
+      <LineId Id="549" Count="15" />
+      <LineId Id="524" Count="0" />
+      <LineId Id="346" Count="9" />
+      <LineId Id="476" Count="0" />
+      <LineId Id="356" Count="5" />
+      <LineId Id="532" Count="4" />
+      <LineId Id="365" Count="3" />
+      <LineId Id="491" Count="1" />
+      <LineId Id="370" Count="0" />
+      <LineId Id="630" Count="0" />
+      <LineId Id="622" Count="0" />
+      <LineId Id="636" Count="0" />
+      <LineId Id="613" Count="0" />
+      <LineId Id="637" Count="1" />
+      <LineId Id="477" Count="0" />
+      <LineId Id="490" Count="0" />
+      <LineId Id="372" Count="4" />
+      <LineId Id="378" Count="1" />
+      <LineId Id="648" Count="0" />
+      <LineId Id="338" Count="0" />
+      <LineId Id="389" Count="0" />
+      <LineId Id="391" Count="3" />
+      <LineId Id="390" Count="0" />
+      <LineId Id="395" Count="1" />
+      <LineId Id="165" Count="0" />
+      <LineId Id="669" Count="44" />
+      <LineId Id="717" Count="4" />
+      <LineId Id="747" Count="0" />
+      <LineId Id="730" Count="13" />
+      <LineId Id="749" Count="4" />
+      <LineId Id="668" Count="0" />
+      <LineId Id="745" Count="1" />
+      <LineId Id="166" Count="0" />
+      <LineId Id="225" Count="1" />
+      <LineId Id="224" Count="0" />
+      <LineId Id="227" Count="0" />
+      <LineId Id="538" Count="0" />
+      <LineId Id="167" Count="1" />
+      <LineId Id="230" Count="1" />
+      <LineId Id="650" Count="0" />
+      <LineId Id="656" Count="2" />
+      <LineId Id="663" Count="0" />
+      <LineId Id="667" Count="0" />
+      <LineId Id="660" Count="1" />
+      <LineId Id="659" Count="0" />
+      <LineId Id="651" Count="0" />
+      <LineId Id="654" Count="1" />
+      <LineId Id="653" Count="0" />
+      <LineId Id="537" Count="0" />
+      <LineId Id="662" Count="0" />
+      <LineId Id="169" Count="0" />
+      <LineId Id="160" Count="1" />
+      <LineId Id="19" Count="0" />
+    </LineIds>
+    <LineIds Name="VPEModule.VersionLog">
+      <LineId Id="49" Count="16" />
+      <LineId Id="67" Count="7" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="76" Count="1" />
+      <LineId Id="79" Count="10" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="101" Count="3" />
+      <LineId Id="99" Count="1" />
+      <LineId Id="98" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

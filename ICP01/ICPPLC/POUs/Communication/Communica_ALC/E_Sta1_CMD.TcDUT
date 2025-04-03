@@ -1,0 +1,70 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="E_Sta1_CMD" Id="{ef1250eb-e258-459c-a60d-c90eb9d40dd4}">
+    <Declaration><![CDATA[{attribute 'qualified_only'}
+{attribute 'strict'}
+TYPE E_Sta1_CMD :
+(
+	enum_resign:=1,//注册
+	enum_Init:=2,//初始化
+
+	enum_test_start := 3,	// 启动
+	enum_test_stop := 4,	// 停止
+	enum_test_reset := 5,	// 复位
+	enum_test_pause := 6,	// 暂停
+	enum_test_resume :=7,	// 恢复
+	
+	enum_DUTchange := 8,	// 产品检测类型切换：MsgType=0尺寸   MsgType=1缺陷
+	enum_sizechange := 9,	// 产品尺寸切换：MsgType=0大尺寸  MsgType=1小尺寸
+	enum_modechange := 10,	// 模式切换：MsgType=0离线   MsgType=1在线
+	
+	enum_test_error := 99,	// 报错
+	
+	enum_SWsensingmaterial := 130,	// 主控：感应到物料
+	enum_SWrequestdownload := 140,	// 主控：请求下料
+	enum_SWrequestdownload_twince := 141,	// 主控：二次请求分BIN
+	enum_SWCMD_Stop := 201,	// 软件要求停机
+	enum_SWCMD_UnloadAOI1 := 555,	// AOI1-PhotoTOUnloadDUT
+	enum_SWCMD_GrrInit:=700,
+	enum_SWCMD_GrrReady:=600,
+	
+//	enum_Photo1 := 21,// Photo1
+//	enum_Photo2 := 41,// Photo2
+//	enum_Photo3 := 51,// Photo3
+//	enum_Photo4 := 61,// Photo4
+//	enum_Photo5 := 71,// Photo5
+//	enum_Photo6 := 81,// Photo6
+//	enum_Photo7 := 91,// Photo7
+//	enum_Photo8 := 101,// Photo8
+//	enum_Photo9 := 111,// Photo9
+//	enum_Photo10 := 121,// Photo10
+//	enum_Photo11 := 131,// Photo11
+//	enum_Photo12 := 31,// Photo12
+	
+//	enum_Photo13 := 31,	// Photo13
+//	enum_Photo14 := 31,	// Photo14
+//	enum_Photo15 := 31	// Photo15
+
+//编排顺序对应软件的STA1-STA12，从301开始到312接收，因12相机处于STA1和STA2之间，因此无法对应工站号
+	enum_Photo1 := 301,// Photo1
+	enum_Photo2 := 302,// Photo2
+	enum_Photo3 := 303,// Photo3
+	enum_Photo4 := 304,// Photo4
+	enum_Photo5 := 305,// Photo5
+	enum_Photo6 := 306,// Photo6
+	enum_Photo7 := 307,// Photo7
+	enum_Photo8 := 308,// Photo8
+	enum_Photo9 := 309,// Photo9
+	enum_Photo10 := 310,// Photo10
+	enum_Photo11 := 311,// Photo11
+	enum_Photo12 := 312,// Photo12
+	enum_Photo13 := 313,// Photo13
+	enum_Photo14 := 314,// Photo14
+	enum_Photo15 := 315	 // Photo15
+
+	
+);
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <Task Name="ComTask" Id="{2aa4cbb1-d9e0-4a59-a028-75136a7b4e18}">
+    <!--CycleTime in micro seconds.-->
+    <CycleTime>2000</CycleTime>
+    <Priority>19</Priority>
+    <PouCall>
+      <Name>RS232_485_ALLEL</Name>
+    </PouCall>
+    <TaskFBGuid>{e37a32bf-337d-4686-ae90-af344d0ba2ff}</TaskFBGuid>
+    <Fb_init>{fa2beaf6-cecd-41cb-813b-5b018438c13b}</Fb_init>
+    <Fb_exit>{aad5679c-924b-41c5-baf9-506bcadc71d1}</Fb_exit>
+    <CycleUpdate>{2e1e0802-bbda-4aeb-b440-6bdedd419bf6}</CycleUpdate>
+    <PostCycleUpdate>{a554da4c-05e8-4043-a3c4-df2b579d9c3d}</PostCycleUpdate>
+  </Task>
+</TcPlcObject>

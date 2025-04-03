@@ -1,0 +1,937 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="S_Etching" Id="{b6c2180f-56dc-49d8-a717-40b6200f35a3}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM S_Etching
+VAR_INPUT
+	bInit				:BOOL:=FALSE;// 初始化状态 busy/done/errDone
+	bTrig				:BOOL:=FALSE;// 执行触发 信号
+	bReset				:BOOL:=FALSE;// 报错 复位
+	bPause				:BOOL:=FALSE;// 暂停 运行
+	bStop				:BOOL:=FALSE;// 停止 运行
+	bAbort				:BOOL:=FALSE;// 中止 运行
+	
+END_VAR
+VAR_OUTPUT
+	busy				:BOOL;
+	done				:BOOL;
+	errDone				:BOOL;
+END_VAR
+VAR
+	actStep				:ActStepBase;
+END_VAR
+VAR
+	i: INT;
+	t1:ton;
+	t2:ton;
+	t3:ton;
+	notchoose:BOOL;
+	timeOutTime:TIME:= T#120S;
+	ventTime:TIME:=T#15S;
+	safecheckTime:TIME:=T#2S;
+	currentTimes:INT:=1;
+	rfComControl:TON;
+	rTrig:R_TRIG;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[busy:=actStep.isBusy();
+done:=actStep.isDone();
+errDone:=actStep.isError();
+actStep.Act_Pause(pause:=bPause);
+
+IF bTrig THEN
+	bTrig:=FALSE;
+	IF NOT busy THEN
+		actStep.Act_ex();
+	END_IF
+END_IF
+
+//状态复位
+IF bInit THEN
+	bInit:=FALSE;
+	Act_init_status();
+END_IF
+
+IF bAbort OR bStop THEN
+	bAbort:=FALSE;
+	bStop:=FALSE;
+	Act_init_status();
+	actStep.toZeroStep();
+	S_CO_ControlRF.bStop:=TRUE;
+	S_CO_ControlRF.bAbort:=TRUE;
+	gRFComControl:=FALSE;
+	gShowLogTextTitle:='NON';
+END_IF
+ActionRun(tempActStep:=actStep);
+IF gRFComControl AND gICP.SourceRF.openRelay AND gICP.powerRF.openRelay THEN
+	rfComControl(IN:=gICP.SourceRF.Get_Done_Open() AND gICP.PowerRF.Get_Done_Open(),PT:=UDINT_TO_TIME(gRFSetTime*1000));// 反射调整超时时间
+	gRFRemainTime:=TIME_TO_UDINT(rfComControl.ET/1000);
+	gRFRemainTime:=gRFSetTime-gRFRemainTime;
+END_IF
+rTrig(CLK:=gRFRemainTime=0);
+IF rTrig.Q THEN
+	gICP.SourceRF.Act_Close();
+	gICP.PowerRF.Act_Close();
+	gRFComControl:=FALSE;
+END_IF]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{5fc2896d-8763-4e02-983c-2edb2f09ad3f}" />
+    <Method Name="Act_Ex" Id="{9231d7ef-7988-4eb2-bc4c-1c8b40de6b16}">
+      <Declaration><![CDATA[(*
+---Trigger action
+*)
+METHOD Act_Ex : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT busy THEN
+	actStep.Act_ex();
+	Act_Ex:=TRUE;
+ELSE
+	Act_Ex:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Init_Status" Id="{4fc5e96c-6afd-4f7d-9bcf-b8a9cf1d5586}">
+      <Declaration><![CDATA[(*
+---功能: 状态复位 busy/done/errDone;
+*)
+METHOD Act_Init_Status
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[actStep.Act_Init();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ActionRun" Id="{b7cebe4e-80e4-4a3d-bf6b-1b34b2138e9a}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE ActionRun
+VAR_INPUT
+	tempActStep:ITFActStep;
+END_VAR
+VAR_STAT//此处定义静态变量, 保证每次进入该函数时能够在线监控当前值
+	tempStep:DINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[tempStep:=tempActStep.getStep();
+CASE tempStep OF
+0:
+	IF tempActStep.isEx() THEN
+		tempActStep.setBusyFlag();
+		tempActStep.toBeginStep();
+	END_IF
+	currentTimes:=1;
+	t1(IN:= FALSE );
+	t2(IN:= FALSE );
+	t3(IN:= FALSE );
+10:
+	gShowLogTextTitle:='Etching';
+	IF gRunningState<>RunningStatus.eErrorState THEN
+		tempActStep.addStep(10,FALSE);
+	ELSE
+		error_Trigger(105);
+	END_IF
+	currentTimes:=1;
+20:
+	IF ControlMode.eSemiAutoMode=gCtrlMode OR ControlMode.eManualCtrMode=gCtrlMode THEN
+		S_RoughPumping.Act_Init_Status();
+		S_RoughPumping.Act_Ex();
+		tempActStep.addStep(10,FALSE);
+	ELSIF( ControlMode.eAutoCtrMode=gCtrlMode) THEN
+		S_RoughPumping.Act_Init_Status();
+		S_RoughPumping.Act_Ex();
+		tempActStep.addStep(10,FALSE);
+	ELSE
+		tempActStep.toErrDoneStep();
+	END_IF
+30:
+	IF S_RoughPumping.done THEN
+		gShowLogTextTitle:='Etching';
+		tempActStep.addStep(5,FALSE);
+	END_IF
+	IF S_RoughPumping.errDone THEN
+		tempActStep.toErrDoneStep();
+	END_IF	
+35:
+	tempActStep.addStep(5,TRUE);
+40:
+	IF gICP.HeMFC_SetFlowHMI<1 THEN
+		tempActStep.toErrDoneStep();
+		error_Trigger(200);
+	ELSE
+		tempActStep.addStep(10,FALSE);
+	END_IF
+50:// 记忆状态判断
+	IF gWaferMemoryState=2 THEN
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run: wafer in chamber and etch done');
+		tempActStep.toDoneStep();
+	ELSIF gWaferMemoryState=1 THEN
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run: Wafer in chamber and no etch ');
+		tempActStep.toStep(100,FALSE);// 直接进行Etch
+	ELSIF gWaferMemoryState=0 THEN	
+//		tempActStep.addStep(10,FALSE);// 先进行Load
+		error_Trigger(116);
+		tempActStep.toErrDoneStep();
+	END_IF
+100:
+	tempActStep.addStep(10,TRUE);
+110:
+	tempActStep.addStep(10,FALSE);
+120:
+	IF NOT gICP.ForeLineGauge.error AND NOT gICP.LoadLockGauge.error AND NOT gICP.AIMGauge.error THEN
+		tempActStep.addStep(10,FALSE);
+	ELSE
+		error_Trigger(107);
+		tempActStep.toStep(10,FALSE);
+	END_IF
+130:
+	IF gICP.ForlinLineValve.Act_Extend() AND gICP.PDV.Act_Open() THEN
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run: ForeLine Valve and PDV Open');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+140:
+	IF (gICP.PDV.Get_Done_Ext() OR gICP.PDVOpenSensor) AND gICP.PDVOpenRelay AND gICP.ForlinLineValve.Get_Done_Ext() THEN
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run: ForeLine Valve and PDV Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+150:
+	tempActStep.toStep(230,FALSE);	
+230:
+	tempActStep.addStep(10,TRUE);
+240:	
+	IF gICP.TruboPumNoRotation OR NOT(gICP.TruboPumAcc OR gICP.TruboPumDcc OR gICP.TruboPumNormal) AND FALSE THEN  //  临时屏蔽用
+		IF gICP.TruboPum.Act_Open() THEN
+			tempActStep.addStep(10,FALSE);
+			gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+			gRunningLog.append('Etching POU Run: TruboPum is not open');
+		END_IF
+	ELSE
+		tempActStep.toStep(260,FALSE);
+	END_IF
+250:
+	IF gICP.TruboPum.Get_Done_Open() AND gICP.TruboPumNormal AND gICP.TruboPumRotationSpeed>440 THEN
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run: TruboPum open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+	IF  gICP.TruboPum.error THEN
+		tempActStep.toErrDoneStep();
+	END_IF
+260:
+	tempActStep.addStep(30,TRUE);//  临时屏蔽用
+270:
+	IF gICP.AIMValve.Act_Extend() THEN
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run:AIM Gauge open');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+280:
+	t2(IN:= gICP.AIMGauge.outputValue<gUltimateVacuum AND gICP.AIMValve.Get_Done_Ext(),PT:=safecheckTime );
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run:AIM Gauge open Done and Preessure is Arrive');
+		tempActStep.addStep(10,FALSE);
+		RETURN;
+	END_IF
+	t3(IN:= TRUE,PT:=timeOutTime );
+	IF t3.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		error_Trigger(123);
+		tempActStep.toErrDoneStep();
+		RETURN;
+	END_IF	
+290:
+	tempActStep.addStep(10,TRUE);
+300:
+	IF gICP.AIMValve.Act_Retract() THEN
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run:AIM Gauge Close');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+310:
+	IF gICP.AIMValve.Get_Done_Ret() THEN
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run:AIM Gauge Close Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+320:
+	tempActStep.addStep(10,TRUE);
+330:
+	IF gICP.LiftPinCyl.Act_Retract() THEN
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run:Lift PIN Down');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+340:
+	IF gICP.LiftPinCyl.Get_Done_Ret() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+350:
+	tempActStep.addStep(10,TRUE);
+360:
+	IF gICP.ElectrodeCyl.Act_Extend() THEN
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run:ElectrodeCyl Up');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+370:
+	IF gICP.ElectrodeCyl.Get_Done_Ext() THEN
+		tempActStep.addStep(2,FALSE);
+	END_IF
+372:
+	tempActStep.addStep(2,TRUE);
+374:
+	IF gICP.HeINValve.Act_Extend() THEN
+		tempActStep.addStep(2,FALSE);
+	END_IF
+376:
+	IF gICP.HeINValve.Get_Done_Ext() THEN
+		tempActStep.addStep(2,FALSE);
+	END_IF
+378:
+	tempActStep.addStep(2,FALSE);
+380:
+	tempActStep.addStep(10,TRUE);
+390:
+	IF currentTimes<=gShowNum THEN
+		gICP.MFC1.setFlow:=STRING_TO_UDINT(gRecipeViewData[currentTimes].mfc1);
+		gICP.MFC2.setFlow:=STRING_TO_UDINT(gRecipeViewData[currentTimes].mfc2);
+		gICP.MFC3.setFlow:=STRING_TO_UDINT(gRecipeViewData[currentTimes].mfc3);
+		gICP.MFC4.setFlow:=STRING_TO_UDINT(gRecipeViewData[currentTimes].mfc4);
+		gICP.MFC5.setFlow:=STRING_TO_UDINT(gRecipeViewData[currentTimes].mfc5);
+		gICP.MFC6.setFlow:=STRING_TO_UDINT(gRecipeViewData[currentTimes].mfc6);
+		gICP.MFC7.setFlow:=STRING_TO_UDINT(gRecipeViewData[currentTimes].mfc7);
+		gICP.MFC8.setFlow:=STRING_TO_UDINT(gRecipeViewData[currentTimes].mfc8);
+		gICP.MFC9.setFlow:=STRING_TO_UDINT(gRecipeViewData[currentTimes].mfc9);
+		tempActStep.addStep(10,FALSE);
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run:Set MFC Par');
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append(CONCAT('Etching POU Run:Current step is  ',INT_TO_STRING(currentTimes)));
+	ELSE
+		tempActStep.toStep(800,FALSE);////////////////////////////////////////////Done
+	END_IF
+	
+400:
+	IF gICP.S_GASBOX_AllMFCClearDoneStep THEN
+		gICP.C_GASBOX_AllMFCSet:=TRUE;
+		gICP.S_GASBOX_AllMFCSetDone:=FALSE;
+		tempActStep.addStep(10,FALSE);
+	END_IF
+410:
+	IF NOT gICP.C_GASBOX_AllMFCSet THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+420:
+	IF gICP.S_GASBOX_AllMFCSetDone THEN
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run:Set MFC Par Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+430:
+	tempActStep.addStep(10,TRUE);
+440:
+	gICP.C_GASBOX_AllGVAOpen:=TRUE;
+	gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+	gRunningLog.append('Etching POU Run:GAS Box GVA Open');
+	tempActStep.addStep(10,FALSE);
+450:
+	IF gICP.S_GASBOX_AllGVAOpen THEN
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run:GAS Box GVA Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+460:
+	t1(IN:=TRUE ,PT:=T#4S);
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(10,FALSE);
+	END_IF
+470:
+	IF gICP.S_GASBOX_AllMFCClearDone THEN// 全部MFC实际流量小于1
+		tempActStep.addStep(10,FALSE);
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run:GAS Box GVB MFC flow is clear done');
+	END_IF
+480:
+	tempActStep.addStep(10,TRUE);
+490:
+	gICP.C_GASBOX_AllGVBOpen:=TRUE;
+	gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+	gRunningLog.append('Etching POU Run:GAS Box GVB Open');
+	tempActStep.addStep(10,FALSE);
+500:
+	IF gICP.S_GASBOX_AllGVBOpen THEN
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run:GAS Box GVB Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+510:	
+	t1(IN:=TRUE ,PT:=T#4S);
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(10,FALSE);
+	END_IF
+520:
+	IF gICP.S_GASBOX_AllMFCSetEqual THEN
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run:GAS Box MFC Set Flow is arrive');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+530:
+	tempActStep.addStep(10,TRUE);
+540:
+	IF gICP.ISOValve.Act_Extend() THEN
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run:ISO Valve Open');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+550:
+	IF gICP.ISOValve.Get_Done_Ext() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+560:
+	tempActStep.addStep(10,TRUE);
+570:
+	gICP.PDV.Act_ChangePre(STRING_TO_REAL(gRecipeViewData[currentTimes].pdvPoint));
+	gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+	gRunningLog.append('Etching POU Run:PDV is change mode to preessur mode');
+	tempActStep.addStep(10,FALSE);
+580:
+	IF gICP.PDV.Get_Done_Mode() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+590:
+	tempActStep.addStep(5,TRUE);
+595:
+	IF NOT gICP.S_MFCMonitFlowNotZero THEN
+		tempActStep.addStep(5,FALSE);
+	ELSE
+		error_Trigger(120);
+		tempActStep.toStep(590,FALSE);
+		RETURN;
+	END_IF
+600:
+	gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+	gRunningLog.append('Etching POU Run:Set RF Par');
+	gICP.SourceRF.HMIItf.setpower:=STRING_TO_UDINT(gRecipeViewData[currentTimes].rfPoint_Source);
+	gICP.SourceRF.setpower:=gICP.SourceRF.HMIItf.setpower;
+	gICP.SourceRF.Act_Write();
+	tempActStep.addStep(10,FALSE);
+610:
+	IF gICP.SourceRF.HMIItf.setpower=gICP.SourceRF.setpower AND gICP.SourceRF.setpower=gICP.SourceRF.setpowerRead THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+620:
+	gICP.PowerRF.HMIItf.setpower:=STRING_TO_UDINT(gRecipeViewData[currentTimes].rfPoint_Power);
+	gICP.PowerRF.setpower:=gICP.PowerRF.HMIItf.setpower;
+	gICP.PowerRF.Act_Write();
+	gCO_ControlRFTime:=STRING_TO_UDINT(gRecipeViewData[currentTimes].etchTime);
+	tempActStep.addStep(10,FALSE);
+630:
+	IF gICP.PowerRF.HMIItf.setpower=gICP.PowerRF.setpower AND gICP.PowerRF.setpower=gICP.PowerRF.setpowerRead THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+640:
+	tempActStep.addStep(10,FALSE);
+650:
+	S_CO_ControlRF.Act_Init_Status();
+	S_CO_ControlRF.Act_Ex();
+	gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+	gRunningLog.append('Etching POU Run:RF Open');
+	tempActStep.addStep(5,FALSE);
+655:
+	IF S_CO_ControlRF.busy THEN
+		tempActStep.addStep(5,FALSE);
+	END_IF
+660:
+	IF S_CO_ControlRF.done THEN
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run:Etch Done');
+		tempActStep.addStep(10,FALSE);
+		RETURN;
+	END_IF
+	IF S_CO_ControlRF.errDone THEN
+		gCO_ControlRFTimeRemain:=gCO_ControlRFTime;
+		tempActStep.toStep(590,FALSE);
+	END_IF	
+665://  临时屏蔽用
+	t1(IN:=TRUE ,PT:=T#10S);
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(5,FALSE);
+	END_IF
+670:////////////////关气，关其他的东西，还原
+	tempActStep.addStep(10,TRUE);
+680:
+	gICP.C_GASBOX_AllGVBClose:=TRUE;
+	gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+	gRunningLog.append('Etching POU Run:Gas Box GVB close');
+	tempActStep.addStep(2,FALSE);
+682:
+	tempActStep.addStep(2,TRUE);
+684:
+	IF gICP.ForlinLineValve.Act_Extend() AND gICP.PDV.Act_Open() THEN
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run:PDV and ForeLine Open');
+		tempActStep.addStep(2,FALSE);
+	END_IF
+686:
+	IF gICP.ForlinLineValve.Get_Done_Ext() AND (gICP.PDV.Get_Done_Ext() OR gICP.PDVOpenSensor) THEN
+//		gICP.PDV.Act_ChangePos();
+		tempActStep.addStep(4,FALSE);
+	END_IF
+690:
+	IF gICP.S_GASBOX_AllMFCClearDone THEN
+		gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Etching POU Run:Gas Box flow is cleared done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+700:
+	t1(IN:=TRUE ,PT:=T#2S);
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(10,FALSE);
+	END_IF
+710:
+	tempActStep.addStep(10,TRUE);
+720:
+	gICP.C_GASBOX_AllMFCClear:=TRUE;
+	gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+	gRunningLog.append('Etching POU Run:Gas Box set flow is cleared');
+	tempActStep.addStep(10,FALSE);
+730:
+	IF gICP.S_GASBOX_AllMFCClearDone THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+740:
+	gICP.C_GASBOX_AllGVAClose:=TRUE;
+	gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+	gRunningLog.append('Etching POU Run:Gas Box GVA Close');
+	tempActStep.addStep(10,FALSE);
+750:
+	t1(IN:=TRUE ,PT:=T#2S);
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(10,FALSE);
+	END_IF
+760:
+	tempActStep.addStep(10,TRUE);
+770:
+	tempActStep.addStep(10,FALSE);
+780:
+//	IF gICP.PDV.ReadState=XXX THEN // PDV 模式切换完成
+//		tempActStep.addStep(10,FALSE);
+//	END_IF
+	tempActStep.addStep(10,FALSE);
+790:
+	tempActStep.toStep(380,FALSE);
+	currentTimes:=currentTimes+1;
+	gRunningLog.append(CONCAT('Etching POU Run:',DINT_TO_STRING(tempStep)));
+	gRunningLog.append(CONCAT('The current number of steps plus 1 ',''));
+800:
+	tempActStep.addStep(5,FALSE);
+805:
+	tempActStep.addStep(2,TRUE);
+807:
+	IF gICP.HeINValve.Act_Retract() THEN
+		tempActStep.addStep(3,FALSE);
+	END_IF
+810:
+	IF gICP.HeINValve.Get_Done_Ret() THEN
+		tempActStep.addStep(2,FALSE);
+	END_IF
+812:
+	tempActStep.addStep(2,TRUE);
+814:
+	IF gICP.HePumValve.Act_Extend() THEN
+		tempActStep.addStep(2,FALSE);
+	END_IF
+816:
+	IF gICP.HePumValve.Get_Done_Ext() THEN
+		tempActStep.addStep(1,FALSE);
+	END_IF
+817:
+	t2(IN:=TRUE ,PT:=T#2S);
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(1,FALSE);
+	END_IF
+818:
+	t1(IN:=gICP.HeMFC_ActFlow<1 AND gICP.HeCheckGaugeReal<1 ,PT:=T#2S);
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		gICP.HePumValve.Act_Retract();
+		tempActStep.addStep(1,FALSE);
+	END_IF
+819:
+	IF gICP.HePumValve.Get_Done_Ret() THEN
+		tempActStep.addStep(1,FALSE);
+	END_IF
+820:
+	IF gICP.ElectrodeCyl.Get_Done_Ret() THEN
+		tempActStep.addStep(20,FALSE);
+	ELSE
+		IF gICP.ElectrodeCyl.Act_Retract() THEN
+			tempActStep.addStep(10,FALSE);
+		END_IF
+	END_IF
+830:
+	IF gICP.ElectrodeCyl.Get_Done_Ret() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+840:
+	IF gICP.LiftPinCyl.Get_Done_Ret() THEN
+		tempActStep.addStep(20,FALSE);
+	ELSE
+		IF gICP.LiftPinCyl.Act_Retract() THEN
+			tempActStep.addStep(10,FALSE);
+		END_IF
+	END_IF
+850:
+	IF gICP.LiftPinCyl.Get_Done_Ret() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+860:
+	tempActStep.toStep(1000,FALSE);
+1000:
+	tempActStep.toDoneStep();
+
+60000://Done
+	tempActStep.setDoneFlag();
+	tempActStep.toZeroStep();
+	gWaferMemoryState:=2;
+	ups_CX51X0.Act_Wrtie();
+	gRunningLog.append('Etching POU Run:----Finish----');
+	gRFComControl:=FALSE;
+65000://Error
+	tempActStep.setErrDoneFlag();
+	tempActStep.toZeroStep();
+	gRFComControl:=FALSE;
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="S_Etching">
+      <LineId Id="49" Count="0" />
+      <LineId Id="385" Count="2" />
+      <LineId Id="406" Count="12" />
+      <LineId Id="422" Count="0" />
+      <LineId Id="530" Count="1" />
+      <LineId Id="489" Count="0" />
+      <LineId Id="510" Count="0" />
+      <LineId Id="509" Count="0" />
+      <LineId Id="611" Count="1" />
+      <LineId Id="561" Count="0" />
+      <LineId Id="614" Count="0" />
+      <LineId Id="395" Count="0" />
+      <LineId Id="446" Count="0" />
+      <LineId Id="562" Count="0" />
+      <LineId Id="565" Count="1" />
+      <LineId Id="563" Count="1" />
+      <LineId Id="573" Count="0" />
+      <LineId Id="575" Count="1" />
+      <LineId Id="578" Count="1" />
+      <LineId Id="577" Count="0" />
+    </LineIds>
+    <LineIds Name="S_Etching.Act_Ex">
+      <LineId Id="14" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="17" Count="0" />
+    </LineIds>
+    <LineIds Name="S_Etching.Act_Init_Status">
+      <LineId Id="15" Count="0" />
+    </LineIds>
+    <LineIds Name="S_Etching.ActionRun">
+      <LineId Id="1302" Count="6" />
+      <LineId Id="2282" Count="0" />
+      <LineId Id="1309" Count="3" />
+      <LineId Id="2801" Count="0" />
+      <LineId Id="1687" Count="2" />
+      <LineId Id="2542" Count="0" />
+      <LineId Id="1667" Count="0" />
+      <LineId Id="2695" Count="0" />
+      <LineId Id="2042" Count="0" />
+      <LineId Id="2044" Count="4" />
+      <LineId Id="2789" Count="1" />
+      <LineId Id="2049" Count="5" />
+      <LineId Id="2810" Count="0" />
+      <LineId Id="2055" Count="5" />
+      <LineId Id="2043" Count="0" />
+      <LineId Id="2896" Count="2" />
+      <LineId Id="2902" Count="0" />
+      <LineId Id="2900" Count="1" />
+      <LineId Id="2899" Count="0" />
+      <LineId Id="1691" Count="0" />
+      <LineId Id="2061" Count="0" />
+      <LineId Id="2699" Count="1" />
+      <LineId Id="2062" Count="1" />
+      <LineId Id="2701" Count="1" />
+      <LineId Id="2064" Count="2" />
+      <LineId Id="2541" Count="0" />
+      <LineId Id="2540" Count="0" />
+      <LineId Id="2023" Count="0" />
+      <LineId Id="1864" Count="0" />
+      <LineId Id="2021" Count="0" />
+      <LineId Id="2543" Count="1" />
+      <LineId Id="2158" Count="0" />
+      <LineId Id="2613" Count="1" />
+      <LineId Id="2616" Count="2" />
+      <LineId Id="2615" Count="0" />
+      <LineId Id="2619" Count="1" />
+      <LineId Id="2703" Count="1" />
+      <LineId Id="2621" Count="1" />
+      <LineId Id="2169" Count="1" />
+      <LineId Id="2705" Count="1" />
+      <LineId Id="2171" Count="1" />
+      <LineId Id="2623" Count="1" />
+      <LineId Id="2173" Count="2" />
+      <LineId Id="2177" Count="0" />
+      <LineId Id="2179" Count="0" />
+      <LineId Id="2844" Count="0" />
+      <LineId Id="2846" Count="1" />
+      <LineId Id="2845" Count="0" />
+      <LineId Id="2183" Count="1" />
+      <LineId Id="2176" Count="0" />
+      <LineId Id="2181" Count="1" />
+      <LineId Id="2709" Count="1" />
+      <LineId Id="2185" Count="8" />
+      <LineId Id="2711" Count="1" />
+      <LineId Id="2195" Count="2" />
+      <LineId Id="2199" Count="4" />
+      <LineId Id="2713" Count="1" />
+      <LineId Id="2204" Count="7" />
+      <LineId Id="2828" Count="0" />
+      <LineId Id="2212" Count="1" />
+      <LineId Id="2194" Count="0" />
+      <LineId Id="2223" Count="1" />
+      <LineId Id="2214" Count="0" />
+      <LineId Id="2216" Count="0" />
+      <LineId Id="2715" Count="1" />
+      <LineId Id="2217" Count="0" />
+      <LineId Id="2215" Count="0" />
+      <LineId Id="2218" Count="0" />
+      <LineId Id="2220" Count="0" />
+      <LineId Id="2717" Count="1" />
+      <LineId Id="2221" Count="0" />
+      <LineId Id="2219" Count="0" />
+      <LineId Id="2225" Count="2" />
+      <LineId Id="2626" Count="0" />
+      <LineId Id="2719" Count="1" />
+      <LineId Id="2627" Count="3" />
+      <LineId Id="2722" Count="0" />
+      <LineId Id="2625" Count="0" />
+      <LineId Id="2246" Count="0" />
+      <LineId Id="2248" Count="1" />
+      <LineId Id="2632" Count="0" />
+      <LineId Id="2723" Count="1" />
+      <LineId Id="2633" Count="4" />
+      <LineId Id="2247" Count="0" />
+      <LineId Id="2763" Count="0" />
+      <LineId Id="2769" Count="0" />
+      <LineId Id="2768" Count="0" />
+      <LineId Id="2764" Count="2" />
+      <LineId Id="2771" Count="2" />
+      <LineId Id="2770" Count="0" />
+      <LineId Id="2774" Count="1" />
+      <LineId Id="2256" Count="0" />
+      <LineId Id="2278" Count="1" />
+      <LineId Id="2307" Count="0" />
+      <LineId Id="2312" Count="8" />
+      <LineId Id="2311" Count="0" />
+      <LineId Id="2725" Count="1" />
+      <LineId Id="2807" Count="1" />
+      <LineId Id="2308" Count="0" />
+      <LineId Id="2310" Count="0" />
+      <LineId Id="2309" Count="0" />
+      <LineId Id="2261" Count="0" />
+      <LineId Id="2288" Count="0" />
+      <LineId Id="2811" Count="0" />
+      <LineId Id="2814" Count="1" />
+      <LineId Id="2820" Count="0" />
+      <LineId Id="2813" Count="0" />
+      <LineId Id="2298" Count="3" />
+      <LineId Id="2289" Count="0" />
+      <LineId Id="2697" Count="0" />
+      <LineId Id="2727" Count="1" />
+      <LineId Id="2698" Count="0" />
+      <LineId Id="2304" Count="0" />
+      <LineId Id="2352" Count="0" />
+      <LineId Id="2354" Count="2" />
+      <LineId Id="2729" Count="1" />
+      <LineId Id="2357" Count="2" />
+      <LineId Id="2731" Count="1" />
+      <LineId Id="2360" Count="0" />
+      <LineId Id="2353" Count="0" />
+      <LineId Id="2362" Count="9" />
+      <LineId Id="2734" Count="2" />
+      <LineId Id="2361" Count="0" />
+      <LineId Id="2341" Count="0" />
+      <LineId Id="2343" Count="2" />
+      <LineId Id="2737" Count="1" />
+      <LineId Id="2346" Count="2" />
+      <LineId Id="2739" Count="1" />
+      <LineId Id="2349" Count="1" />
+      <LineId Id="2373" Count="0" />
+      <LineId Id="2383" Count="0" />
+      <LineId Id="2374" Count="7" />
+      <LineId Id="2741" Count="1" />
+      <LineId Id="2382" Count="0" />
+      <LineId Id="2342" Count="0" />
+      <LineId Id="2384" Count="3" />
+      <LineId Id="2743" Count="1" />
+      <LineId Id="2388" Count="5" />
+      <LineId Id="2640" Count="0" />
+      <LineId Id="2639" Count="0" />
+      <LineId Id="2305" Count="0" />
+      <LineId Id="2481" Count="0" />
+      <LineId Id="2745" Count="1" />
+      <LineId Id="2483" Count="0" />
+      <LineId Id="2321" Count="4" />
+      <LineId Id="2292" Count="0" />
+      <LineId Id="2792" Count="0" />
+      <LineId Id="2794" Count="0" />
+      <LineId Id="2799" Count="0" />
+      <LineId Id="2795" Count="3" />
+      <LineId Id="2793" Count="0" />
+      <LineId Id="2647" Count="0" />
+      <LineId Id="2747" Count="1" />
+      <LineId Id="2646" Count="0" />
+      <LineId Id="2643" Count="0" />
+      <LineId Id="2645" Count="0" />
+      <LineId Id="2648" Count="5" />
+      <LineId Id="2655" Count="2" />
+      <LineId Id="2664" Count="0" />
+      <LineId Id="2658" Count="3" />
+      <LineId Id="2654" Count="0" />
+      <LineId Id="2662" Count="0" />
+      <LineId Id="2665" Count="1" />
+      <LineId Id="2402" Count="0" />
+      <LineId Id="2667" Count="0" />
+      <LineId Id="2749" Count="1" />
+      <LineId Id="2668" Count="0" />
+      <LineId Id="2673" Count="0" />
+      <LineId Id="2675" Count="1" />
+      <LineId Id="2674" Count="0" />
+      <LineId Id="2669" Count="1" />
+      <LineId Id="2751" Count="1" />
+      <LineId Id="2671" Count="0" />
+      <LineId Id="2791" Count="0" />
+      <LineId Id="2672" Count="0" />
+      <LineId Id="2677" Count="0" />
+      <LineId Id="2855" Count="0" />
+      <LineId Id="2678" Count="1" />
+      <LineId Id="2829" Count="0" />
+      <LineId Id="2831" Count="5" />
+      <LineId Id="2830" Count="0" />
+      <LineId Id="2403" Count="0" />
+      <LineId Id="2427" Count="0" />
+      <LineId Id="2404" Count="0" />
+      <LineId Id="2435" Count="0" />
+      <LineId Id="2761" Count="1" />
+      <LineId Id="2436" Count="0" />
+      <LineId Id="2680" Count="0" />
+      <LineId Id="2683" Count="1" />
+      <LineId Id="2686" Count="0" />
+      <LineId Id="2753" Count="1" />
+      <LineId Id="2687" Count="0" />
+      <LineId Id="2685" Count="0" />
+      <LineId Id="2688" Count="0" />
+      <LineId Id="2690" Count="0" />
+      <LineId Id="2788" Count="0" />
+      <LineId Id="2691" Count="0" />
+      <LineId Id="2689" Count="0" />
+      <LineId Id="2437" Count="0" />
+      <LineId Id="2444" Count="0" />
+      <LineId Id="2755" Count="1" />
+      <LineId Id="2439" Count="1" />
+      <LineId Id="2445" Count="0" />
+      <LineId Id="2447" Count="5" />
+      <LineId Id="2446" Count="0" />
+      <LineId Id="2458" Count="1" />
+      <LineId Id="2453" Count="0" />
+      <LineId Id="2460" Count="0" />
+      <LineId Id="2757" Count="1" />
+      <LineId Id="2461" Count="1" />
+      <LineId Id="2464" Count="1" />
+      <LineId Id="2463" Count="0" />
+      <LineId Id="2466" Count="1" />
+      <LineId Id="2759" Count="1" />
+      <LineId Id="2468" Count="0" />
+      <LineId Id="2454" Count="0" />
+      <LineId Id="2470" Count="5" />
+      <LineId Id="2469" Count="0" />
+      <LineId Id="2455" Count="0" />
+      <LineId Id="2486" Count="1" />
+      <LineId Id="2489" Count="0" />
+      <LineId Id="2456" Count="0" />
+      <LineId Id="2490" Count="2" />
+      <LineId Id="2457" Count="0" />
+      <LineId Id="2493" Count="0" />
+      <LineId Id="2694" Count="0" />
+      <LineId Id="2696" Count="0" />
+      <LineId Id="2805" Count="1" />
+      <LineId Id="2499" Count="0" />
+      <LineId Id="2693" Count="0" />
+      <LineId Id="2500" Count="1" />
+      <LineId Id="2776" Count="0" />
+      <LineId Id="2778" Count="5" />
+      <LineId Id="2777" Count="0" />
+      <LineId Id="2784" Count="2" />
+      <LineId Id="2865" Count="5" />
+      <LineId Id="2787" Count="0" />
+      <LineId Id="2877" Count="0" />
+      <LineId Id="2879" Count="5" />
+      <LineId Id="2878" Count="0" />
+      <LineId Id="2863" Count="0" />
+      <LineId Id="2871" Count="4" />
+      <LineId Id="2910" Count="0" />
+      <LineId Id="2876" Count="0" />
+      <LineId Id="2864" Count="0" />
+      <LineId Id="2885" Count="3" />
+      <LineId Id="2502" Count="0" />
+      <LineId Id="2518" Count="1" />
+      <LineId Id="2521" Count="0" />
+      <LineId Id="2523" Count="1" />
+      <LineId Id="2522" Count="0" />
+      <LineId Id="2520" Count="0" />
+      <LineId Id="2506" Count="4" />
+      <LineId Id="2526" Count="5" />
+      <LineId Id="2513" Count="4" />
+      <LineId Id="2405" Count="0" />
+      <LineId Id="2532" Count="0" />
+      <LineId Id="1668" Count="5" />
+      <LineId Id="2803" Count="1" />
+      <LineId Id="2802" Count="0" />
+      <LineId Id="1674" Count="3" />
+      <LineId Id="2416" Count="0" />
+      <LineId Id="1092" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,2180 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="FuncModule_RS232_TBP" Id="{9aab204e-78f1-4454-ba9c-eb9017174f73}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM FuncModule_RS232_TBP
+VAR_IN_OUT
+	
+END_VAR
+VAR_INPUT
+	serialSlaveID				:UDINT:=1;// 从站节点号
+	sendLenght					:UINT:=14;// 发送字节长度
+	sendbyte					:ARRAY[1..20]			OF		BYTE;(*READ*)//发送数据
+	timeout						:TIME:=T#100MS;// 超时时间
+	setPoint					:UDINT;
+	loopReadStep				:INT;
+	loopReadExcute				:BOOL;
+	loopReadIntervalTime		:UDINT:=0;
+	
+	startStep						:UINT;				//处理步数
+	stopStep						:UINT;				//处理步数
+	resetStep						:UINT;				//处理步数
+END_VAR
+VAR_OUTPUT
+	serialBusy						:BOOL;
+	startBusy						:BOOL;
+	stopBusy						:BOOL;
+	resetBusy						:BOOL;
+	serialDone						:BOOL;
+	startDone						:BOOL;
+	stopDone						:BOOL;
+	resetDone						:BOOL;
+	serialError						:BOOL;
+	startError						:BOOL;
+	stopError						:BOOL;
+	resetError						:BOOL;
+	serialConnected					:BOOL;
+	setBusy							:BOOL;// 设置参数时繁忙
+	setError						:BOOL;
+	setDone							:BOOL;
+	readBusy						:BOOL;// 读取参数时繁忙
+	readError						:BOOL;
+	readDone						:BOOL;
+	
+	serialTimeoutError				:BOOL;
+	
+	noRotation:BOOL; // 静止
+	brake:BOOL;		// 制动
+	acc:BOOL;		// 加速
+	atTagetSpeed:BOOL;// 全速
+	alarm:BOOL;		 // 警告
+	remote:BOOL;	 // 远程操作中 远程操作为1
+	failure:BOOL;		// 报错
+	rotationSpeed:UDINT;// 实时转速（HZ）
+	tMSTemperature:REAL;// 温度
+END_VAR
+VAR
+	serialExcute				:BOOL;// RS232开始一次参数读取
+	startExcute					:BOOL;// RS232
+	stopExcute					:BOOL;// RS232
+	resetExcute					:BOOL;// RS232
+
+	intTemp						:UDINT;
+	
+	realTemp						:REAL;
+	loopToReadRatationTimes			:INT;
+	prefix						:STRING:='';// 字符串头
+	suffix						:STRING:= '';// 字符串尾
+	readsetPointStarIndex				:INT;
+	readsetPointEndIndex				:INT;
+	readsetPointStr				:STRING;
+	readPointStr				:STRING;
+	readPointReal				:LREAL;
+	readPointInt				:UDINT;
+	//Byte方式
+	send1:							SendData;
+	receive1:						ReceiveData;
+	Timer1:							TON;
+	TimerStart:						TON;
+	TimerStop:						TON;
+	TimerReset:						TON;
+	
+	TimerStartTOut:						TON;
+	TimerStopTOut:						TON;
+	TimerResetTOut:						TON;
+	TimerSetPreset:							TON;
+	TimerReadPreset:							TON;
+	t1:								TON;
+	t2:								TON;
+	timeoutResetTime				:TON;
+	timeToNext						:TIME:=T#10MS;
+	arr_SendData:					ARRAY[1..20]			OF		BYTE;(*READ*)//发送数据
+	arr_SendDataTemp				:ARRAY[1..20]			OF		BYTE;(*READ*)//发送数据
+	arr_RcvDataByte:				ARRAY[1..20]			OF		BYTE;;// 接收数据
+	arr_RcvDataByteTemp:				ARRAY[1..20]			OF		BYTE;;// 接收数据
+	arr_RcvDataByteClear:			ARRAY[1..20]			OF		BYTE;;// 清除接收数据
+	RcvDataFlag:			BOOL;// 接收数据标志位
+	serialStep						:UINT;				//处理步数
+	serialTimeOut:BOOL;//接收数据超时
+	serialTimeOutTimes:INT:=0;//接收数据超时次数
+	serialRecError:BOOL;//接收数据错误
+	reciveFtrig:F_TRIG;
+	recTon:TON;
+	againSendS3:TON;
+	hexChars:ARRAY [0..15] OF STRING[1]:=['0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'];
+	loopreadConditionTON:TON;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(*
+ *功能块的作用，把 TxBuffer 缓存区的数据经过 Process Data 的 ComOut 发送出去，
+ *而把 ComIn 中的数据接收到 RxBuffer。引用这个功能块的程序执行周期越短，
+ *数据交换的效率就越高，所以这段程序应该放在快速任务中作为 Backgroud 代码无条件执行。
+*)
+IF receive1.Error <> COMERROR_NOERROR THEN
+	serialRecError:=TRUE;
+END_IF
+receive1(
+	pPrefix:= , 
+	LenPrefix:= , 
+	pSuffix:= , 
+	LenSuffix:= , 
+	pReceiveData:= ADR(arr_RcvDataByteTemp), 
+	SizeReceiveData:= 20, 
+	Timeout:= timeout, //临时设置成10S调试用
+	Reset:= , 
+	DataReceived=> , 
+	busy=> , 
+	Error=> , 
+	RxTimeout=> , 
+	LenReceiveData=> , 
+	RXbuffer:= gRxBuffer_TBP);
+
+//testReal:=BYTE_TO_REAL(arr_RcvData_Temp);
+//数据接收处理
+recTon(IN:=RcvDataFlag, PT:=T#10MS);
+IF recTon.Q THEN
+	RcvDataFlag:=FALSE;
+END_IF
+reciveFtrig(CLK:=receive1.busy);
+IF reciveFtrig.Q THEN
+	arr_RcvDataByte:=arr_RcvDataByteTemp;
+	arr_RcvDataByteTemp:=arr_RcvDataByteClear;
+	RcvDataFlag:=TRUE;
+	readDone:=TRUE;
+	serialConnected:=TRUE;
+	serialTimeoutError:=FALSE;
+END_IF
+againSendS3(IN:=NOT RcvDataFlag,PT:=T#5S);
+IF againSendS3.Q THEN
+	serialConnected:=FALSE;
+	againSendS3(IN:=FALSE);
+END_IF
+ACT_Send();
+ACT_LoopRead();
+ACT_Reset();
+ACT_Start();
+ACT_Stop();]]></ST>
+    </Implementation>
+    <Action Name="ACT_LoopRead" Id="{8790e44f-d728-45e9-98be-4764b09a0449}">
+      <Implementation>
+        <ST><![CDATA[loopreadConditionTON(IN:=NOT setBusy AND NOT readBusy AND NOT gTBPStopLoopRead,PT:=T#1S);
+IF loopreadConditionTON.Q THEN
+	loopReadExcute:=TRUE;
+END_IF
+CASE loopReadStep OF
+	0:
+		IF loopReadExcute THEN
+			loopReadExcute:=FALSE;
+			loopReadStep:=10;
+			readBusy:=TRUE;
+			t1(IN:=FALSE);
+			t2(IN:=FALSE);
+		END_IF
+	10:
+		readDone:=FALSE;
+		Read_State_1();
+		t1(IN:=FALSE);
+		loopReadStep:=loopReadStep+10;
+	20:
+		IF readDone THEN
+			readDone:=FALSE;
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+		t1(IN:=TRUE,PT:=T#200MS);
+		IF t1.Q THEN
+			serialTimeOut:=TRUE;
+			t1(IN:=FALSE);
+			loopReadStep:=6000;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+	30:
+		t2(IN:=TRUE,PT:=timeToNext);
+		IF t2.Q THEN
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			t2(IN:=FALSE);
+			RETURN;
+		END_IF
+	40:
+		readDone:=FALSE;
+		Read_State_2();
+		t1(IN:=FALSE);
+		loopReadStep:=loopReadStep+10;
+	50:
+		IF readDone THEN
+			readDone:=FALSE;
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+		t1(IN:=TRUE,PT:=T#200MS);
+		IF t1.Q THEN
+			serialTimeOut:=TRUE;
+			t1(IN:=FALSE);
+			loopReadStep:=6000;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+	60:
+		t2(IN:=TRUE,PT:=timeToNext);
+		IF t2.Q THEN
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			t2(IN:=FALSE);
+			RETURN;
+		END_IF
+	70:
+		readDone:=FALSE;
+		Read_State_3();
+		t1(IN:=FALSE);
+		loopReadStep:=loopReadStep+10;
+	80:
+		IF readDone THEN
+			readDone:=FALSE;
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+		t1(IN:=TRUE,PT:=T#200MS);
+		IF t1.Q THEN
+			serialTimeOut:=TRUE;
+			t1(IN:=FALSE);
+			loopReadStep:=6000;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+	90:
+		t2(IN:=TRUE,PT:=timeToNext);
+		IF t2.Q THEN
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			t2(IN:=FALSE);
+			RETURN;
+		END_IF
+	100:
+		readDone:=FALSE;
+		Read_State_4();
+		t1(IN:=FALSE);
+		loopReadStep:=loopReadStep+10;
+	110:
+		IF readDone THEN
+			readDone:=FALSE;
+			// 低位
+			atTagetSpeed:=arr_RcvDataByte[6].5;
+			alarm:=arr_RcvDataByte[6].3 OR arr_RcvDataByte[6].2;
+			remote:=arr_RcvDataByte[6].0;
+			// 高位
+			acc:=arr_RcvDataByte[7].7;
+			brake:=arr_RcvDataByte[7].6;
+			noRotation:=arr_RcvDataByte[7].5 (*OR NOT arr_RcvDataByte[7].1*);
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+		t1(IN:=TRUE,PT:=T#200MS);
+		IF t1.Q THEN
+			serialTimeOut:=TRUE;
+			t1(IN:=FALSE);
+			loopReadStep:=6000;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+	120:
+		t2(IN:=TRUE,PT:=timeToNext);
+		IF t2.Q THEN
+			t1(IN:=FALSE);
+			t2(IN:=FALSE);
+			loopToReadRatationTimes:=loopToReadRatationTimes+1;
+			IF loopToReadRatationTimes>2 THEN // 状态读取5次，转速更新一次
+				loopReadStep:=200;// 读取转速
+				loopToReadRatationTimes:=0;
+			ELSE
+				loopReadStep:=5000;
+			END_IF
+			RETURN;
+		END_IF
+	200:
+		readDone:=FALSE;
+		Read_Rotation_1();
+		t1(IN:=FALSE);
+		loopReadStep:=loopReadStep+10;
+	210:
+		IF readDone THEN
+			readDone:=FALSE;
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+		t1(IN:=TRUE,PT:=T#200MS);
+		IF t1.Q THEN
+			serialTimeOut:=TRUE;
+			t1(IN:=FALSE);
+			loopReadStep:=6000;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+	220:
+		t2(IN:=TRUE,PT:=timeToNext);
+		IF t2.Q THEN
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			t2(IN:=FALSE);
+			RETURN;
+		END_IF
+	230:
+		readDone:=FALSE;
+		Read_Rotation_2();
+		t1(IN:=FALSE);
+		loopReadStep:=loopReadStep+10;
+	240:
+		IF readDone THEN
+			readDone:=FALSE;
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+		t1(IN:=TRUE,PT:=T#200MS);
+		IF t1.Q THEN
+			serialTimeOut:=TRUE;
+			t1(IN:=FALSE);
+			loopReadStep:=6000;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+	250:
+		t2(IN:=TRUE,PT:=timeToNext);
+		IF t2.Q THEN
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			t2(IN:=FALSE);
+			RETURN;
+		END_IF
+	260:
+		readDone:=FALSE;
+		Read_Rotation_3();
+		t1(IN:=FALSE);
+		loopReadStep:=loopReadStep+10;
+	270:
+		IF readDone THEN
+			readDone:=FALSE;
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+		t1(IN:=TRUE,PT:=T#200MS);
+		IF t1.Q THEN
+			serialTimeOut:=TRUE;
+			t1(IN:=FALSE);
+			loopReadStep:=6000;
+			RETURN;
+		END_IF
+	280:
+		t2(IN:=TRUE,PT:=timeToNext);
+		IF t2.Q THEN
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			t2(IN:=FALSE);
+			RETURN;
+		END_IF
+	290:
+		readDone:=FALSE;
+		Read_Rotation_4();
+		t1(IN:=FALSE);
+		loopReadStep:=loopReadStep+10;
+	300:
+		IF readDone THEN
+			readDone:=FALSE;
+			intTemp:=BYTE_TO_UDINT(arr_RcvDataByte[6])*256;// 读取转速进行转换 高位
+			rotationSpeed:=(intTemp+BYTE_TO_UDINT(arr_RcvDataByte[7]));// 读取转速进行转换 低位   *60  HZ 
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+		t1(IN:=TRUE,PT:=T#200MS);
+		IF t1.Q THEN
+			serialTimeOut:=TRUE;
+			t1(IN:=FALSE);
+			loopReadStep:=6000;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+	310:
+		t2(IN:=TRUE,PT:=timeToNext);
+		IF t2.Q THEN
+			loopReadStep:=loopReadStep+10;
+			RETURN;
+		END_IF
+	320:
+		loopReadStep:=400;
+		
+	400:
+		readDone:=FALSE;
+		Read_TMS_1();
+		t1(IN:=FALSE);
+		loopReadStep:=loopReadStep+10;
+	410:
+		IF readDone THEN
+			readDone:=FALSE;
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+		t1(IN:=TRUE,PT:=T#200MS);
+		IF t1.Q THEN
+			serialTimeOut:=TRUE;
+			t1(IN:=FALSE);
+			loopReadStep:=6000;
+			RETURN;
+		END_IF
+	420:
+		t2(IN:=TRUE,PT:=timeToNext);
+		IF t2.Q THEN
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			t2(IN:=FALSE);
+			RETURN;
+		END_IF
+	430:
+		readDone:=FALSE;
+		Read_TMS_2();
+		t1(IN:=FALSE);
+		loopReadStep:=loopReadStep+10;
+	440:
+		IF readDone THEN
+			readDone:=FALSE;
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+		t1(IN:=TRUE,PT:=T#200MS);
+		IF t1.Q THEN
+			serialTimeOut:=TRUE;
+			t1(IN:=FALSE);
+			loopReadStep:=6000;
+			RETURN;
+		END_IF
+	450:
+		t2(IN:=TRUE,PT:=timeToNext);
+		IF t2.Q THEN
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			t2(IN:=FALSE);
+			RETURN;
+		END_IF
+	460:
+		readDone:=FALSE;
+		Read_TMS_3();
+		t1(IN:=FALSE);
+		loopReadStep:=loopReadStep+10;
+	470:
+		IF readDone THEN
+			readDone:=FALSE;
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+		t1(IN:=TRUE,PT:=T#200MS);
+		IF t1.Q THEN
+			serialTimeOut:=TRUE;
+			t1(IN:=FALSE);
+			loopReadStep:=6000;
+			RETURN;
+		END_IF
+	480:
+		t2(IN:=TRUE,PT:=timeToNext);
+		IF t2.Q THEN
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			t2(IN:=FALSE);
+			RETURN;
+		END_IF
+	490:
+		readDone:=FALSE;
+		Read_TMS_4();
+		t1(IN:=FALSE);
+		loopReadStep:=loopReadStep+10;
+	500:
+		IF readDone THEN
+			readDone:=FALSE;
+			realTemp:=BYTE_TO_REAL(arr_RcvDataByte[6])*256;
+			tMSTemperature:=(realTemp+BYTE_TO_REAL(arr_RcvDataByte[7]))/10;
+			loopReadStep:=loopReadStep+10;
+			t1(IN:=FALSE);
+			RETURN;
+		END_IF
+		t1(IN:=TRUE,PT:=T#200MS);
+		IF t1.Q THEN
+			serialTimeOut:=TRUE;
+			t1(IN:=FALSE);
+			loopReadStep:=6000;
+			RETURN;
+		END_IF
+	510:
+		t2(IN:=TRUE,PT:=timeToNext);
+		IF t2.Q THEN
+			loopReadStep:=loopReadStep+10;
+			RETURN;
+		END_IF
+	520:
+		loopReadStep:=5000;
+	5000:
+		loopReadStep:=0;
+		readBusy:=FALSE;
+		readDone:=FALSE;
+		serialTimeOutTimes:=0;
+	6000:
+		timeoutResetTime(IN:=TRUE,PT:=T#0.5S);
+		IF timeoutResetTime.Q THEN
+			readDone:=FALSE;
+			loopReadStep:=0;
+			readBusy:=FALSE;
+			timeoutResetTime(IN:=FALSE);
+			serialTimeOutTimes:=serialTimeOutTimes+1;
+			IF serialTimeOutTimes>5 THEN
+				serialTimeOutTimes:=0;
+				serialTimeoutError:=TRUE;
+			END_IF
+		END_IF
+END_CASE
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ACT_Reset" Id="{35815874-1ac4-407c-b968-ef0319ed0e12}">
+      <Implementation>
+        <ST><![CDATA[
+CASE resetStep OF
+	0:
+	IF resetExcute THEN
+		IF NOT resetBusy THEN
+			resetExcute:=FALSE;
+			resetBusy:=FALSE;
+			resetDone:=FALSE;
+			resetError:=FALSE;
+			stopBusy:=FALSE;
+			stopDone:=FALSE;
+			stopError:=FALSE;
+			startBusy:=FALSE;
+			startDone:=FALSE;
+			startError:=FALSE;
+			serialError:=FALSE;
+			serialDone:=FALSE;
+			serialError:=FALSE;
+			serialTimeOut:=FALSE;
+			serialRecError:=FALSE;
+			serialStep:=0;
+			startStep:=0;
+			stopStep:=0;
+			resetStep:=90;
+		END_IF
+	END_IF
+	Timerreset(IN:= FALSE);
+	TimerresetTOut(IN:= FALSE);
+	;
+	
+	90:
+		IF loopReadStep<10 AND startStep<10 AND stopStep<10 THEN
+			readDone:=FALSE;
+			Set_Reset_1();
+			resetStep:=100;
+		END_IF
+	100:
+		IF readDone THEN
+			readDone:=FALSE;
+			resetStep:=resetStep+10;
+			TimerresetTOut(IN:=FALSE);
+			RETURN;
+		END_IF
+		TimerresetTOut(IN:=TRUE,PT:=T#200MS);
+		IF TimerresetTOut.Q THEN
+			serialTimeOut:=TRUE;
+			TimerresetTOut(IN:=FALSE);
+			resetStep:=6000;
+			RETURN;
+		END_IF
+	110:
+		Timerreset(IN:= NOT Timerreset.q, PT:=T#30MS);
+		IF Timerreset.Q THEN
+			resetStep:=resetStep+10;
+			Timerreset(IN:= FALSE);
+		END_IF
+	120:
+		readDone:=FALSE;
+		Set_Reset_2();
+		resetStep:=resetStep+10;
+	130:
+		IF readDone THEN
+			readDone:=FALSE;
+			resetStep:=resetStep+10;
+			TimerresetTOut(IN:=FALSE);
+			RETURN;
+		END_IF
+		TimerresetTOut(IN:=TRUE,PT:=T#200MS);
+		IF TimerresetTOut.Q THEN
+			serialTimeOut:=TRUE;
+			TimerresetTOut(IN:=FALSE);
+			resetStep:=6000;
+			RETURN;
+		END_IF
+	140:
+		Timerreset(IN:= NOT Timerreset.q, PT:=T#30MS);
+		IF Timerreset.Q THEN
+			resetStep:=resetStep+10;
+			Timerreset(IN:= FALSE);
+		END_IF
+	150:
+		readDone:=FALSE;
+		Set_Reset_3();
+		resetStep:=resetStep+10;
+	160:
+		IF readDone THEN
+			readDone:=FALSE;
+			resetStep:=resetStep+10;
+			TimerresetTOut(IN:=FALSE);
+			RETURN;
+		END_IF
+		TimerresetTOut(IN:=TRUE,PT:=T#200MS);
+		IF TimerresetTOut.Q THEN
+			serialTimeOut:=TRUE;
+			TimerresetTOut(IN:=FALSE);
+			resetStep:=6000;
+			RETURN;
+		END_IF
+	170:
+		Timerreset(IN:= NOT Timerreset.q, PT:=T#30MS);
+		IF Timerreset.Q THEN
+			resetStep:=resetStep+10;
+			Timerreset(IN:= FALSE);
+		END_IF
+	180:
+		readDone:=FALSE;
+		Set_Reset_4();
+		resetStep:=resetStep+10;
+	190:
+		IF readDone THEN
+			readDone:=FALSE;
+			resetStep:=resetStep+10;
+			TimerresetTOut(IN:=FALSE);
+			RETURN;
+		END_IF
+		TimerresetTOut(IN:=TRUE,PT:=T#200MS);
+		IF TimerresetTOut.Q THEN
+			serialTimeOut:=TRUE;
+			TimerresetTOut(IN:=FALSE);
+			resetStep:=6000;
+			RETURN;
+		END_IF
+	200:
+		Timerreset(IN:= NOT Timerreset.q, PT:=T#10MS);
+		IF Timerreset.Q THEN
+			resetStep:=resetStep+10;
+			Timerreset(IN:= FALSE);
+		END_IF
+	210:
+		resetStep:=5000;
+	;
+	5000://done
+		resetBusy:=FALSE;
+		resetDone:=TRUE;
+		resetError:=FALSE;
+		resetStep:=0;
+		readDone:=FALSE;
+	;
+	6000://error
+		resetBusy:=FALSE;
+		resetDone:=FALSE;
+		resetError:=TRUE;
+		resetStep:=0;
+		readDone:=FALSE;
+	;
+	
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ACT_Send" Id="{731def75-dd94-451b-93dd-7748571fad65}">
+      <Implementation>
+        <ST><![CDATA[
+CASE serialStep OF
+	0:
+	IF serialExcute THEN
+		serialExcute:=FALSE;
+		IF NOT serialBusy THEN
+			serialStep:=90;
+			serialBusy:=TRUE;
+			serialDone:=FALSE;
+			serialError:=FALSE;
+			serialTimeOut:=FALSE;
+			serialRecError:=FALSE;
+			serialTimeOut:=FALSE;
+		END_IF
+	END_IF
+	Timer1(IN:= FALSE);
+	;
+	
+	90:
+		arr_SendData:=sendbyte;
+		serialStep:=100;
+	100:
+		send1(
+			pSendData:= ADR(arr_SendData), 
+			Length:= sendLenght, 
+			Busy=> , 
+			Error=> , 
+			TXbuffer:= gTxBuffer_TBP);
+		serialStep:=serialStep+10;
+	110:
+		Timer1(IN:= NOT timer1.q, PT:=T#10MS);
+		IF Timer1.Q THEN
+			serialStep:=serialStep+10;
+			Timer1(IN:= FALSE);
+		END_IF
+	120:
+		Timer1(IN:= NOT timer1.q, PT:=T#500MS);
+		IF Timer1.Q THEN
+			serialStep:=6000;
+			Timer1(IN:= FALSE);
+			serialTimeOut:=TRUE;
+			RETURN;
+		END_IF
+		IF NOT send1.busy  THEN
+			Timer1(IN:= FALSE);
+			serialTimeOut:=FALSE;
+			serialStep:=200;
+		END_IF
+		IF send1.Error <> COMERROR_NOERROR THEN
+			serialRecError:=TRUE;
+		END_IF
+	200://数据处理
+		serialStep:=serialStep+10;
+	210:
+		Timer1(IN:= NOT timer1.q, PT:=T#10MS);
+		IF Timer1.Q THEN
+			serialStep:=serialStep+10;
+			Timer1(IN:= FALSE);
+		END_IF
+	220:
+		//数据转换
+		Timer1(IN:= FALSE);
+		serialStep:=1000;
+	
+	1000:
+		Timer1(IN:= NOT timer1.q, PT:=T#50MS);
+		IF Timer1.Q THEN
+			serialStep:=5000;
+			Timer1(IN:= FALSE);
+			// sendstr:='';
+			serialTimeOut:=FALSE;
+		END_IF
+	;
+	5000://done
+		serialBusy:=FALSE;
+		serialDone:=TRUE;
+		serialError:=FALSE;
+		serialStep:=0;
+	;
+	6000://error
+		serialBusy:=FALSE;
+		serialDone:=FALSE;
+		serialError:=TRUE;
+		serialStep:=0;
+	;
+	
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ACT_Start" Id="{f6946f27-2387-4081-8c7e-8a61cdc4cf6e}">
+      <Implementation>
+        <ST><![CDATA[
+CASE startStep OF
+	0:
+	IF startExcute THEN
+		IF NOT startBusy THEN
+			startExcute:=FALSE;
+			startBusy:=FALSE;
+			startDone:=FALSE;
+			startError:=FALSE;
+			startStep:=90;
+			serialTimeOut:=FALSE;
+			gTBPStopLoopRead:=true;
+		END_IF
+	END_IF
+	TimerStart(IN:= FALSE);
+	TimerStartTOut(IN:= FALSE);
+	;
+	
+	90:
+		IF loopReadStep<10 AND resetStep<10 AND stopStep<10 THEN
+			readDone:=FALSE;
+			Set_Start_0();
+			startStep:=100;
+		END_IF
+	100:
+		IF readDone THEN
+			readDone:=FALSE;
+			startStep:=startStep+10;
+			TimerStartTOut(IN:=FALSE);
+			RETURN;
+		END_IF
+		TimerStartTOut(IN:=TRUE,PT:=T#2000MS);
+		IF TimerStartTOut.Q THEN
+			serialTimeOut:=TRUE;
+			TimerStartTOut(IN:=FALSE);
+			startStep:=6000;
+			RETURN;
+		END_IF
+	110:
+		TimerStart(IN:= NOT TimerStart.q, PT:=T#30MS);
+		IF TimerStart.Q THEN
+			startStep:=startStep+10;
+			TimerStart(IN:= FALSE);
+		END_IF
+	120:
+		readDone:=FALSE;
+		Set_Start_Stop_1();
+		startStep:=startStep+10;
+	130:
+		IF readDone THEN
+			readDone:=FALSE;
+			startStep:=startStep+10;
+			TimerStartTOut(IN:=FALSE);
+			RETURN;
+		END_IF
+		TimerStartTOut(IN:=TRUE,PT:=T#2000MS);
+		IF TimerStartTOut.Q THEN
+			serialTimeOut:=TRUE;
+			TimerStartTOut(IN:=FALSE);
+			startStep:=6000;
+			RETURN;
+		END_IF
+	140:
+		TimerStart(IN:= NOT TimerStart.q, PT:=T#30MS);
+		IF TimerStart.Q THEN
+			startStep:=startStep+10;
+			TimerStart(IN:= FALSE);
+		END_IF
+	150:
+		readDone:=FALSE;
+		Set_Start_Stop_2();
+		startStep:=startStep+10;
+	160:
+		IF readDone THEN
+			readDone:=FALSE;
+			startStep:=startStep+10;
+			TimerStartTOut(IN:=FALSE);
+			RETURN;
+		END_IF
+		TimerStartTOut(IN:=TRUE,PT:=T#2000MS);
+		IF TimerStartTOut.Q THEN
+			serialTimeOut:=TRUE;
+			TimerStartTOut(IN:=FALSE);
+			startStep:=6000;
+			RETURN;
+		END_IF
+	170:
+		TimerStart(IN:= NOT TimerStart.q, PT:=T#30MS);
+		IF TimerStart.Q THEN
+			startStep:=startStep+10;
+			TimerStart(IN:= FALSE);
+		END_IF
+	180:
+		readDone:=FALSE;
+		Set_Start_Stop_3();
+		startStep:=startStep+10;
+	190:
+		IF readDone THEN
+			readDone:=FALSE;
+			startStep:=startStep+10;
+			TimerStartTOut(IN:=FALSE);
+			RETURN;
+		END_IF
+		TimerStartTOut(IN:=TRUE,PT:=T#2000MS);
+		IF TimerStartTOut.Q THEN
+			serialTimeOut:=TRUE;
+			TimerStartTOut(IN:=FALSE);
+			startStep:=6000;
+			RETURN;
+		END_IF
+	200:
+		TimerStart(IN:= NOT TimerStart.q, PT:=T#30MS);
+		IF TimerStart.Q THEN
+			startStep:=startStep+10;
+			TimerStart(IN:= FALSE);
+		END_IF
+	210:
+		startStep:=5000;
+	;
+	5000://done
+		startBusy:=FALSE;
+		startDone:=TRUE;
+		startError:=FALSE;
+		startStep:=0;
+		readDone:=FALSE;
+	;
+	6000://error
+		startBusy:=FALSE;
+		startDone:=FALSE;
+		startError:=TRUE;
+		startStep:=0;
+		readDone:=FALSE;
+	;
+	
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ACT_Stop" Id="{53e88b6b-1adc-4323-8803-7fa520fd3c03}">
+      <Implementation>
+        <ST><![CDATA[
+CASE stopStep OF
+	0:
+	IF stopExcute THEN
+		IF NOT stopBusy THEN
+			stopExcute:=FALSE;
+			stopBusy:=FALSE;
+			stopDone:=FALSE;
+			stopError:=FALSE;
+			stopStep:=90;
+			serialTimeOut:=FALSE;
+			gTBPStopLoopRead:=TRUE;
+		END_IF
+	END_IF
+	Timerstop(IN:= FALSE);
+	TimerstopTOut(IN:= FALSE);
+	;
+	
+	90:
+		IF loopReadStep<10 AND resetStep<10 AND startStep<10 THEN
+			readDone:=FALSE;
+			Set_stop_0();
+			stopStep:=100;
+		END_IF
+	100:
+		IF readDone THEN
+			readDone:=FALSE;
+			stopStep:=stopStep+10;
+			TimerstopTOut(IN:=FALSE);
+			RETURN;
+		END_IF
+		TimerstopTOut(IN:=TRUE,PT:=T#200MS);
+		IF TimerstopTOut.Q THEN
+			serialTimeOut:=TRUE;
+			TimerstopTOut(IN:=FALSE);
+			stopStep:=6000;
+			RETURN;
+		END_IF
+	110:
+		Timerstop(IN:= NOT Timerstop.q, PT:=T#30MS);
+		IF Timerstop.Q THEN
+			stopStep:=stopStep+10;
+			Timerstop(IN:= FALSE);
+		END_IF
+	120:
+		readDone:=FALSE;
+		Set_Start_Stop_1();
+		stopStep:=stopStep+10;
+	130:
+		IF readDone THEN
+			readDone:=FALSE;
+			stopStep:=stopStep+10;
+			TimerstopTOut(IN:=FALSE);
+			RETURN;
+		END_IF
+		TimerstopTOut(IN:=TRUE,PT:=T#200MS);
+		IF TimerstopTOut.Q THEN
+			serialTimeOut:=TRUE;
+			TimerstopTOut(IN:=FALSE);
+			stopStep:=6000;
+			RETURN;
+		END_IF
+	140:
+		Timerstop(IN:= NOT Timerstop.q, PT:=T#30MS);
+		IF Timerstop.Q THEN
+			stopStep:=stopStep+10;
+			Timerstop(IN:= FALSE);
+		END_IF
+	150:
+		readDone:=FALSE;
+		Set_Start_Stop_2();
+		stopStep:=stopStep+10;
+	160:
+		IF readDone THEN
+			readDone:=FALSE;
+			stopStep:=stopStep+10;
+			TimerstopTOut(IN:=FALSE);
+			RETURN;
+		END_IF
+		TimerstopTOut(IN:=TRUE,PT:=T#200MS);
+		IF TimerstopTOut.Q THEN
+			serialTimeOut:=TRUE;
+			TimerstopTOut(IN:=FALSE);
+			stopStep:=6000;
+			RETURN;
+		END_IF
+	170:
+		Timerstop(IN:= NOT Timerstop.q, PT:=T#30MS);
+		IF Timerstop.Q THEN
+			stopStep:=stopStep+10;
+			Timerstop(IN:= FALSE);
+		END_IF
+	180:
+		readDone:=FALSE;
+		Set_Start_Stop_3();
+		stopStep:=stopStep+10;
+	190:
+		IF readDone THEN
+			readDone:=FALSE;
+			stopStep:=stopStep+10;
+			TimerstopTOut(IN:=FALSE);
+			RETURN;
+		END_IF
+		TimerstopTOut(IN:=TRUE,PT:=T#200MS);
+		IF TimerstopTOut.Q THEN
+			serialTimeOut:=TRUE;
+			TimerstopTOut(IN:=FALSE);
+			stopStep:=6000;
+			RETURN;
+		END_IF
+	200:
+		Timerstop(IN:= NOT Timerstop.q, PT:=T#30MS);
+		IF Timerstop.Q THEN
+			stopStep:=stopStep+10;
+			Timerstop(IN:= FALSE);
+		END_IF
+	210:
+		stopStep:=5000;
+	;
+	5000://done
+		stopBusy:=FALSE;
+		stopDone:=TRUE;
+		stopError:=FALSE;
+		stopStep:=0;
+		readDone:=FALSE;
+		gTBPStopLoopRead:=FALSE;
+	;
+	6000://error
+		stopBusy:=FALSE;
+		stopDone:=FALSE;
+		stopError:=TRUE;
+		stopStep:=0;
+		readDone:=FALSE;
+		gTBPStopLoopRead:=FALSE;
+	;
+	
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="CalASII_Byte" Id="{7ab22c75-e65c-4b99-a9db-c898eebb15d1}">
+      <Declaration><![CDATA[METHOD CalASII_Byte : UDINT
+VAR_INPUT
+	date1:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF date1=10 THEN
+	CalASII_Byte:=41;
+END_IF
+IF date1=11 THEN
+	CalASII_Byte:=42;
+END_IF
+IF date1=12 THEN
+	CalASII_Byte:=43;
+END_IF
+IF date1=13 THEN
+	CalASII_Byte:=44;
+END_IF
+IF date1=14 THEN
+	CalASII_Byte:=45;
+END_IF
+IF date1=15 THEN
+	CalASII_Byte:=46;
+END_IF
+IF date1<10 THEN
+	CalASII_Byte:=date1+30;
+END_IF
+IF date1>15 THEN
+	CalASII_Byte:=date1+30;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Interface_Reset" Id="{9ecf53fa-4c9e-40b0-8f8c-626785e7277a}">
+      <Declaration><![CDATA[METHOD Interface_Reset : BOOL
+VAR_INPUT
+
+END_VAR
+VAR
+
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[resetExcute:=true;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Interface_Start" Id="{7d5db286-d076-4b9b-8ae8-9d213611a275}">
+      <Declaration><![CDATA[METHOD Interface_Start : BOOL
+VAR_INPUT
+
+END_VAR
+VAR
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[startExcute:=true;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Interface_Stop" Id="{bab063cf-fe62-4f65-87ab-226f1282ee7c}">
+      <Declaration><![CDATA[METHOD Interface_Stop : BOOL
+VAR_INPUT
+
+END_VAR
+VAR
+
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[stopExcute:=true;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Read_Rotation_1" Id="{606f8f87-26e9-4529-bfdc-909d59944bd0}">
+      <Declaration><![CDATA[METHOD Read_Rotation_1 : BOOL
+VAR_INPUT
+
+END_VAR
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=15;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#0A;
+sendbyte[5]:=16#57;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#80;
+sendbyte[10]:=16#9A;
+sendbyte[11]:=16#00;
+sendbyte[12]:=16#01;
+sendbyte[13]:=16#FF;
+sendbyte[14]:=16#03;
+sendbyte[15]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Read_Rotation_2" Id="{260e666f-0d5e-4231-b0c1-fed2bb8cd13e}">
+      <Declaration><![CDATA[METHOD Read_Rotation_2 : BOOL
+VAR_INPUT
+
+END_VAR
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=15;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#0A;
+sendbyte[5]:=16#57;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#81;
+sendbyte[10]:=16#99;
+sendbyte[11]:=16#00;
+sendbyte[12]:=16#55;
+sendbyte[13]:=16#AB;
+sendbyte[14]:=16#03;
+sendbyte[15]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Read_Rotation_3" Id="{056d9a5e-0a1a-42df-ab39-a44bfbe8717f}">
+      <Declaration><![CDATA[METHOD Read_Rotation_3 : BOOL
+VAR_INPUT
+
+END_VAR
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=14;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#09;
+sendbyte[5]:=16#52;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#81;
+sendbyte[10]:=16#00;
+sendbyte[11]:=16#02;
+sendbyte[12]:=16#9D;
+sendbyte[13]:=16#03;
+sendbyte[14]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Read_Rotation_4" Id="{62d17049-9700-41e3-928b-ddbfd2bca54d}">
+      <Declaration><![CDATA[METHOD Read_Rotation_4 : BOOL
+VAR_INPUT
+
+END_VAR
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=14;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#09;
+sendbyte[5]:=16#52;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#82;
+sendbyte[10]:=16#00;
+sendbyte[11]:=16#02;
+sendbyte[12]:=16#9C;
+sendbyte[13]:=16#03;
+sendbyte[14]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Read_State_1" Id="{aef3519d-b45c-4284-845f-d1012f741b8b}">
+      <Declaration><![CDATA[METHOD Read_State_1 : BOOL
+VAR_INPUT
+
+END_VAR
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=15;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#0A;
+sendbyte[5]:=16#57;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#80;
+sendbyte[10]:=16#9A;
+sendbyte[11]:=16#00;
+sendbyte[12]:=16#40;
+sendbyte[13]:=16#C0;
+sendbyte[14]:=16#03;
+sendbyte[15]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Read_State_2" Id="{441d3fe0-acd4-4dd6-89e6-cdab5c83f89b}">
+      <Declaration><![CDATA[METHOD Read_State_2 : BOOL
+VAR_INPUT
+
+END_VAR
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=15;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#0A;
+sendbyte[5]:=16#57;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#81;
+sendbyte[10]:=16#99;
+sendbyte[11]:=16#00;
+sendbyte[12]:=16#55;
+sendbyte[13]:=16#AB;
+sendbyte[14]:=16#03;
+sendbyte[15]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Read_State_3" Id="{14028464-630c-4610-9f57-4b4207c6c960}">
+      <Declaration><![CDATA[METHOD Read_State_3 : BOOL
+VAR_INPUT
+
+END_VAR
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=14;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#09;
+sendbyte[5]:=16#52;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#81;
+sendbyte[10]:=16#00;
+sendbyte[11]:=16#02;
+sendbyte[12]:=16#9D;
+sendbyte[13]:=16#03;
+sendbyte[14]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Read_State_4" Id="{ee514b8e-d31b-4717-bd6d-abf21f821f47}">
+      <Declaration><![CDATA[METHOD Read_State_4 : BOOL
+VAR_INPUT
+
+END_VAR
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=14;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#09;
+sendbyte[5]:=16#52;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#82;
+sendbyte[10]:=16#00;
+sendbyte[11]:=16#02;
+sendbyte[12]:=16#9C;
+sendbyte[13]:=16#03;
+sendbyte[14]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Read_TMS_1" Id="{3d369348-37a9-43ec-8daa-60818153ec3c}">
+      <Declaration><![CDATA[METHOD Read_TMS_1 : BOOL
+VAR_INPUT
+
+END_VAR
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=15;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#0A;
+sendbyte[5]:=16#57;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#80;
+sendbyte[10]:=16#9A;
+sendbyte[11]:=16#00;
+sendbyte[12]:=16#11;
+sendbyte[13]:=16#EF;
+sendbyte[14]:=16#03;
+sendbyte[15]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Read_TMS_2" Id="{13791acc-7264-40b1-9a31-e777426437a3}">
+      <Declaration><![CDATA[METHOD Read_TMS_2 : BOOL
+VAR_INPUT
+
+END_VAR
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=15;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#0A;
+sendbyte[5]:=16#57;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#81;
+sendbyte[10]:=16#99;
+sendbyte[11]:=16#00;
+sendbyte[12]:=16#55;
+sendbyte[13]:=16#AB;
+sendbyte[14]:=16#03;
+sendbyte[15]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Read_TMS_3" Id="{2baf8b05-a0ff-432a-8bf6-125484f4e07e}">
+      <Declaration><![CDATA[METHOD Read_TMS_3 : BOOL
+VAR_INPUT
+
+END_VAR
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=14;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#09;
+sendbyte[5]:=16#52;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#81;
+sendbyte[10]:=16#00;
+sendbyte[11]:=16#02;
+sendbyte[12]:=16#9D;
+sendbyte[13]:=16#03;
+sendbyte[14]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Read_TMS_4" Id="{2fcff8cf-2e62-4b86-b79f-7d062cc8dd83}">
+      <Declaration><![CDATA[METHOD Read_TMS_4 : BOOL
+VAR_INPUT
+
+END_VAR
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=14;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#09;
+sendbyte[5]:=16#52;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#82;
+sendbyte[10]:=16#00;
+sendbyte[11]:=16#02;
+sendbyte[12]:=16#9C;
+sendbyte[13]:=16#03;
+sendbyte[14]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Set_Reset_1" Id="{b38ea4a9-4a30-48c8-a31f-f92c9c8b4d9a}">
+      <Declaration><![CDATA[METHOD Set_Reset_1 : BOOL
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=15;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#0A;
+sendbyte[5]:=16#57;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#80;
+sendbyte[10]:=16#9A;
+sendbyte[11]:=16#00;
+sendbyte[12]:=16#41;
+sendbyte[13]:=16#BF;
+sendbyte[14]:=16#03;
+sendbyte[15]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Set_Reset_2" Id="{8e6c2e53-8524-4f2e-9744-04e44c84230e}">
+      <Declaration><![CDATA[METHOD Set_Reset_2 : BOOL
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=15;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#0A;
+sendbyte[5]:=16#57;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#82;
+sendbyte[10]:=16#98;
+sendbyte[11]:=16#00;
+sendbyte[12]:=16#44;
+sendbyte[13]:=16#BC;
+sendbyte[14]:=16#03;
+sendbyte[15]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Set_Reset_3" Id="{e0432b6c-614e-45ba-8bc1-7527049b5479}">
+      <Declaration><![CDATA[METHOD Set_Reset_3 : BOOL
+
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=15;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#0A;
+sendbyte[5]:=16#57;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#81;
+sendbyte[10]:=16#99;
+sendbyte[11]:=16#00;
+sendbyte[12]:=16#AA;
+sendbyte[13]:=16#56;
+sendbyte[14]:=16#03;
+sendbyte[15]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Set_Reset_4" Id="{df2a3d1d-2f64-4f07-9cea-9d081b886fa3}">
+      <Declaration><![CDATA[METHOD Set_Reset_4 : BOOL
+
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=14;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#09;
+sendbyte[5]:=16#52;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#81;
+sendbyte[10]:=16#00;
+sendbyte[11]:=16#02;
+sendbyte[12]:=16#9D;
+sendbyte[13]:=16#03;
+sendbyte[14]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Set_Start_0" Id="{c5b9489f-d9f2-493b-a1a2-febe2c97511f}">
+      <Declaration><![CDATA[METHOD Set_Start_0 : BOOL
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=15;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#0A;
+sendbyte[5]:=16#57;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#80;
+sendbyte[10]:=16#9A;
+sendbyte[11]:=16#00;
+sendbyte[12]:=16#08;
+sendbyte[13]:=16#F8;
+sendbyte[14]:=16#03;
+sendbyte[15]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Set_Start_Stop_1" Id="{d82a8d91-e85e-4ca0-8cf0-ecb06130b541}">
+      <Declaration><![CDATA[METHOD Set_Start_Stop_1 : BOOL
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=15;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#0A;
+sendbyte[5]:=16#57;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#82;
+sendbyte[10]:=16#98;
+sendbyte[11]:=16#00;
+sendbyte[12]:=16#01;
+sendbyte[13]:=16#FF;
+sendbyte[14]:=16#03;
+sendbyte[15]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Set_Start_Stop_2" Id="{73a00fdf-8a2a-4f01-ab0a-d2c17e96bb85}">
+      <Declaration><![CDATA[METHOD Set_Start_Stop_2 : BOOL
+
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=15;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#0A;
+sendbyte[5]:=16#57;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#81;
+sendbyte[10]:=16#99;
+sendbyte[11]:=16#00;
+sendbyte[12]:=16#AA;
+sendbyte[13]:=16#56;
+sendbyte[14]:=16#03;
+sendbyte[15]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Set_Start_Stop_3" Id="{42cf16ec-0adb-49d9-966c-740591fa6357}">
+      <Declaration><![CDATA[METHOD Set_Start_Stop_3 : BOOL
+
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=14;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#09;
+sendbyte[5]:=16#52;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#81;
+sendbyte[10]:=16#00;
+sendbyte[11]:=16#02;
+sendbyte[12]:=16#9D;
+sendbyte[13]:=16#03;
+sendbyte[14]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Set_Stop_0" Id="{45af92f4-6037-4b65-95fd-90c107121e37}">
+      <Declaration><![CDATA[METHOD Set_Stop_0 : BOOL
+
+VAR
+	sumq:UDINT;
+	mod128:UDINT;
+	intTemp:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendLenght:=15;
+sendbyte[1]:=16#02;
+sendbyte[2]:=16#01;
+sendbyte[3]:=16#00;
+sendbyte[4]:=16#0A;
+sendbyte[5]:=16#57;
+sendbyte[6]:=16#00;
+sendbyte[7]:=16#02;
+sendbyte[8]:=16#80;
+sendbyte[9]:=16#80;
+sendbyte[10]:=16#9A;
+sendbyte[11]:=16#00;
+sendbyte[12]:=16#09;
+sendbyte[13]:=16#F7;
+sendbyte[14]:=16#03;
+sendbyte[15]:=16#03;
+serialExcute:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="FuncModule_RS232_TBP">
+      <LineId Id="1890" Count="34" />
+      <LineId Id="2124" Count="0" />
+      <LineId Id="1925" Count="0" />
+      <LineId Id="2226" Count="0" />
+      <LineId Id="1926" Count="5" />
+      <LineId Id="1934" Count="0" />
+      <LineId Id="1510" Count="0" />
+      <LineId Id="2022" Count="1" />
+      <LineId Id="2021" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.ACT_LoopRead">
+      <LineId Id="1273" Count="0" />
+      <LineId Id="1" Count="2" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="1278" Count="0" />
+      <LineId Id="1281" Count="3" />
+      <LineId Id="1279" Count="1" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="1237" Count="2" />
+      <LineId Id="11" Count="2" />
+      <LineId Id="1202" Count="0" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="56" Count="0" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="27" Count="1" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="741" Count="1" />
+      <LineId Id="740" Count="0" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="744" Count="1" />
+      <LineId Id="748" Count="2" />
+      <LineId Id="746" Count="1" />
+      <LineId Id="743" Count="0" />
+      <LineId Id="1240" Count="2" />
+      <LineId Id="757" Count="0" />
+      <LineId Id="764" Count="0" />
+      <LineId Id="766" Count="0" />
+      <LineId Id="1205" Count="0" />
+      <LineId Id="767" Count="18" />
+      <LineId Id="765" Count="0" />
+      <LineId Id="1002" Count="0" />
+      <LineId Id="1243" Count="2" />
+      <LineId Id="795" Count="2" />
+      <LineId Id="1207" Count="0" />
+      <LineId Id="798" Count="18" />
+      <LineId Id="787" Count="0" />
+      <LineId Id="818" Count="0" />
+      <LineId Id="1246" Count="2" />
+      <LineId Id="825" Count="2" />
+      <LineId Id="1209" Count="0" />
+      <LineId Id="1043" Count="2" />
+      <LineId Id="1041" Count="1" />
+      <LineId Id="1040" Count="0" />
+      <LineId Id="1039" Count="0" />
+      <LineId Id="1038" Count="0" />
+      <LineId Id="828" Count="14" />
+      <LineId Id="844" Count="1" />
+      <LineId Id="849" Count="0" />
+      <LineId Id="851" Count="0" />
+      <LineId Id="855" Count="1" />
+      <LineId Id="852" Count="0" />
+      <LineId Id="854" Count="0" />
+      <LineId Id="853" Count="0" />
+      <LineId Id="846" Count="0" />
+      <LineId Id="817" Count="0" />
+      <LineId Id="752" Count="0" />
+      <LineId Id="1249" Count="2" />
+      <LineId Id="864" Count="0" />
+      <LineId Id="1017" Count="0" />
+      <LineId Id="866" Count="0" />
+      <LineId Id="1210" Count="0" />
+      <LineId Id="867" Count="20" />
+      <LineId Id="1252" Count="2" />
+      <LineId Id="894" Count="0" />
+      <LineId Id="1022" Count="0" />
+      <LineId Id="896" Count="0" />
+      <LineId Id="1213" Count="0" />
+      <LineId Id="897" Count="20" />
+      <LineId Id="1255" Count="2" />
+      <LineId Id="924" Count="0" />
+      <LineId Id="1027" Count="0" />
+      <LineId Id="926" Count="0" />
+      <LineId Id="1215" Count="0" />
+      <LineId Id="927" Count="8" />
+      <LineId Id="937" Count="10" />
+      <LineId Id="1258" Count="2" />
+      <LineId Id="954" Count="0" />
+      <LineId Id="1032" Count="0" />
+      <LineId Id="956" Count="0" />
+      <LineId Id="1217" Count="0" />
+      <LineId Id="957" Count="16" />
+      <LineId Id="982" Count="1" />
+      <LineId Id="850" Count="0" />
+      <LineId Id="984" Count="0" />
+      <LineId Id="306" Count="0" />
+      <LineId Id="1047" Count="0" />
+      <LineId Id="1049" Count="0" />
+      <LineId Id="1261" Count="2" />
+      <LineId Id="1056" Count="0" />
+      <LineId Id="1062" Count="1" />
+      <LineId Id="1219" Count="0" />
+      <LineId Id="1064" Count="8" />
+      <LineId Id="1074" Count="10" />
+      <LineId Id="1264" Count="2" />
+      <LineId Id="1091" Count="0" />
+      <LineId Id="1097" Count="1" />
+      <LineId Id="1221" Count="0" />
+      <LineId Id="1099" Count="8" />
+      <LineId Id="1109" Count="10" />
+      <LineId Id="1267" Count="2" />
+      <LineId Id="1126" Count="0" />
+      <LineId Id="1132" Count="1" />
+      <LineId Id="1223" Count="0" />
+      <LineId Id="1134" Count="8" />
+      <LineId Id="1144" Count="10" />
+      <LineId Id="1270" Count="2" />
+      <LineId Id="1161" Count="0" />
+      <LineId Id="1167" Count="1" />
+      <LineId Id="1225" Count="0" />
+      <LineId Id="1169" Count="0" />
+      <LineId Id="1191" Count="0" />
+      <LineId Id="1171" Count="8" />
+      <LineId Id="1181" Count="8" />
+      <LineId Id="1048" Count="0" />
+      <LineId Id="20" Count="1" />
+      <LineId Id="985" Count="0" />
+      <LineId Id="1226" Count="0" />
+      <LineId Id="1285" Count="0" />
+      <LineId Id="1193" Count="0" />
+      <LineId Id="1195" Count="1" />
+      <LineId Id="1227" Count="0" />
+      <LineId Id="1197" Count="0" />
+      <LineId Id="1199" Count="1" />
+      <LineId Id="1230" Count="2" />
+      <LineId Id="1234" Count="0" />
+      <LineId Id="1233" Count="0" />
+      <LineId Id="1198" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="6" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.ACT_Reset">
+      <LineId Id="2" Count="3" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="128" Count="0" />
+      <LineId Id="236" Count="1" />
+      <LineId Id="235" Count="0" />
+      <LineId Id="216" Count="1" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="227" Count="1" />
+      <LineId Id="219" Count="0" />
+      <LineId Id="221" Count="0" />
+      <LineId Id="223" Count="2" />
+      <LineId Id="222" Count="0" />
+      <LineId Id="232" Count="2" />
+      <LineId Id="218" Count="0" />
+      <LineId Id="14" Count="1" />
+      <LineId Id="144" Count="0" />
+      <LineId Id="16" Count="1" />
+      <LineId Id="54" Count="1" />
+      <LineId Id="240" Count="1" />
+      <LineId Id="131" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="239" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="132" Count="0" />
+      <LineId Id="242" Count="0" />
+      <LineId Id="133" Count="8" />
+      <LineId Id="143" Count="0" />
+      <LineId Id="65" Count="6" />
+      <LineId Id="145" Count="0" />
+      <LineId Id="243" Count="0" />
+      <LineId Id="146" Count="3" />
+      <LineId Id="244" Count="0" />
+      <LineId Id="150" Count="15" />
+      <LineId Id="109" Count="0" />
+      <LineId Id="167" Count="0" />
+      <LineId Id="245" Count="0" />
+      <LineId Id="168" Count="3" />
+      <LineId Id="246" Count="0" />
+      <LineId Id="172" Count="15" />
+      <LineId Id="166" Count="0" />
+      <LineId Id="189" Count="0" />
+      <LineId Id="247" Count="0" />
+      <LineId Id="255" Count="0" />
+      <LineId Id="191" Count="2" />
+      <LineId Id="248" Count="0" />
+      <LineId Id="194" Count="15" />
+      <LineId Id="188" Count="0" />
+      <LineId Id="210" Count="1" />
+      <LineId Id="110" Count="3" />
+      <LineId Id="212" Count="0" />
+      <LineId Id="115" Count="0" />
+      <LineId Id="249" Count="0" />
+      <LineId Id="116" Count="1" />
+      <LineId Id="213" Count="2" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="250" Count="0" />
+      <LineId Id="122" Count="1" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.ACT_Send">
+      <LineId Id="2" Count="11" />
+      <LineId Id="124" Count="0" />
+      <LineId Id="14" Count="3" />
+      <LineId Id="54" Count="49" />
+      <LineId Id="105" Count="18" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.ACT_Start">
+      <LineId Id="2" Count="3" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="128" Count="0" />
+      <LineId Id="216" Count="1" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="218" Count="1" />
+      <LineId Id="234" Count="0" />
+      <LineId Id="14" Count="1" />
+      <LineId Id="144" Count="0" />
+      <LineId Id="16" Count="1" />
+      <LineId Id="54" Count="1" />
+      <LineId Id="222" Count="0" />
+      <LineId Id="224" Count="0" />
+      <LineId Id="131" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="223" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="132" Count="0" />
+      <LineId Id="225" Count="0" />
+      <LineId Id="133" Count="8" />
+      <LineId Id="143" Count="0" />
+      <LineId Id="65" Count="6" />
+      <LineId Id="145" Count="0" />
+      <LineId Id="226" Count="0" />
+      <LineId Id="146" Count="3" />
+      <LineId Id="227" Count="0" />
+      <LineId Id="150" Count="15" />
+      <LineId Id="109" Count="0" />
+      <LineId Id="167" Count="0" />
+      <LineId Id="228" Count="0" />
+      <LineId Id="168" Count="3" />
+      <LineId Id="229" Count="0" />
+      <LineId Id="172" Count="15" />
+      <LineId Id="166" Count="0" />
+      <LineId Id="189" Count="0" />
+      <LineId Id="230" Count="0" />
+      <LineId Id="190" Count="3" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="194" Count="15" />
+      <LineId Id="188" Count="0" />
+      <LineId Id="210" Count="1" />
+      <LineId Id="110" Count="3" />
+      <LineId Id="212" Count="0" />
+      <LineId Id="115" Count="0" />
+      <LineId Id="233" Count="0" />
+      <LineId Id="116" Count="1" />
+      <LineId Id="213" Count="2" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="232" Count="0" />
+      <LineId Id="122" Count="1" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.ACT_Stop">
+      <LineId Id="2" Count="3" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="128" Count="0" />
+      <LineId Id="216" Count="1" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="218" Count="2" />
+      <LineId Id="14" Count="1" />
+      <LineId Id="144" Count="0" />
+      <LineId Id="16" Count="1" />
+      <LineId Id="54" Count="1" />
+      <LineId Id="221" Count="0" />
+      <LineId Id="230" Count="0" />
+      <LineId Id="227" Count="0" />
+      <LineId Id="222" Count="0" />
+      <LineId Id="57" Count="1" />
+      <LineId Id="132" Count="0" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="133" Count="8" />
+      <LineId Id="143" Count="0" />
+      <LineId Id="65" Count="6" />
+      <LineId Id="145" Count="0" />
+      <LineId Id="232" Count="0" />
+      <LineId Id="146" Count="3" />
+      <LineId Id="233" Count="0" />
+      <LineId Id="150" Count="15" />
+      <LineId Id="109" Count="0" />
+      <LineId Id="167" Count="0" />
+      <LineId Id="234" Count="0" />
+      <LineId Id="168" Count="3" />
+      <LineId Id="235" Count="0" />
+      <LineId Id="172" Count="15" />
+      <LineId Id="166" Count="0" />
+      <LineId Id="189" Count="0" />
+      <LineId Id="236" Count="0" />
+      <LineId Id="190" Count="3" />
+      <LineId Id="237" Count="0" />
+      <LineId Id="194" Count="15" />
+      <LineId Id="188" Count="0" />
+      <LineId Id="210" Count="1" />
+      <LineId Id="110" Count="3" />
+      <LineId Id="212" Count="0" />
+      <LineId Id="115" Count="0" />
+      <LineId Id="238" Count="0" />
+      <LineId Id="240" Count="0" />
+      <LineId Id="116" Count="1" />
+      <LineId Id="213" Count="2" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="239" Count="0" />
+      <LineId Id="241" Count="0" />
+      <LineId Id="122" Count="1" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.CalASII_Byte">
+      <LineId Id="42" Count="22" />
+      <LineId Id="33" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Interface_Reset">
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Interface_Start">
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Interface_Stop">
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Read_Rotation_1">
+      <LineId Id="92" Count="12" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="105" Count="1" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Read_Rotation_2">
+      <LineId Id="107" Count="15" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Read_Rotation_3">
+      <LineId Id="107" Count="14" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Read_Rotation_4">
+      <LineId Id="97" Count="14" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Read_State_1">
+      <LineId Id="74" Count="15" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Read_State_2">
+      <LineId Id="74" Count="15" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Read_State_3">
+      <LineId Id="74" Count="14" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Read_State_4">
+      <LineId Id="74" Count="14" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Read_TMS_1">
+      <LineId Id="92" Count="12" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="105" Count="1" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Read_TMS_2">
+      <LineId Id="135" Count="15" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Read_TMS_3">
+      <LineId Id="160" Count="14" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Read_TMS_4">
+      <LineId Id="160" Count="14" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Set_Reset_1">
+      <LineId Id="50" Count="15" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Set_Reset_2">
+      <LineId Id="66" Count="15" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Set_Reset_3">
+      <LineId Id="50" Count="15" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Set_Reset_4">
+      <LineId Id="59" Count="14" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Set_Start_0">
+      <LineId Id="50" Count="15" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Set_Start_Stop_1">
+      <LineId Id="66" Count="15" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Set_Start_Stop_2">
+      <LineId Id="66" Count="15" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Set_Start_Stop_3">
+      <LineId Id="50" Count="14" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_TBP.Set_Stop_0">
+      <LineId Id="50" Count="15" />
+      <LineId Id="40" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

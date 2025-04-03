@@ -1,0 +1,11 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="VPEType" Id="{1c365312-753c-43c9-827c-7db3790bb70a}">
+    <Declaration><![CDATA[TYPE VPEType :
+(
+	VPEType_Default := 0 //常规泵组
+)UINT;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

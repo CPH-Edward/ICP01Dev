@@ -1,0 +1,711 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="S_ActuatorRecoveryPOU" Id="{42ea9fc7-b2c1-4a15-b541-5a2661294289}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM S_ActuatorRecoveryPOU
+VAR_INPUT
+	bInit				:BOOL:=FALSE;// 初始化状态 busy/done/errDone
+	bTrig				:BOOL:=FALSE;// 执行触发 信号
+	bReset				:BOOL:=FALSE;// 报错 复位
+	bPause				:BOOL:=FALSE;// 暂停 运行
+	bStop				:BOOL:=FALSE;// 停止 运行
+	bAbort				:BOOL:=FALSE;// 中止 运行
+	
+	atmflag:BOOL;
+END_VAR
+VAR_OUTPUT
+	busy				:BOOL;
+	done				:BOOL;
+	errDone				:BOOL;
+END_VAR
+VAR
+	actStep				:ActStepBase;
+END_VAR
+VAR
+	i: INT;
+	t1:ton;
+	t2:ton;
+	t3:ton;
+	notchoose:BOOL;
+//	str:STRING;
+//	wstr:WSTRING;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[busy:=actStep.isBusy();
+done:=actStep.isDone();
+errDone:=actStep.isError();
+actStep.Act_Pause(pause:=bPause);
+
+IF bTrig THEN
+	bTrig:=FALSE;
+	IF NOT busy THEN
+		actStep.Act_ex();
+	END_IF
+END_IF
+
+//状态复位
+IF bInit THEN
+	bInit:=FALSE;
+	Act_init_status();
+END_IF
+
+IF bAbort OR bStop THEN
+	bAbort:=FALSE;
+	bStop:=FALSE;
+	Act_init_status();
+	actStep.toZeroStep();
+	gShowLogTextTitle:='NON';
+END_IF
+ActionRun(tempActStep:=actStep);]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{0b7b8338-f6e2-41eb-ac45-4d203eabe516}" />
+    <Method Name="Act_Ex" Id="{c019236e-bcbf-48d8-88ba-6a727d240a78}">
+      <Declaration><![CDATA[(*
+---Trigger action
+*)
+METHOD Act_Ex : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT busy THEN
+	actStep.Act_ex();
+	Act_Ex:=TRUE;
+ELSE
+	Act_Ex:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Init_Status" Id="{0d6aa319-6e97-47dc-b9e1-d94b6c17fb07}">
+      <Declaration><![CDATA[(*
+---功能: 状态复位 busy/done/errDone;
+*)
+METHOD Act_Init_Status
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[actStep.Act_Init();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ActionRun" Id="{b2bd079d-2460-483a-9917-92b7ed6f74dd}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE ActionRun
+VAR_INPUT
+	tempActStep:ITFActStep;
+END_VAR
+VAR
+END_VAR
+VAR_STAT//此处定义静态变量, 保证每次进入该函数时能够在线监控当前值
+	tempStep:DINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[tempStep:=tempActStep.getStep();
+CASE tempStep OF
+0:
+	IF tempActStep.isEx() THEN
+		tempActStep.setBusyFlag();
+		tempActStep.toBeginStep();
+	END_IF
+	t1(IN:= FALSE );
+	t2(IN:= FALSE );
+	t3(IN:= FALSE );
+10:
+	gShowLogTextTitle:='Actuator Recovery';
+	IF gRunningState<>RunningStatus.eErrorState THEN
+		tempActStep.addStep(5,FALSE);
+		// 电源先关闭
+		gICP.SourceRF.Act_Close();
+		gICP.PowerRF.Act_Close();
+		// 按道理先跳转去开气开水
+		gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Actuator Recovery POU Run: RF Close');
+	ELSE
+		error_Trigger(105);
+		IF gCtrlMode=ControlMode.eManualCtrMode THEN
+			tempActStep.toErrDoneStep();
+		END_IF
+	END_IF
+15:// 是否需要加上超时处理？？？？？？？？？？？？
+	IF gICP.SourceRF.Get_Done_Close() AND gICP.PowerRF.Get_Done_Close() THEN
+		tempActStep.addStep(5,FALSE);
+	END_IF
+20:// 动阀前，先将手臂收回
+	IF gICP.I_ARMHome THEN
+		tempActStep.toStep(150,FALSE);
+	ELSE
+		tempActStep.toStep(100,FALSE);
+	END_IF
+	
+100:
+	IF gICP.GateDoorValve.Get_Done_Ext() THEN
+		tempActStep.addStep(30,FALSE);
+		gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Actuator Recovery POU Run: GateDoor open Done');
+	ELSE
+		tempActStep.addStep(10,FALSE);
+		gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Actuator Recovery POU Run: GateDoor open');
+	END_IF
+110:
+	IF gICP.GateDoorValve.Act_Extend() THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+120:
+	IF gICP.GateDoorValve.Get_Done_Ext() THEN
+		gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Actuator Recovery POU Run: GateDoor open Done');
+		tempActStep.addStep(10,FALSE);
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		RETURN;
+	END_IF
+	t3(IN:= TRUE,PT:=T#5S );
+	IF t3.Q THEN
+		error_Trigger(106);
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		RETURN;
+	END_IF
+130:
+	IF gICP.ARM.Act_HOME_Auto() THEN
+		gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Actuator Recovery POU Run: ARM Homing');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+140:
+	IF gICP.ARM.Get_Done_HOME() AND gICP.I_ARMHome THEN
+		gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Actuator Recovery POU Run: ARM Homing Done');
+		tempActStep.addStep(10,FALSE);
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		RETURN;
+	END_IF
+	t3(IN:= TRUE,PT:=T#20S );
+	IF t3.Q THEN
+		error_Trigger(106);
+		tempActStep.addStep(5,FALSE);
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		RETURN;
+	END_IF
+145:
+	tempActStep.addStep(-15,TRUE);
+150:
+	tempActStep.toStep(300,FALSE);//
+200:
+	tempActStep.addStep(10,TRUE);
+210:
+	// 分三组，气柜、非气柜、摇摆阀和门阀
+	IF (NOT gICP.ForlinLineValveExtRelay OR gICP.ForlinLineValve.Get_Done_Ret()) AND 
+		(NOT gICP.RoughValveExtRelay OR gICP.RoughValve.Get_Done_Ret()) AND 
+		(NOT gICP.FastPummingExtRelay OR gICP.FastPummingValve.Get_Done_Ret()) AND 
+		(NOT gICP.SlowPummingExtRelay OR gICP.SlowPummingValve.Get_Done_Ret()) AND 
+		(NOT gICP.VentExtRelay OR gICP.VentValve.Get_Done_Ret()) AND 
+		(NOT gICP.AIMExtRelay OR gICP.AIMValve.Get_Done_Ret()) AND 
+		(NOT gICP.ISOExtRelay OR gICP.ISOValve.Get_Done_Ret()) AND 
+		gICP.PDVCloseSensor AND gICP.GateDoorRetSensor AND
+		(NOT gICP.GVA10ExtRelay_Vent OR gICP.GVA10Valve_Vent.Get_Done_Ret()) AND 
+		(NOT gICP.GASBoxVentExtRelay OR gICP.GASBoxVentValve.Get_Done_Ret()) AND 
+		(NOT gICP.HeINExtRelay OR gICP.HeINValve.Get_Done_Ret()) AND 
+		(NOT gICP.HePumExtRelay OR gICP.HePumValve.Get_Done_Ret()) AND 
+		(gICP.ElectrodeCylRetSensor OR gICP.ElectrodeCyl.Get_Done_Ret()) AND
+		(gICP.ElectrodeCylRetSensor OR gICP.ElectrodeCyl.Get_Done_Ret()) AND
+		gICP.S_GASBOX_AllGVClose AND gICP.S_GASBOX_AllMFCClearDone THEN
+		gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Actuator Recovery POU Run: All Actuator Recovery Done');
+		tempActStep.toStep(300,FALSE);
+	ELSE
+		tempActStep.addStep(1,FALSE);
+	END_IF
+211:
+	IF gICP.HeMFC_ActFlow<0.2 AND gICP.HeCheckGaugeReal<0.1 AND NOT gICP.HeINExtRelay AND NOT gICP.HePumExtRelay THEN
+		tempActStep.toStep(228,FALSE);
+		gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Actuator Recovery POU Run: Back of helium clear done');
+	ELSE
+		IF gICP.ChamberGauge.outputValue1>gLVacuumPressureChamber THEN
+			atmflag:=TRUE;
+			tempActStep.toStep(228,FALSE);
+		ELSE
+			atmflag:=FALSE;
+			tempActStep.addStep(1,FALSE);
+			gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+			gRunningLog.append('Actuator Recovery POU Run: Back of helium not clear');
+		END_IF
+	END_IF
+212:
+	tempActStep.addStep(1,TRUE);
+213:
+	IF gICP.HeINValve.Act_Retract() THEN
+		tempActStep.addStep(1,FALSE);
+		gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Actuator Recovery POU Run: HeIN Close');
+	END_IF
+214:
+	IF gICP.HeINValve.Get_Done_Ret() THEN
+		tempActStep.addStep(1,FALSE);
+		gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Actuator Recovery POU Run: HeIN Close');
+	END_IF
+215:
+	tempActStep.addStep(1,TRUE);
+216:
+	IF gICP.HePumValve.Act_Extend() THEN
+		tempActStep.addStep(1,FALSE);
+		gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Actuator Recovery POU Run: HePumValve Open');
+	END_IF
+217:
+	IF gICP.HePumValve.Get_Done_Ext() THEN
+		tempActStep.addStep(1,FALSE);
+		gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Actuator Recovery POU Run: HePumValve Open done');
+	END_IF
+218:
+	t2(IN:=TRUE ,PT:=T#2S);
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(1,FALSE);
+	END_IF
+219:
+	t1(IN:=gICP.HeMFC_ActFlow<0.2 AND gICP.HeCheckGaugeReal<0.1 ,PT:=T#2S);
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		gICP.HePumValve.Act_Retract();
+		gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Actuator Recovery POU Run: HePumValve close');
+		tempActStep.addStep(1,FALSE);
+	END_IF
+220:
+	IF gICP.HeINValve.Act_Retract() THEN
+		tempActStep.addStep(1,FALSE);
+		gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Actuator Recovery POU Run: HePumValve close done');
+	END_IF
+221:
+	IF gICP.HeINValve.Get_Done_Ret() THEN
+		tempActStep.addStep(1,FALSE);
+	END_IF
+222:
+	tempActStep.addStep(1,TRUE);
+223:
+	IF gICP.HePumValve.Act_Extend() THEN
+		tempActStep.addStep(1,FALSE);
+	END_IF
+224:
+	IF gICP.HePumValve.Get_Done_Ext() THEN
+		tempActStep.addStep(1,FALSE);
+	END_IF
+225:
+	t2(IN:=TRUE ,PT:=T#2S);
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(1,FALSE);
+	END_IF
+226:
+	t1(IN:=gICP.HeMFC_ActFlow<0.2 AND gICP.HeCheckGaugeReal<0.1 AND gICP.ChamberGauge.outputValue1<500.0 AND NOT gICP.ChamberGauge.error,PT:=T#2S);
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		gICP.HePumValve.Act_Retract();
+		tempActStep.addStep(1,FALSE);
+	END_IF
+227:
+	IF gICP.HePumValve.Get_Done_Ret() THEN
+		tempActStep.addStep(1,FALSE);
+	END_IF
+228:
+	IF 
+	gICP.RoughValve.Act_Retract() AND 
+	gICP.FastPummingValve.Act_Retract() AND
+	gICP.SlowPummingValve.Act_Retract() AND
+	gICP.VentValve.Act_Retract() AND
+	gICP.AIMValve.Act_Retract() AND
+	gICP.ISOValve.Act_Retract() AND
+	gICP.GateDoorValve.Act_Retract() AND
+	gICP.GVA10Valve_Vent.Act_Retract() AND
+	gICP.GASBoxVentValve.Act_Retract() AND
+	gICP.HeINValve.Act_Retract() AND
+	gICP.HePumValve.Act_Retract() AND
+	gICP.ElectrodeCyl.Act_Retract()  AND
+	gICP.LiftPinCyl.Act_Retract() THEN
+	IF (gRoughRemain) THEN
+		tempActStep.addStep(2,FALSE);
+		gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Actuator Recovery POU Run: ALL Valve Recovery');
+	ELSE
+		IF gICP.ForlinLineValve.Act_Retract() THEN
+			tempActStep.addStep(2,FALSE);
+			gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+			gRunningLog.append('Actuator Recovery POU Run: ALL Valve Recovery');
+		END_IF
+	END_IF
+	END_IF;
+230:
+	IF gRoughRemain THEN
+		t1(IN:=	(NOT gICP.RoughValveExtRelay AND gICP.RoughValve.Get_Done_Ret()) AND 
+			(NOT gICP.FastPummingExtRelay AND gICP.FastPummingValve.Get_Done_Ret()) AND 
+			(NOT gICP.SlowPummingExtRelay AND gICP.SlowPummingValve.Get_Done_Ret()) AND 
+			(NOT gICP.VentExtRelay AND gICP.VentValve.Get_Done_Ret()) AND 
+			(NOT gICP.AIMExtRelay AND gICP.AIMValve.Get_Done_Ret()) AND 
+			(NOT gICP.ISOExtRelay AND gICP.ISOValve.Get_Done_Ret()) AND 
+			(gICP.GateDoorValve.Get_Done_Ret() AND gICP.GateDoorRetSensor) AND 
+			(NOT gICP.GVA10ExtRelay_Vent OR gICP.GVA10Valve_Vent.Get_Done_Ret()) AND 
+			(NOT gICP.GASBoxVentExtRelay AND gICP.GASBoxVentValve.Get_Done_Ret()) AND 
+			(NOT gICP.HeINExtRelay AND gICP.HeINValve.Get_Done_Ret()) AND 
+			(NOT gICP.HePumExtRelay AND gICP.HePumValve.Get_Done_Ret()) AND 
+			(gICP.ElectrodeCylRetSensor AND gICP.ElectrodeCyl.Get_Done_Ret()) AND
+			(gICP.LiftPinRetSensor AND gICP.LiftPinCyl.Get_Done_Ret()),PT:=T#1S);
+	ELSE
+		t1(IN:=(NOT gICP.ForlinLineValveExtRelay AND gICP.ForlinLineValve.Get_Done_Ret()) AND 
+			(NOT gICP.RoughValveExtRelay AND gICP.RoughValve.Get_Done_Ret()) AND 
+			(NOT gICP.FastPummingExtRelay AND gICP.FastPummingValve.Get_Done_Ret()) AND 
+			(NOT gICP.SlowPummingExtRelay AND gICP.SlowPummingValve.Get_Done_Ret()) AND 
+			(NOT gICP.VentExtRelay AND gICP.VentValve.Get_Done_Ret()) AND 
+			(NOT gICP.AIMExtRelay AND gICP.AIMValve.Get_Done_Ret()) AND 
+			(NOT gICP.ISOExtRelay AND gICP.ISOValve.Get_Done_Ret()) AND 
+			(gICP.GateDoorValve.Get_Done_Ret() AND gICP.GateDoorRetSensor) AND 
+			(NOT gICP.GVA10ExtRelay_Vent OR gICP.GVA10Valve_Vent.Get_Done_Ret()) AND 
+			(NOT gICP.GASBoxVentExtRelay AND gICP.GASBoxVentValve.Get_Done_Ret()) AND 
+			(NOT gICP.HeINExtRelay AND gICP.HeINValve.Get_Done_Ret()) AND 
+			(NOT gICP.HePumExtRelay AND gICP.HePumValve.Get_Done_Ret()) AND 
+			(gICP.ElectrodeCylRetSensor AND gICP.ElectrodeCyl.Get_Done_Ret()) AND
+			(gICP.LiftPinRetSensor AND gICP.LiftPinCyl.Get_Done_Ret()),PT:=T#1S);	
+	END_IF
+	
+	IF  t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(10,FALSE);
+		gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Actuator Recovery POU Run: ALL Valve Recovery Done');
+		RETURN;
+	END_IF
+	t3(IN:=TRUE,PT:=T#60S);
+	IF t3.Q THEN
+		error_Trigger(106);
+		tempActStep.toStep(200,FALSE);
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		RETURN;
+	END_IF
+240:
+	tempActStep.toStep(400,FALSE);
+300:
+	tempActStep.addStep(10,TRUE);
+310:
+	IF gICP.S_GASBOX_AllGVClose AND gICP.S_GASBOX_AllMFCClearDone THEN
+		tempActStep.toStep(200,FALSE);
+	ELSE
+		gICP.C_GASBOX_AllGVBClose:=TRUE;
+		gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Actuator Recovery POU Run: Gas BOX GVB Valve Recovery');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+320:
+	t2(IN:=gICP.S_GASBOX_AllMFCClearDone,PT:=T#5S);
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(10,FALSE);
+	END_IF
+330:
+	gICP.C_GASBOX_AllGVClose:=TRUE;
+	gICP.C_GASBOX_AllMFCClear:=TRUE;
+	tempActStep.addStep(10,FALSE);
+340:
+	t1(IN:=(gICP.S_GASBOX_AllGVClose AND gICP.S_GASBOX_AllMFCClearDone),PT:=T#2S);
+	IF  t1.Q THEN
+		gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Actuator Recovery POU Run: Gas BOX All Valve And MFC Recovery Done');
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(10,FALSE);
+		RETURN;
+	END_IF
+	t3(IN:=TRUE,PT:=T#60S);
+	IF t3.Q THEN
+		error_Trigger(106);
+		tempActStep.toStep(300,FALSE);
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		RETURN;
+	END_IF
+350:
+	tempActStep.toStep(200,FALSE);
+400:
+	tempActStep.addStep(10,TRUE);
+410:
+	IF (gICP.PDVCloseSensor OR gRoughRemain) AND gICP.GateDoorRetSensor THEN 
+		tempActStep.toStep(1000,FALSE);
+	ELSE
+		IF gICP.PDV.Act_Retract() AND gICP.GateDoorValve.Act_Retract() THEN
+			gRunningLog.append(CONCAT('Actuator Recovery POU Run:',DINT_TO_STRING(tempStep)));
+			gRunningLog.append('Actuator Recovery POU Run: PDV\Gate Door Recovery');
+			tempActStep.addStep(10,FALSE);
+		ELSE
+			error_Trigger(106);
+			tempActStep.addStep(-10,FALSE);
+		END_IF
+	END_IF
+420:
+	t1(IN:=(gICP.PDVCloseSensor AND gICP.GateDoorRetSensor),PT:=T#1S);
+	IF  t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(10,FALSE);
+		RETURN;
+	END_IF
+	t3(IN:=TRUE,PT:=T#10S);
+	IF t3.Q THEN
+		error_Trigger(106);
+		tempActStep.toErrDoneStep();
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		RETURN;
+	END_IF
+430:
+	tempActStep.toStep(1000,FALSE);
+1000:
+	tempActStep.toDoneStep();
+
+60000://Done
+	tempActStep.setDoneFlag();
+	tempActStep.toZeroStep();
+	
+65000://Error
+	tempActStep.setErrDoneFlag();
+	tempActStep.toZeroStep();
+	error_Trigger(300);
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="S_ActuatorRecoveryPOU">
+      <LineId Id="49" Count="0" />
+      <LineId Id="385" Count="2" />
+      <LineId Id="406" Count="12" />
+      <LineId Id="422" Count="0" />
+      <LineId Id="530" Count="1" />
+      <LineId Id="489" Count="0" />
+      <LineId Id="510" Count="0" />
+      <LineId Id="509" Count="0" />
+      <LineId Id="560" Count="0" />
+      <LineId Id="395" Count="0" />
+      <LineId Id="446" Count="0" />
+    </LineIds>
+    <LineIds Name="S_ActuatorRecoveryPOU.Act_Ex">
+      <LineId Id="14" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="17" Count="0" />
+    </LineIds>
+    <LineIds Name="S_ActuatorRecoveryPOU.Act_Init_Status">
+      <LineId Id="15" Count="0" />
+    </LineIds>
+    <LineIds Name="S_ActuatorRecoveryPOU.ActionRun">
+      <LineId Id="1302" Count="10" />
+      <LineId Id="2117" Count="0" />
+      <LineId Id="1667" Count="0" />
+      <LineId Id="1691" Count="0" />
+      <LineId Id="1974" Count="0" />
+      <LineId Id="1972" Count="1" />
+      <LineId Id="1744" Count="0" />
+      <LineId Id="2087" Count="0" />
+      <LineId Id="2004" Count="0" />
+      <LineId Id="1688" Count="0" />
+      <LineId Id="2003" Count="0" />
+      <LineId Id="2135" Count="1" />
+      <LineId Id="2134" Count="0" />
+      <LineId Id="1689" Count="0" />
+      <LineId Id="1991" Count="2" />
+      <LineId Id="1989" Count="0" />
+      <LineId Id="1693" Count="0" />
+      <LineId Id="1709" Count="0" />
+      <LineId Id="1720" Count="0" />
+      <LineId Id="1710" Count="0" />
+      <LineId Id="1721" Count="0" />
+      <LineId Id="1708" Count="0" />
+      <LineId Id="1900" Count="0" />
+      <LineId Id="1826" Count="0" />
+      <LineId Id="1857" Count="0" />
+      <LineId Id="1860" Count="0" />
+      <LineId Id="2154" Count="1" />
+      <LineId Id="1861" Count="1" />
+      <LineId Id="2089" Count="0" />
+      <LineId Id="2156" Count="0" />
+      <LineId Id="1859" Count="0" />
+      <LineId Id="1875" Count="1" />
+      <LineId Id="2119" Count="1" />
+      <LineId Id="1879" Count="0" />
+      <LineId Id="1882" Count="0" />
+      <LineId Id="2090" Count="0" />
+      <LineId Id="2014" Count="0" />
+      <LineId Id="1884" Count="0" />
+      <LineId Id="1887" Count="6" />
+      <LineId Id="2015" Count="0" />
+      <LineId Id="1895" Count="3" />
+      <LineId Id="1886" Count="0" />
+      <LineId Id="1878" Count="0" />
+      <LineId Id="1899" Count="0" />
+      <LineId Id="2159" Count="1" />
+      <LineId Id="2157" Count="1" />
+      <LineId Id="1829" Count="1" />
+      <LineId Id="2092" Count="0" />
+      <LineId Id="2012" Count="0" />
+      <LineId Id="1831" Count="0" />
+      <LineId Id="1835" Count="1" />
+      <LineId Id="1834" Count="0" />
+      <LineId Id="1833" Count="0" />
+      <LineId Id="1832" Count="0" />
+      <LineId Id="1837" Count="1" />
+      <LineId Id="2011" Count="0" />
+      <LineId Id="1841" Count="3" />
+      <LineId Id="1839" Count="1" />
+      <LineId Id="2132" Count="1" />
+      <LineId Id="2042" Count="0" />
+      <LineId Id="2118" Count="0" />
+      <LineId Id="1722" Count="0" />
+      <LineId Id="1856" Count="0" />
+      <LineId Id="1723" Count="0" />
+      <LineId Id="1807" Count="6" />
+      <LineId Id="1816" Count="0" />
+      <LineId Id="1971" Count="0" />
+      <LineId Id="2204" Count="0" />
+      <LineId Id="1817" Count="5" />
+      <LineId Id="2309" Count="0" />
+      <LineId Id="2016" Count="0" />
+      <LineId Id="1823" Count="0" />
+      <LineId Id="2393" Count="0" />
+      <LineId Id="2406" Count="0" />
+      <LineId Id="1771" Count="0" />
+      <LineId Id="2216" Count="0" />
+      <LineId Id="2258" Count="0" />
+      <LineId Id="2318" Count="0" />
+      <LineId Id="2310" Count="0" />
+      <LineId Id="2322" Count="0" />
+      <LineId Id="2260" Count="0" />
+      <LineId Id="2408" Count="4" />
+      <LineId Id="2414" Count="1" />
+      <LineId Id="2413" Count="0" />
+      <LineId Id="2407" Count="0" />
+      <LineId Id="2262" Count="5" />
+      <LineId Id="2314" Count="1" />
+      <LineId Id="2268" Count="3" />
+      <LineId Id="2316" Count="1" />
+      <LineId Id="2272" Count="5" />
+      <LineId Id="2323" Count="1" />
+      <LineId Id="2278" Count="3" />
+      <LineId Id="2325" Count="1" />
+      <LineId Id="2282" Count="15" />
+      <LineId Id="2327" Count="1" />
+      <LineId Id="2298" Count="0" />
+      <LineId Id="2219" Count="3" />
+      <LineId Id="2329" Count="1" />
+      <LineId Id="2223" Count="28" />
+      <LineId Id="2308" Count="0" />
+      <LineId Id="2252" Count="4" />
+      <LineId Id="2217" Count="0" />
+      <LineId Id="1746" Count="0" />
+      <LineId Id="2161" Count="0" />
+      <LineId Id="1749" Count="5" />
+      <LineId Id="2121" Count="0" />
+      <LineId Id="2206" Count="0" />
+      <LineId Id="1755" Count="3" />
+      <LineId Id="1902" Count="0" />
+      <LineId Id="2341" Count="0" />
+      <LineId Id="2344" Count="1" />
+      <LineId Id="2342" Count="0" />
+      <LineId Id="2346" Count="1" />
+      <LineId Id="2350" Count="1" />
+      <LineId Id="2348" Count="1" />
+      <LineId Id="2343" Count="0" />
+      <LineId Id="2162" Count="0" />
+      <LineId Id="1772" Count="0" />
+      <LineId Id="2352" Count="0" />
+      <LineId Id="2355" Count="0" />
+      <LineId Id="2357" Count="10" />
+      <LineId Id="2353" Count="0" />
+      <LineId Id="2368" Count="0" />
+      <LineId Id="2370" Count="12" />
+      <LineId Id="2369" Count="0" />
+      <LineId Id="2354" Count="0" />
+      <LineId Id="1790" Count="0" />
+      <LineId Id="1787" Count="0" />
+      <LineId Id="1802" Count="1" />
+      <LineId Id="1789" Count="0" />
+      <LineId Id="1804" Count="0" />
+      <LineId Id="2112" Count="0" />
+      <LineId Id="2018" Count="0" />
+      <LineId Id="1805" Count="0" />
+      <LineId Id="1788" Count="0" />
+      <LineId Id="1806" Count="0" />
+      <LineId Id="1848" Count="0" />
+      <LineId Id="2019" Count="0" />
+      <LineId Id="1849" Count="4" />
+      <LineId Id="1847" Count="0" />
+      <LineId Id="1854" Count="1" />
+      <LineId Id="1762" Count="2" />
+      <LineId Id="1935" Count="0" />
+      <LineId Id="2392" Count="0" />
+      <LineId Id="1936" Count="0" />
+      <LineId Id="1940" Count="0" />
+      <LineId Id="2113" Count="0" />
+      <LineId Id="2022" Count="0" />
+      <LineId Id="1938" Count="0" />
+      <LineId Id="1725" Count="0" />
+      <LineId Id="2174" Count="0" />
+      <LineId Id="2176" Count="1" />
+      <LineId Id="2180" Count="2" />
+      <LineId Id="2184" Count="0" />
+      <LineId Id="2175" Count="0" />
+      <LineId Id="2185" Count="0" />
+      <LineId Id="2188" Count="0" />
+      <LineId Id="2193" Count="1" />
+      <LineId Id="1905" Count="0" />
+      <LineId Id="1918" Count="1" />
+      <LineId Id="2114" Count="0" />
+      <LineId Id="2023" Count="0" />
+      <LineId Id="1920" Count="7" />
+      <LineId Id="2020" Count="0" />
+      <LineId Id="1928" Count="4" />
+      <LineId Id="1906" Count="0" />
+      <LineId Id="1933" Count="1" />
+      <LineId Id="1942" Count="0" />
+      <LineId Id="1944" Count="5" />
+      <LineId Id="2140" Count="1" />
+      <LineId Id="2138" Count="0" />
+      <LineId Id="2142" Count="0" />
+      <LineId Id="2144" Count="0" />
+      <LineId Id="2143" Count="0" />
+      <LineId Id="2139" Count="0" />
+      <LineId Id="1952" Count="11" />
+      <LineId Id="2021" Count="0" />
+      <LineId Id="1964" Count="6" />
+      <LineId Id="1943" Count="0" />
+      <LineId Id="1668" Count="9" />
+      <LineId Id="1692" Count="0" />
+      <LineId Id="1092" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

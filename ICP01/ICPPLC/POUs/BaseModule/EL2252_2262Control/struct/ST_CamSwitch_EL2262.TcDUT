@@ -1,0 +1,14 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="ST_CamSwitch_EL2262" Id="{70eb3467-87e7-4907-9633-a8ed5b15f95f}">
+    <Declaration><![CDATA[TYPE ST_CamSwitch_EL2262 :
+STRUCT
+	bTimeMode:BOOL:=TRUE;//TRUE表示时间控制模式, 持续时间由fDuration控制; FALSE表示位置控制模式，持续时间由fFirstOnPosition和fLastOnPosition控制
+	fFirstOnPosition:LREAL;//时间控制模式和位置控制模式触发起始点
+	fLastOnPosition:LREAL:=fFirstOnPosition+0.5;//位置控制模式触发结束点
+	iAxisDirection:INT:=0;//-1表示负方向检测; 0表示正负方向检测(时间控制模式必须是0); 1表示正方向检测;
+	fDuration:LREAL:=5E-6;//持续时间, 单位s
+END_STRUCT
+END_TYPE]]></Declaration>
+  </DUT>
+</TcPlcObject>

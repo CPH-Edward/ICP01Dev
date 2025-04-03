@@ -1,0 +1,303 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <DUT Name="ST_ICP" Id="{292864af-500e-4939-8de0-59d901cfc476}">
+    <Declaration><![CDATA[TYPE ST_ICP :
+STRUCT
+	// 干泵
+	MachianicalPum								:VPEModule;
+	MachianicalPumAcc							:BOOL;//预热，加速信号
+	MachianicalPumAlm							:BOOL;//泵组报警信号
+	MachianicalPumOpen							:BOOL;//泵组开继电器
+	// 阀门
+	// 1
+	ForlinLineValve								:CylinderModule;
+	ForlinLineValveExtRelay						:BOOL;// 输出变量,开阀线圈
+	ForlinLineValveNoteArry						:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 2
+	RoughValve									:CylinderModule;
+	RoughValveExtRelay							:BOOL;// 输出变量,开阀线圈
+	RoughValveNoteArry							:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 3
+	SlowPummingValve							:CylinderModule;
+	SlowPummingExtRelay							:BOOL;// 输出变量,开阀线圈
+	SlowPummingNoteArry							:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 4
+	FastPummingValve							:CylinderModule;
+	FastPummingExtRelay							:BOOL;// 输出变量,开阀线圈
+	FastPummingNoteArry							:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 5
+	ElectrodeCyl								:CylinderModule;
+	ElectrodeCylExtRelay						:BOOL;// 输出变量,开阀线圈
+	ElectrodeCylRetRelay						:BOOL;// 输出变量,关阀线圈
+	ElectrodeCylExtSensor						:BOOL;// 输入变量,开到位
+	ElectrodeCylRetSensor						:BOOL;// 输入变量,关到位
+	ElectrodeCylNoteArry						:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 6
+	LiftPinCyl									:CylinderModule;
+	LiftPinExtRelay								:BOOL;// 输出变量,开阀线圈
+	LiftPinRetRelay								:BOOL;// 输出变量,关阀线圈
+	LiftPinExtSensor							:BOOL;// 输入变量,开到位
+	LiftPinRetSensor							:BOOL;// 输入变量,关到位
+	LiftPinNoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 7
+	GVA1Valve									:CylinderModule;
+	GVA1ExtRelay								:BOOL;// 输出变量,开阀线圈
+	GVA1NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 8
+	GVA2Valve									:CylinderModule;
+	GVA2ExtRelay								:BOOL;// 输出变量,开阀线圈
+	GVA2NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 9
+	GVA3Valve									:CylinderModule;
+	GVA3ExtRelay								:BOOL;// 输出变量,开阀线圈
+	GVA3NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 10
+	GVA4Valve									:CylinderModule;
+	GVA4ExtRelay								:BOOL;// 输出变量,开阀线圈
+	GVA4NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 11
+	GVA5Valve									:CylinderModule;
+	GVA5ExtRelay								:BOOL;// 输出变量,开阀线圈
+	GVA5NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 12
+	GVA6Valve									:CylinderModule;
+	GVA6ExtRelay								:BOOL;// 输出变量,开阀线圈
+	GVA6NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 13
+	GVA7Valve									:CylinderModule;
+	GVA7ExtRelay								:BOOL;// 输出变量,开阀线圈
+	GVA7NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 14
+	GVA8Valve									:CylinderModule;
+	GVA8ExtRelay								:BOOL;// 输出变量,开阀线圈
+	GVA8NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 15
+	GVA9Valve									:CylinderModule;
+	GVA9ExtRelay								:BOOL;// 输出变量,开阀线圈
+	GVA9NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 16
+	GVA10Valve_Vent								:CylinderModule;
+	GVA10ExtRelay_Vent							:BOOL;// 输出变量,开阀线圈--Vent  N2
+	GVA10NoteArry_Vent							:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	// 16
+	GV20Valve_Main								:CylinderModule;
+	GV20ExtRelay_Main							:BOOL;// 输出变量,开阀线圈--MainValve
+	GV20NoteArry_Main							:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	// 17
+	GVB1Valve									:CylinderModule;
+	GVB1ExtRelay								:BOOL;// 输出变量,开阀线圈
+	GVB1NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 18
+	GVB2Valve									:CylinderModule;
+	GVB2ExtRelay								:BOOL;// 输出变量,开阀线圈
+	GVB2NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 19
+	GVB3Valve									:CylinderModule;
+	GVB3ExtRelay								:BOOL;// 输出变量,开阀线圈
+	GVB3NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 20
+	GVB4Valve									:CylinderModule;
+	GVB4ExtRelay								:BOOL;// 输出变量,开阀线圈
+	GVB4NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 21
+	GVB5Valve									:CylinderModule;
+	GVB5ExtRelay								:BOOL;// 输出变量,开阀线圈
+	GVB5NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 22
+	GVB6Valve									:CylinderModule;
+	GVB6ExtRelay								:BOOL;// 输出变量,开阀线圈
+	GVB6NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 23
+	GVB7Valve									:CylinderModule;
+	GVB7ExtRelay								:BOOL;// 输出变量,开阀线圈
+	GVB7NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 24
+	GVB8Valve									:CylinderModule;
+	GVB8ExtRelay								:BOOL;// 输出变量,开阀线圈
+	GVB8NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 25
+	GVB9Valve									:CylinderModule;
+	GVB9ExtRelay								:BOOL;// 输出变量,开阀线圈
+	GVB9NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 26
+	ISOValve								     :CylinderModule;
+	ISOExtRelay								     :BOOL;// 输出变量,开阀线圈
+	ISONoteArry								     :ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	// 27
+	AIMValve								     :CylinderModule;
+	AIMExtRelay								     :BOOL;// 输出变量,开阀线圈
+	AIMNoteArry								     :ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	//28
+	GateDoorValve								 :CylinderModule;
+	GateDoorExtRelay							 :BOOL;// 输出变量,开阀线圈
+	GateDoorRetRelay							 :BOOL;// 输出变量,关阀线圈
+	GateDoorExtSensor							 :BOOL;// 输入变量,开到位
+	GateDoorRetSensor							 :BOOL;// 输入变量,关到位
+	GateDoorNoteArry							 :ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	//29
+	VentValve									 :CylinderModule;
+	VentExtRelay								 :BOOL;// 输出变量,开阀线圈
+	VentNoteArry								 :ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// 分子泵
+	TruboPum									 :TMPModule;
+	TruboPumAcc									 :BOOL;// 分子泵加速IO输入
+	TruboPumNormal								 :BOOL;// 分子泵匀速IO输入
+	TruboPumDcc									 :BOOL;// 分子泵减速IO输入
+	TruboPumError								 :BOOL;// 分子泵报错IO输入
+	TruboPumOpen								 :BOOL;// 分子泵启动IO输出
+	TruboPumReset								 :BOOL;// 分子泵复位IO输出
+	TruboPumNoRotation							 :BOOL; // 静止
+	TruboPumAlarm								 :BOOL;	// 警告
+	TruboPumRemote								 :BOOL;	// 远程操作中 远程操作为1
+	TruboPumRotationSpeed						 :UDINT;// 实时转速（HZ）
+	TruboPumTMS									 :REAL;// TMS 温度
+	TruboPumNoteArry							 :ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	// MFC
+	MFC1										 :MFCModule;
+	MFC1NoteArry								 :ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	MFC2										 :MFCModule;
+	MFC2NoteArry								 :ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	MFC3										 :MFCModule;
+	MFC3NoteArry								 :ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	MFC4										 :MFCModule;
+	MFC4NoteArry								 :ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	MFC5										 :MFCModule;
+	MFC5NoteArry								 :ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	MFC6										:MFCModule;
+	MFC6NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	MFC7										:MFCModule;
+	MFC7NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	MFC8										:MFCModule;
+	MFC8NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	MFC9										:MFCModule;
+	MFC9NoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	// RF 电源
+	PowerRF										:RFModule;
+	PowerRFOpenRelay							:BOOL;
+	PowerRFResetRelay							:BOOL;
+	PowerRF_Alrm								:BOOL;
+	PowerRF_ON									:BOOL;
+	PowerRFNoteArry								:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	SourceRF									:RFModule_Source;
+	SourceRFOpenRelay							:BOOL;
+	SourceRFResetRelay							:BOOL;
+	SourceRF_Alrm								:BOOL;
+	SourceRF_ON									:BOOL;
+	SourceRFNoteArry							:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	// Chiller
+	Chiller										:ChillerModule_1;// 水冷
+	
+	// PendulumValve
+	PDV											:PVModule;
+	PDVOpenRelay								:BOOL;// 输出变量,开阀线圈
+	PDVCloseRelay								:BOOL;// 输出变量,关阀线圈
+	PDVModeRelay								:BOOL;// 输出变量,模式切换线圈
+	PDVOpenSensor								:BOOL;// 输入变量,开到位
+	PDVCloseSensor								:BOOL;// 输入变量,关到位
+	PDVNoteArry									:ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	// ARM
+	ARM											:ARMModule;
+	I_ARMHome									:BOOL;
+	// ATM
+	I_ATMSensor									:BOOL;		
+	
+	// ForeLineGauge
+	ForeLineGauge								:GaugeViewModule;
+	AI_ForeLineGauge							AT %I* :INT ;
+	// AIMGauge
+	AIMGauge									:GaugeViewModule;
+	AI_AIMGauge									AT %I* :INT ;
+	// LoadLockGauge
+	LoadLockGauge								:GaugeViewModule;
+	AI_LoadLockGauge							AT %I* :INT ;
+	// ChamberGauge
+	ChamberGauge								:ChamberGaugeViewModule;
+	AI_ChamberGauge								AT %I* :INT ;
+	ChamberGaugeReal							:REAL;
+	// TBGauge
+	TBGauge										:GaugeViewModule;
+	AI_TBGauge									:UDINT ;
+	// HeMFM
+	HeMFC_ActFlow								AT %I* :REAL ;
+	HeMFC_SetFlow								AT %Q* :REAL:=2.5 ;
+	HeMFC_SetFlowHMI							:REAL:=2 ;
+	//30
+	HeINValve									 :CylinderModule;
+	HeINExtRelay								 :BOOL;// 输出变量,开阀线圈
+	HeINNoteArry								 :ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	//31
+	HePumValve									 :CylinderModule;
+	HePumExtRelay								 :BOOL;// 输出变量,开阀线圈
+	HePumNoteArry								 :ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	//32
+	GASBoxVentValve								 :CylinderModule;
+	GASBoxVentExtRelay							 :BOOL;// 输出变量,开阀线圈
+	GASBoxVentNoteArry							 :ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	
+	//33
+	TBPurgeValve								 :CylinderModule;
+	TBPurgeExtRelay								 :BOOL;// 输出变量,开阀线圈
+	TBPurgeNoteArry								 :ARRAY [1..gNoteArryMaxNum] OF WSTRING;// 操作提示
+	// IO
+	I_LLSwitch									:BOOL;// Load Lock Switch
+	I_LLSwitchString							:STRING;
+	I_WaferCheck								:BOOL;// Load Loch WaferCheck
+	I_PressureCheck								:BOOL;// Pressure detection
+	I_WaterFlowCheck							:BOOL;// WaterFlow detection
+	I_WaterTemperatureCheck						:BOOL;// WaterTemperature detection
+	I_ArmHomeSensor								:BOOL;// ARM Homeing Sensor
+	HeCheckGaugeReal							:REAL;
+	
+	C_GASBOX_AllGVAOpen							:BOOL;// 全部GVAOpen
+	C_GASBOX_AllGVBOpen							:BOOL;// 全部GVBOpen
+	C_GASBOX_AllGVAClose						:BOOL;// 全部GVAClose
+	C_GASBOX_AllGVBClose						:BOOL;// 全部GVBClose
+	
+	C_GASBOX_AllGVAOpenTemp						:BOOL;// 全部GVAOpen HMI
+	C_GASBOX_AllGVBOpenTemp						:BOOL;// 全部GVBOpen HMI
+	C_GASBOX_AllGVACloseTemp					:BOOL;// 全部GVAClose HMI
+	C_GASBOX_AllGVBCloseTemp					:BOOL;// 全部GVBClose HMI
+	
+	C_GASBOX_AllGVOpen							:BOOL;// 全部GVOpen 
+	C_GASBOX_AllGVClose							:BOOL;// 全部GVClose
+	
+	C_GASBOX_AllMFCSet							:BOOL;// 全部MFC设置
+	C_GASBOX_AllMFCClear						:BOOL;// 全部MFC清除
+	C_GASBOX_AllMFCSetTemp						:BOOL;// 全部MFC设置
+	C_GASBOX_AllMFCClearTemp					:BOOL;// 全部MFC清除
+	
+	S_GASBOX_AllGVAOpen							:BOOL;// 全部GVAOpen 完成
+	S_GASBOX_AllGVBOpen							:BOOL;// 全部GVBOpen 完成
+	S_GASBOX_AllGVAClose						:BOOL;// 全部GVAClose 完成
+	S_GASBOX_AllGVBClose						:BOOL;// 全部GVBClose 完成
+	S_GASBOX_AllGVOpen							:BOOL;// 全部GVOpen 完成
+	S_GASBOX_AllGVClose							:BOOL;// 全部GVClose 完成
+	S_GASBOX_AllMFCSetDone						:BOOL;// 全部MFC设置 完成
+	S_GASBOX_AllMFCClearDone					:BOOL;// 全部MFC清除 完成
+	S_GASBOX_AllMFCClearDoneStep				:BOOL;// 全部MFC清除 完成
+	S_GASBOX_AllMFCSetEqual						:BOOL;// 全部MFC设置参数 等于 反馈参数
+	
+	S_MFCMonitFlowNotZero						:BOOL;// MFC实时检查参数不小于0
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

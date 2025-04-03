@@ -1,0 +1,990 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="CylinderModule" Id="{bc6d0cd9-6dbe-41e6-8003-d5320cc2ebc7}" SpecialFunc="None">
+    <Declaration><![CDATA[(*
+--报错编号0: 无报错
+--报错编号1: Extend Error
+--报错编号2: Retract Error
+*)
+FUNCTION_BLOCK CylinderModule
+VAR_IN_OUT
+	WarmHMI					:WARMStruct;
+	NoteHMI					:NoteStruct;
+	operatorLog				:printLogModule_EX;
+END_VAR
+VAR_INPUT
+	HMIItf						:CylinderModuleHMI;//每个气缸对象都关联了一个HMI
+	cylinderType				:CylinderType:=CylinderType_Default;//设置气缸的类型, 可通过该变量修改为真空发生器
+	
+	real_TimeMonitor			:BOOL:=TRUE;//实时状态检测
+	extStep					    :UINT:=0;
+	retStep					    :UINT:=0;
+	extend						:BOOL:=FALSE;//伸出触发信号
+	extCondition				:BOOL:=TRUE;//伸出启停条件
+	retract						:BOOL:=FALSE;//收回触发信号
+	retCondition				:BOOL:=TRUE;//收回启停条件
+	reset						:BOOL:=FALSE;//复位信号
+	stop						:BOOL:=FALSE;//停止信号
+	power						:BOOL:=TRUE;//气缸动作后是否关闭继电器得电状态, TRUE--保持得电,FALSE--断开得电
+	enable						:BOOL:=TRUE;//气缸禁用条件
+	//ctrlMode					:ControlMode:=ControlMode.eManualCtrMode;//eManualCtrMode or eAutoCtrMode
+	hmiEN						:BOOL:=TRUE;//HMI 启用条件
+	
+	errorDelayTime				:TIME:=T#3000MS;//气缸感应器感应超时
+	//doneDelayTimeShort		:TIME:=T#100MS;//气缸感应到位延时---取消使用
+	//doneDelayTimeLong			:TIME:=T#500MS;//无气缸感应到位延时---取消使用
+	doneDelayTimeShortExtend	:TIME:=T#100MS;//气缸感应到位延时_伸出
+	doneDelayTimeShortRetract	:TIME:=T#100MS;//气缸感应到位延时_收回
+	doneDelayTimeLongExtend		:TIME:=T#500MS;//无气缸感应到位延时_伸出
+	doneDelayTimeLongRetract	:TIME:=T#500MS;//无气缸感应到位延时_收回
+	errorID						:UDINT:=0;//气缸错误报警分配的起始ID
+	nameTXT						:STRING(255):='';//气缸名字
+	inVacu						:REAL;
+	viewForlineVac			:REAL:=100000;
+	
+	extAprSw					:BOOL:=FALSE;//气缸伸出感应器信号,需要链接到实际的IO点
+	retAprSw					:BOOL:=FALSE;//气缸收回感应器信号,需要链接到实际的IO点
+	enableExtAprSw				:BOOL:=TRUE;//启用伸出感应器,针对只有一个传感器的气缸
+	enableRetAprSw				:BOOL:=TRUE;//启用收回感应器,针对只有一个传感器的气缸
+	noteWTXT_Ext				:WSTRING(255):="";//气缸伸出动作NoteTXT 中文
+	noteWTXT_Ret				:WSTRING(255):="";//气缸缩回动作NoteTXT 中文
+END_VAR
+VAR_OUTPUT
+	extRelay				:BOOL:=FALSE;//气缸伸出执行继电器,需要链接到实际的IO点
+	retRelay				:BOOL:=FALSE;//气缸收回执行继电器,需要链接到实际的IO点
+	note_Ext				:BOOL:=FALSE;// 操作提示：true 伸出、打开执行无法下发
+	note_Ret				:BOOL:=FALSE;// 操作提示：true 缩回、关闭执行无法下发
+	busy					:BOOL;//气缸动作Busy状态
+	done					:BOOL;//气缸动作Done状态
+	extdone					:BOOL;//气缸动作伸出完成
+	retdone					:BOOL;//气缸动作收回完成
+	error					:BOOL;//气缸动作error状态
+	errID					:UDINT;//气缸动作errID
+	errTXT					:STRING(255):='';//气缸动作errTXT
+	errWTXT					:WSTRING(255):="";//气缸动作errTXT 中文
+	sensorShow				:STRING;
+END_VAR
+	
+VAR
+	firstPower:BOOL:=TRUE;
+	extErrorDelayTon		:Ton;
+	extDoneDelayTon			:Ton;
+	retErrorDelayTon		:Ton;
+	retDoneDelayTon			:Ton;
+	
+	extendTrigRAlc			:R_Trig;//上升沿触发
+	
+	singleControlR			:R_Trig;//上升沿触发
+	singleControlF			:F_Trig;//上升沿触发
+	
+	extendTrigR1			:R_Trig;//上升沿触发
+	retractTrigR1			:R_Trig;//上升沿触发
+	resetTrigR1				:R_Trig;//上升沿触发
+	stopTrigR1				:R_Trig;//上升沿触发
+	powerTrigR1				:R_Trig;//上升沿触发
+	
+	errorStep				:UINT:=0;
+	
+	notBusyMonitorDelayTon:TON;//动作不切换时，延迟检测
+	notBusyMonitorDelayTime:TIME:=T#2S;//动作不切换延迟检测时间
+	noteTON_P:tON;            // 操作提示标志位延时继电器
+	noteTON_N:tON;            // 操作提示标志位延时继电器
+	noteRTrig_P:R_TRIG;          // 操作提示
+	noteRTrig_N:R_TRIG;          // 操作提示
+	extcheckDelayTime	:TON; // 输出到输入检测时间
+	extcheckDelayTimeS	:TIME; // 输出到输入检测时间
+	extcheckRtrig:R_TRIG;     // 输出到输入检测
+	retcheckDelayTime	:TON; // 输出到输入检测时间
+	retcheckDelayTimeS	:TIME; // 输出到输入检测时间
+	retcheckRtrig:R_TRIG;     // 输出到输入检测
+	extRealayRtrig:R_TRIG;
+	retRealayRtrig:R_TRIG;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// 实时读取设置的流量值以及实际反馈浏览值
+// ****************************
+Init_ACT();
+Error_ACT();
+Extend_ACT();
+Retract_ACT();
+Reset_ACT();
+Error_ACT();
+SafeMonitor_ACT();
+//首次上电，传感器状态决定电磁阀输出信号
+//IF NOT firstPower THEN
+//	IF extAprSw AND NOT retAprSw THEN
+//		extend:=TRUE;
+//		firstPower:=TRUE;
+//	END_IF
+//	IF retAprSw AND NOT extAprSw THEN
+//		retract:=TRUE;
+//		firstPower:=TRUE;
+//	END_IF
+//	IF (NOT extAprSw) AND (NOT retAprSw) THEN
+//		errorStep:=3;
+//	END_IF
+//	IF (extAprSw) AND (retAprSw) THEN
+//		errorStep:=3;
+//	END_IF
+//END_IF]]></ST>
+    </Implementation>
+    <Folder Name="Error" Id="{9c9a39ca-6d7c-4d1e-87ac-44dc1ffb82a6}" />
+    <Folder Name="Private" Id="{c34cbeee-0093-4c37-b78f-81b04ceaef42}" />
+    <Method Name="Act_Extend" Id="{42430734-9ed6-4aad-b1e8-3e600607fa26}">
+      <Declaration><![CDATA[(*
+触发伸出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Extend : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND extCondition THEN// AND NOT busy
+	Act_Extend:=extend:=TRUE;
+ELSE
+	Act_Extend:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Reset" Id="{c86f8f43-7e62-48df-97d3-7a992a4a06a5}">
+      <Declaration><![CDATA[(*
+触发复位报警动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Reset : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Reset:=reset:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Retract" Id="{f3680663-3134-4ac9-9924-391f6fa52371}">
+      <Declaration><![CDATA[(*
+触发缩回动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Retract : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND retCondition THEN// AND NOT busy
+	Act_Retract:=retract:=TRUE;
+ELSE
+	Act_Retract:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Stop" Id="{27dd3f42-be85-4fcc-98e0-60a862316f27}">
+      <Declaration><![CDATA[(*
+触发停止输出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Stop : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Stop:=stop:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Error_ACT" Id="{db5f3cd8-1bf2-4c8c-8d0e-2bebf81cd573}" FolderPath="Error\">
+      <Implementation>
+        <ST><![CDATA[CASE errorStep OF
+	0:
+		error:=FALSE;
+		errID:=0;
+		errTXT:='';
+ (*
+	1:
+		error:=TRUE;
+		errID:=errorID+errorStep;
+		errTXT:=CONCAT(STR1:=nameTXT,STR2:=' Extend Error!');
+		errWTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 伸出(打开)错误");
+	2:
+		error:=TRUE;
+		errID:=errorID+errorStep;
+		errTXT:=CONCAT(STR1:=nameTXT,STR2:=' Retract Error!');
+		errWTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 缩回(关闭)错误");
+		*)
+	1..3:
+		error:=TRUE;
+		errID:=getErrID(errorStep);
+		errTXT:=getErrTXT(errorStep);
+		errWTXT:=getErrWTXT(errorStep);
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Extend_ACT" Id="{0d1155f4-0cfa-4649-8fe5-f5d7af3a5dbb}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//气缸伸出--extend 触发
+IF extend AND NOT extCondition THEN
+	note_Ext:=TRUE;
+	note_Ret:=FALSE;
+	NoteHMI.showFlag:=TRUE;
+	NoteHMI.showText:='';
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,nameTXT);
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,' Ext Condition Not Satisfied!');
+	operatorLog.append(CONCAT(nameTXT,' Extend Not Done'));
+END_IF
+IF extend AND enable AND extCondition THEN// AND NOT busy
+	busy:=TRUE;
+	retract:=FALSE;
+	extdone:=FALSE;
+	retdone:=FALSE;
+	extStep:=10;
+	retStep:=0;
+	note_Ext:=FALSE;
+	note_Ret:=FALSE;
+	operatorLog.append(CONCAT(nameTXT,' Extend Done'));
+	//errorStep:=0;
+END_IF
+extend:=FALSE;
+extcheckDelayTime(IN:=extStep>10 AND NOT extcheckRtrig.Q,PT:=T#60S);
+extcheckRtrig(CLK:=extAprSw);
+IF extcheckRtrig.Q THEN
+	extcheckDelayTimeS:=extcheckDelayTime.ET;
+END_IF
+CASE extStep OF
+0:
+	//ready
+10:
+	firstPower:=FALSE;
+	extErrorDelayTon(IN:=FALSE);
+	extDoneDelayTon(IN:=FALSE);
+	extStep:=20;
+	extRelay:=TRUE;
+	retRelay:=FALSE;
+20:
+	extErrorDelayTon(IN:=(NOT extAprSw AND enableExtAprSw),PT:=errorDelayTime);
+	IF extErrorDelayTon.Q THEN
+		//done:=FALSE;
+		extdone:=FALSE;
+		retdone:=FALSE;
+		errorStep:=1;
+		RETURN;
+	END_IF
+	IF enableExtAprSw THEN
+		extDoneDelayTon(IN:=extAprSw,PT:=doneDelayTimeShortExtend);
+	ELSE
+		extDoneDelayTon(IN:=NOT enableExtAprSw,PT:=doneDelayTimeLongExtend);
+	END_IF
+	
+	IF extDoneDelayTon.Q THEN
+		IF NOT retAprSw THEN
+			busy:=FALSE;
+			//done:=TRUE;
+			extdone:=TRUE;
+			retdone:=FALSE;
+			errorStep:=0;
+			IF NOT power AND NOT (CylinderType_Vacuum=cylinderType) THEN
+				extRelay:=FALSE;
+				retRelay:=FALSE;
+			END_IF
+		ELSE
+			busy:=FALSE;
+			//done:=TRUE;
+			extdone:=FALSE;
+			retdone:=FALSE;
+			errorStep:=1;
+		END_IF
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="Get_Done_Ext" Id="{140cee67-f23f-483f-9518-220367390dbc}">
+      <Declaration><![CDATA[METHOD Get_Done_Ext : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_Ext:=extdone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_Done_Ret" Id="{4e26bc49-6137-43de-a56e-fd476a4c855b}">
+      <Declaration><![CDATA[METHOD Get_Done_Ret : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_Ret:=retdone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrID" Id="{95b63669-e5d0-4742-9eca-9ede3285ad9f}">
+      <Declaration><![CDATA[METHOD getErrID : UDINT
+VAR_INPUT
+	errID					:UDINT;//取值范围1~2
+END_VAR
+VAR
+	nErrID					:UDINT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[nErrID:=errorID+errID;
+
+getErrID:=nErrID;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrTXT" Id="{ad3d6adb-7b3f-492b-a46c-5d8021f3a613}">
+      <Declaration><![CDATA[METHOD getErrTXT : STRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~2
+END_VAR
+VAR
+	sErrTXT					:STRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Extend Error!');
+	2:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Retract Error!');
+	3:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' SensorCheck Error!');
+ELSE
+	sErrTXT:=CONCAT(STR1:=nameTXT,STR2:='');
+END_CASE
+getErrTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrWTXT" Id="{16e43094-fe79-415d-af7c-c41474c0611b}">
+      <Declaration><![CDATA[METHOD getErrWTXT : WSTRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~16
+END_VAR
+VAR
+	sErrTXT					:WSTRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 伸出(打开)错误");
+	2:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 缩回(关闭)错误");
+	3:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 传感器检测异常");
+ELSE
+	sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:="");
+END_CASE
+getErrWTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Init_ACT" Id="{ca9e9d80-da29-4a64-b786-ff2790c563d0}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[done:=(extdone OR retdone);
+InitHMI_ACT();
+manualCtrl_ACT();
+
+
+noteTON_P(IN:=note_Ext,PT:=T#0.1S);
+noteRTrig_P(CLK:=noteTON_P.Q);
+IF noteRTrig_P.Q THEN
+//	gLog_Note.append_EX(noteWTXT_Ext);
+END_IF
+noteTON_N(IN:=note_Ret,PT:=T#0.1S);
+noteRTrig_N(CLK:=noteTON_N.Q);
+IF noteRTrig_N.Q THEN
+//	gLog_Note.append_EX(noteWTXT_Ret);
+END_IF
+extRealayRtrig(CLK:=extRelay);
+IF extRealayRtrig.Q THEN
+	HMIItf.singleControl:=TRUE;
+END_IF
+retRealayRtrig(CLK:=NOT extRelay);
+IF retRealayRtrig.Q THEN
+	HMIItf.singleControl:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="InitHMI_ACT" Id="{cbd96f56-4642-426a-a5d5-bfc69e186f92}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[HMIItf.extAprSw:=extAprSw;
+HMIItf.retAprSw:=retAprSw;
+HMIItf.enableExt:=enableExtAprSw;
+HMIItf.enableRet:=enableRetAprSw;
+HMIItf.HMIEnable:=hmiEN;
+HMIItf.enable:=enable;
+HMIItf.done:=done;
+HMIItf.busy:=busy;
+HMIItf.error:=error;
+HMIItf.errID:=UDINT_TO_DINT(errID);
+HMIItf.errTXT:=errTXT;
+HMIItf.extRelay:=extRelay;
+HMIItf.retRelay:=retRelay;
+HMIItf.power:=power;
+HMIItf.nameTXT:=nameTXT;
+HMIItf.extenderror:=error AND errorID=1;
+HMIItf.retracterror:=error AND errorID=2;
+HMIItf.extcondition:=extCondition;
+HMIItf.retcondition:=retCondition;
+HMIItf.sensorShow:=sensorShow;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ManualCtrl_ACT" Id="{5e694d12-9e15-4661-b0a2-02012efac47d}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//HMI手动控制
+//IF ctrlMode=eManualCtrMode THEN
+IF hmiEN THEN
+	extendTrigRAlc(CLK:=HMIItf.extendAndretract);
+	IF extendTrigRAlc.Q THEN// AND NOT busy
+		IF extRelay THEN//如果伸出继电器或伸出传感器亮，则认为已经伸出过
+			retract:=TRUE;
+		END_IF
+		IF retRelay THEN
+			extend:=TRUE;
+		END_IF
+		IF NOT extRelay AND NOT retRelay THEN
+			IF extAprSw THEN
+				retract:=TRUE;
+			END_IF
+			IF retAprSw THEN
+				extend:=TRUE;
+			END_IF
+		END_IF
+	END_IF
+	singleControlR(CLK:=HMIItf.singleControltemp);
+	extendTrigR1(CLK:=HMIItf.extend );
+	IF extendTrigR1.Q OR (singleControlR.Q AND NOT HMIItf.singleControl) THEN// AND NOT busy
+		HMIItf.extend:=FALSE;
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want to Extend the ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,' ?');
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Extend')>0 THEN
+		extend:=TRUE;
+		HMIItf.extend:=FALSE;
+		IF HMIItf.singleControl THEN
+			;
+		ELSE
+			IF extCondition THEN
+				HMIItf.singleControl:=TRUE;
+			END_IF
+		END_IF
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Extend')>0 THEN
+		HMIItf.extend:=FALSE;
+		WarmHMI.bNO:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	
+	retractTrigR1(CLK:=HMIItf.retract);
+	IF retractTrigR1.Q OR (singleControlR.Q AND HMIItf.singleControl) THEN// AND NOT busy
+		HMIItf.retract:=FALSE;
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want to Retract the ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,' ?');
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Retract')>0 THEN
+		retract:=TRUE;
+		HMIItf.retract:=FALSE;
+		IF HMIItf.singleControl  THEN
+			IF retCondition THEN
+				HMIItf.singleControl:=FALSE;
+			END_IF
+		ELSE
+			;
+		END_IF
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Retract')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		HMIItf.retract:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	
+	stopTrigR1(CLK:=HMIItf.stop);
+	IF stopTrigR1.Q THEN// AND NOT busy
+		stop:=TRUE;
+	END_IF
+	
+	powerTrigR1(CLK:=HMIItf.power);
+	IF powerTrigR1.Q THEN// AND NOT busy
+		IF power THEN
+			power:=FALSE;
+		ELSE
+			power:=TRUE;
+		END_IF
+	END_IF
+END_IF
+IF extAprSw THEN
+	sensorShow:='UP';
+ELSIF retAprSw THEN
+	sensorShow:='DOWN';
+ELSE
+	sensorShow:='<->';
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Reset_ACT" Id="{e9ced84d-adbf-467e-9955-08c2de540d39}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[IF reset THEN
+	IF NOT power THEN
+		extRelay:=FALSE;
+		retRelay:=FALSE;
+	END_IF
+	busy:=FALSE;
+	//done:=FALSE;
+	//extdone:=FALSE;
+	//retdone:=FALSE;
+	errorStep:=0;
+	note_Ext:=FALSE;
+	note_Ret:=FALSE;
+	reset:=FALSE;
+END_IF
+
+IF stop THEN
+	stop:=FALSE;
+	extRelay:=FALSE;
+	retRelay:=FALSE;
+	note_Ext:=FALSE;
+	note_Ret:=FALSE;
+	//无自锁检测说法，直接停
+//	extStep:=0;
+//	retStep:=0;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Retract_ACT" Id="{b9cca5f9-94c6-43ed-8a85-58241651f9c0}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//气缸收回--retract 触发
+IF retract AND NOT retCondition THEN
+	note_Ret:=TRUE;
+	note_Ext:=FALSE;
+	NoteHMI.showFlag:=TRUE;
+	NoteHMI.showText:='';
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,nameTXT);
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,' Ret Condition Not Satisfied!');
+	operatorLog.append(CONCAT(nameTXT,' Retract Not Done'));
+END_IF
+IF retract AND enable AND retCondition THEN// AND NOT busy
+	busy:=TRUE;
+	extend:=FALSE;
+	extdone:=FALSE;
+	retdone:=FALSE;
+	extStep:=0;
+	retStep:=10;
+	note_Ext:=FALSE;
+	note_Ret:=FALSE;
+	operatorLog.append(CONCAT(nameTXT,' Retract Done'));
+	//errorStep:=0;
+END_IF
+retract:=FALSE;
+retcheckDelayTime(IN:=retStep>10 AND NOT retcheckRtrig.Q,PT:=T#60S);
+retcheckRtrig(CLK:=retAprSw);
+IF retcheckRtrig.Q THEN
+	retcheckDelayTimeS:=retcheckDelayTime.ET;
+END_IF
+CASE retStep OF
+0:
+	//ready
+	
+10:
+	firstPower:=FALSE;
+	retErrorDelayTon(IN:=FALSE);
+	retDoneDelayTon(IN:=FALSE);
+	retStep:=20;
+	extRelay:=FALSE;
+	viewForlineVac:=inVacu;
+	retRelay:=TRUE;
+20:
+	retErrorDelayTon(IN:=(NOT retAprSw AND enableRetAprSw),PT:=errorDelayTime);
+	IF retErrorDelayTon.Q THEN
+		//done:=FALSE;
+		extdone:=FALSE;
+		retdone:=FALSE;
+		errorStep:=2;
+		RETURN;
+	END_IF
+	IF enableRetAprSw THEN
+		retDoneDelayTon(IN:=retAprSw,PT:=doneDelayTimeShortRetract);
+	ELSE
+		retDoneDelayTon(IN:=NOT enableRetAprSw,PT:=doneDelayTimeLongRetract);
+	END_IF
+	
+	IF retDoneDelayTon.Q THEN
+		IF NOT extAprSw THEN
+			busy:=FALSE;
+			//done:=TRUE;
+			extdone:=FALSE;
+			retdone:=TRUE;
+			errorStep:=0;
+			IF NOT power AND NOT (CylinderType_Vacuum=cylinderType) THEN
+				extRelay:=FALSE;
+				retRelay:=FALSE;
+			END_IF
+			IF CylinderType_Vacuum=cylinderType THEN
+				retRelay:=FALSE;
+			END_IF
+		ELSE
+			busy:=FALSE;
+			//done:=TRUE;
+			extdone:=FALSE;
+			retdone:=FALSE;
+			errorStep:=2;
+		END_IF
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="SafeMonitor_ACT" Id="{3ee08376-c132-4790-80a9-fae50a895fa5}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[notBusyMonitorDelayTon(IN:=NOT busy,PT:=notBusyMonitorDelayTime);
+IF real_TimeMonitor THEN
+	IF notBusyMonitorDelayTon.Q THEN
+		//伸出实时检测
+		IF (enableExtAprSw AND NOT extAprSw) AND extRelay THEN
+			errorStep:=1;
+		END_IF
+	
+		//缩回实时检测	
+		IF (enableRetAprSw AND NOT retAprSw) AND retRelay  THEN
+			errorStep:=2;
+		END_IF
+//		IF cylinderType=CylinderType_ButV THEN
+//			IF NOT extCondition AND (NOT retdone OR extRelay) AND NOT firstPower THEN//蝶阀单控，检测到开条件消失，强制关闭
+//				errorStep:=1;
+//				extRelay:=FALSE;
+//				retract:=TRUE;
+//				firstPower:=FALSE;
+//			END_IF
+//		END_IF
+		IF firstPower THEN
+			firstPower:=FALSE;
+			IF extAprSw THEN
+				HMIItf.singleControl:=TRUE;
+			END_IF
+			IF retAprSw THEN
+				HMIItf.singleControl:=FALSE;
+			END_IF
+		END_IF
+	END_IF
+END_IF
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="VersionLog" Id="{30f9abf3-0336-44ee-b1d3-1e2546b5ff4d}">
+      <Implementation>
+        <ST><![CDATA[(*
+版本: V1.0.0.0
+说明:
+	1. 首个版本
+	2. 含普通气缸\真空吸类型的控制
+	3. 可配置是否有到位信号, 以及到位稳定时间
+(--------------------------------------------------)
+新版本: V1.0.1.0
+更新时间: 2019/11/20 19:00
+更新说明:
+	1. 优化编写方式
+	2. 修改错误编码起始位，现改为从1开始
+(--------------------------------------------------)
+新版本: V1.0.1.1
+更新时间: 2020/03/23 23:00
+更新说明:
+	1. 优化报错方式
+	2. 增加伸出、缩回、复位和停止触发函数
+(--------------------------------------------------)
+新版本: V1.0.1.2
+更新时间: 2020/04/22 09:50
+更新说明:
+	1. 增加中文报警输出
+(--------------------------------------------------)
+新版本: V1.0.1.3
+更新时间: 2020/09/16
+更新说明:
+	1. 开放错误ID、错误文本信息获取接口
+(--------------------------------------------------)
+新版本: V1.0.1.4
+更新时间: 2020/10/06
+更新说明:
+	1. 移除控制模式变量，增加HMI启用条件
+	2. 增加外部获取伸出缩回完成信号接口函数
+(--------------------------------------------------)
+新版本: V1.0.1.5
+更新时间: 2020/10/14
+更新说明:
+	1. 优化代码
+(--------------------------------------------------)
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="CylinderModule">
+      <LineId Id="467" Count="1" />
+      <LineId Id="65" Count="0" />
+      <LineId Id="135" Count="0" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="68" Count="0" />
+      <LineId Id="377" Count="0" />
+      <LineId Id="213" Count="0" />
+      <LineId Id="210" Count="1" />
+      <LineId Id="214" Count="0" />
+      <LineId Id="300" Count="0" />
+      <LineId Id="215" Count="0" />
+      <LineId Id="218" Count="1" />
+      <LineId Id="299" Count="0" />
+      <LineId Id="217" Count="0" />
+      <LineId Id="220" Count="2" />
+      <LineId Id="297" Count="1" />
+      <LineId Id="296" Count="0" />
+      <LineId Id="212" Count="0" />
+    </LineIds>
+    <LineIds Name="CylinderModule.Act_Extend">
+      <LineId Id="5" Count="1" />
+      <LineId Id="8" Count="1" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="CylinderModule.Act_Reset">
+      <LineId Id="5" Count="1" />
+    </LineIds>
+    <LineIds Name="CylinderModule.Act_Retract">
+      <LineId Id="6" Count="3" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="CylinderModule.Act_Stop">
+      <LineId Id="6" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="CylinderModule.Error_ACT">
+      <LineId Id="1" Count="0" />
+      <LineId Id="15" Count="2" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="12" Count="2" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="18" Count="2" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="27" Count="4" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="3" Count="0" />
+    </LineIds>
+    <LineIds Name="CylinderModule.Extend_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="114" Count="1" />
+      <LineId Id="119" Count="0" />
+      <LineId Id="127" Count="0" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="128" Count="0" />
+      <LineId Id="130" Count="0" />
+      <LineId Id="132" Count="0" />
+      <LineId Id="113" Count="0" />
+      <LineId Id="3" Count="4" />
+      <LineId Id="135" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="108" Count="1" />
+      <LineId Id="131" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="10" Count="2" />
+      <LineId Id="122" Count="3" />
+      <LineId Id="13" Count="2" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="118" Count="0" />
+      <LineId Id="18" Count="5" />
+      <LineId Id="25" Count="4" />
+      <LineId Id="32" Count="6" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="91" Count="0" />
+      <LineId Id="94" Count="7" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="102" Count="0" />
+      <LineId Id="104" Count="3" />
+      <LineId Id="117" Count="0" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="CylinderModule.Get_Done_Ext">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="CylinderModule.Get_Done_Ret">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="CylinderModule.getErrID">
+      <LineId Id="22" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="CylinderModule.getErrTXT">
+      <LineId Id="22" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="66" Count="1" />
+      <LineId Id="40" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="CylinderModule.getErrWTXT">
+      <LineId Id="21" Count="2" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="81" Count="1" />
+      <LineId Id="55" Count="3" />
+      <LineId Id="14" Count="0" />
+    </LineIds>
+    <LineIds Name="CylinderModule.Init_ACT">
+      <LineId Id="2" Count="1" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="6" Count="3" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="17" Count="6" />
+      <LineId Id="16" Count="0" />
+    </LineIds>
+    <LineIds Name="CylinderModule.InitHMI_ACT">
+      <LineId Id="2" Count="3" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="6" Count="8" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="16" Count="4" />
+    </LineIds>
+    <LineIds Name="CylinderModule.ManualCtrl_ACT">
+      <LineId Id="2" Count="1" />
+      <LineId Id="32" Count="1" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="45" Count="1" />
+      <LineId Id="48" Count="4" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="112" Count="0" />
+      <LineId Id="117" Count="0" />
+      <LineId Id="67" Count="1" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="134" Count="3" />
+      <LineId Id="133" Count="0" />
+      <LineId Id="74" Count="1" />
+      <LineId Id="119" Count="0" />
+      <LineId Id="166" Count="0" />
+      <LineId Id="165" Count="0" />
+      <LineId Id="120" Count="1" />
+      <LineId Id="171" Count="2" />
+      <LineId Id="123" Count="0" />
+      <LineId Id="159" Count="1" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="95" Count="0" />
+      <LineId Id="131" Count="0" />
+      <LineId Id="96" Count="0" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="79" Count="2" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="142" Count="3" />
+      <LineId Id="86" Count="1" />
+      <LineId Id="98" Count="0" />
+      <LineId Id="124" Count="0" />
+      <LineId Id="163" Count="0" />
+      <LineId Id="162" Count="0" />
+      <LineId Id="167" Count="2" />
+      <LineId Id="126" Count="2" />
+      <LineId Id="158" Count="0" />
+      <LineId Id="156" Count="0" />
+      <LineId Id="102" Count="2" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="106" Count="0" />
+      <LineId Id="17" Count="14" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="175" Count="5" />
+      <LineId Id="174" Count="0" />
+    </LineIds>
+    <LineIds Name="CylinderModule.Reset_ACT">
+      <LineId Id="2" Count="4" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="8" Count="2" />
+      <LineId Id="13" Count="1" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="15" Count="6" />
+      <LineId Id="25" Count="1" />
+      <LineId Id="23" Count="1" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="CylinderModule.Retract_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="81" Count="2" />
+      <LineId Id="90" Count="2" />
+      <LineId Id="89" Count="0" />
+      <LineId Id="94" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="3" Count="6" />
+      <LineId Id="78" Count="1" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="85" Count="3" />
+      <LineId Id="12" Count="5" />
+      <LineId Id="84" Count="0" />
+      <LineId Id="18" Count="3" />
+      <LineId Id="95" Count="0" />
+      <LineId Id="22" Count="1" />
+      <LineId Id="25" Count="4" />
+      <LineId Id="32" Count="9" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="61" Count="10" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="72" Count="0" />
+      <LineId Id="74" Count="3" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="56" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="CylinderModule.SafeMonitor_ACT">
+      <LineId Id="6" Count="0" />
+      <LineId Id="36" Count="10" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="62" Count="2" />
+      <LineId Id="55" Count="1" />
+      <LineId Id="65" Count="0" />
+      <LineId Id="70" Count="0" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="68" Count="1" />
+      <LineId Id="72" Count="1" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="67" Count="0" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="51" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="CylinderModule.VersionLog">
+      <LineId Id="49" Count="16" />
+      <LineId Id="67" Count="7" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="76" Count="1" />
+      <LineId Id="79" Count="10" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

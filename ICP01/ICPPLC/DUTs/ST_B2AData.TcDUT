@@ -1,0 +1,46 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="ST_B2AData" Id="{c45855a7-2ceb-44a3-9bb1-fa6b002ebd3c}">
+    <Declaration><![CDATA[TYPE ST_B2AData :// 主控(Gideon)给新松
+STRUCT
+	bRunning					:BOOL;// 允许标志
+	bError						:BOOL;// 报错
+	bHeartBeatMonitor			:BOOL;// 心跳监控
+	// 命令
+	Sub_1						:BOOL; 	
+	Sub_2						:BOOL; 	
+	Sub_3						:BOOL; 
+	Sub_4						:BOOL; 
+	Sub_5						:BOOL; 	
+	Sub_6						:BOOL; 	
+	Sub_7						:BOOL; 	
+	Sub_8						:BOOL; 
+	Sub_9						:BOOL; 
+	Sub_10						:BOOL;		
+	// 反馈
+	O_1							:BOOL;   
+	O_2							:BOOL;
+	O_3							:BOOL;
+	O_4							:BOOL;                                  
+	O_5							:BOOL;
+	O_6							:BOOL;
+	O_7							:BOOL;
+	O_8							:BOOL;
+	O_9							:BOOL;
+	O_10						:BOOL;
+	// 回传
+	I_1							:BOOL;   
+	I_2							:BOOL;
+	I_3							:BOOL;
+	I_4							:BOOL;                                  
+	I_5							:BOOL;
+	I_6							:BOOL;
+	I_7							:BOOL;
+	I_8							:BOOL;
+	I_9							:BOOL;
+	I_10						:BOOL;
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

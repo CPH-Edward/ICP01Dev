@@ -1,0 +1,3109 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <GlobalTextList Name="GlobalTextList" Id="{c288e591-addb-4ef5-bfcb-2948d31766d8}">
+    <XmlArchive>
+      <Data>
+        <o xml:space="preserve" t="GlobalTextListObject">
+          <l n="TextList" t="ArrayList" cet="TextListRow">
+            <o>
+              <v n="TextID">"89"</v>
+              <v n="TextDefault">"                All Show"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>               全部</v>
+                <v>               ALL Show</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1821"</v>
+              <v n="TextDefault">"                Part Show"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>              总览</v>
+                <v>               Part Show</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"718"</v>
+              <v n="TextDefault">" ICP01   "</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>ICP</v>
+                <v>ICP</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1341"</v>
+              <v n="TextDefault">"%"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>%</v>
+                <v>%</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"593"</v>
+              <v n="TextDefault">"%.1f"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>%.1f</v>
+                <v>%.1f</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"463"</v>
+              <v n="TextDefault">"%.1f %"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"233"</v>
+              <v n="TextDefault">"%.2f"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>%.2f</v>
+                <v>%.2f</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"532"</v>
+              <v n="TextDefault">"%.3f"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>%.3f</v>
+                <v>%.3f</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"231"</v>
+              <v n="TextDefault">"%.4f"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>%.4f</v>
+                <v>%.4f</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"182"</v>
+              <v n="TextDefault">"%d"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>%d</v>
+                <v>%d</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"264"</v>
+              <v n="TextDefault">"%s"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>%s</v>
+                <v>%s</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1790"</v>
+              <v n="TextDefault">"(10)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1500"</v>
+              <v n="TextDefault">"(100)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1605"</v>
+              <v n="TextDefault">"(200)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"512"</v>
+              <v n="TextDefault">"(50)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1351"</v>
+              <v n="TextDefault">"(500)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"600"</v>
+              <v n="TextDefault">"1"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>1</v>
+                <v>1</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"509"</v>
+              <v n="TextDefault">"1
+(N2)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"609"</v>
+              <v n="TextDefault">"10"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>10</v>
+                <v>10</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"400"</v>
+              <v n="TextDefault">"11"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>11</v>
+                <v>11</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"960"</v>
+              <v n="TextDefault">"12"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>12</v>
+                <v>12</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"961"</v>
+              <v n="TextDefault">"13"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>13</v>
+                <v>13</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"962"</v>
+              <v n="TextDefault">"14"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>14</v>
+                <v>14</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"963"</v>
+              <v n="TextDefault">"15"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>15</v>
+                <v>15</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"964"</v>
+              <v n="TextDefault">"16"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>16</v>
+                <v>16</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2411"</v>
+              <v n="TextDefault">"192.168.1.12"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2489"</v>
+              <v n="TextDefault">"192.168.1.13"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1159"</v>
+              <v n="TextDefault">"192.168.1.14"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1635"</v>
+              <v n="TextDefault">"192.168.1.15"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3262"</v>
+              <v n="TextDefault">"192.168.1.253"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"601"</v>
+              <v n="TextDefault">"2"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>2</v>
+                <v>2</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"837"</v>
+              <v n="TextDefault">"2
+(CF4)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2024"</v>
+              <v n="TextDefault">"20
+(Main)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"602"</v>
+              <v n="TextDefault">"3"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>3</v>
+                <v>3</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3626"</v>
+              <v n="TextDefault">"3
+(CHF3)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"603"</v>
+              <v n="TextDefault">"4"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>4</v>
+                <v>4</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"39"</v>
+              <v n="TextDefault">"4
+(SF6)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"604"</v>
+              <v n="TextDefault">"5"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>5</v>
+                <v>5</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1258"</v>
+              <v n="TextDefault">"5
+(O2)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2177"</v>
+              <v n="TextDefault">"5110"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1962"</v>
+              <v n="TextDefault">"5120"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3714"</v>
+              <v n="TextDefault">"5130"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"357"</v>
+              <v n="TextDefault">"5140"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3615"</v>
+              <v n="TextDefault">"5200"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"605"</v>
+              <v n="TextDefault">"6"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>6</v>
+                <v>6</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"611"</v>
+              <v n="TextDefault">"6
+(O2)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"606"</v>
+              <v n="TextDefault">"7"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>7</v>
+                <v>7</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1337"</v>
+              <v n="TextDefault">"7
+(He)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"607"</v>
+              <v n="TextDefault">"8"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>8</v>
+                <v>8</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2488"</v>
+              <v n="TextDefault">"8
+(Ar)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"608"</v>
+              <v n="TextDefault">"9"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>9</v>
+                <v>9</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2062"</v>
+              <v n="TextDefault">"9
+(C4F8)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1248"</v>
+              <v n="TextDefault">"A"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"508"</v>
+              <v n="TextDefault">"A:Auto Running
+E:Error Running
+H:Homing
+M:Manual Running
+P:Pause Running
+S:Stop Running"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"757"</v>
+              <v n="TextDefault">"ACC"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>加速</v>
+                <v>ACC</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1604"</v>
+              <v n="TextDefault">"ACCELERATE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>加速</v>
+                <v>ACCELERATE</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1434"</v>
+              <v n="TextDefault">"ACSw"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>加速信号</v>
+                <v>ACSw</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"103"</v>
+              <v n="TextDefault">"Actor Recover"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>执行器复位</v>
+                <v>Actor Recover</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2689"</v>
+              <v n="TextDefault">"ADD NEW RECIPE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>新增配方</v>
+                <v>ADD NEW RECIPE</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2063"</v>
+              <v n="TextDefault">"ADD STEP"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>新增步</v>
+                <v>ADD STEP</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3464"</v>
+              <v n="TextDefault">"admin"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>admin</v>
+                <v>admin</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1052"</v>
+              <v n="TextDefault">"AIM GAUGE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>腔体真空计</v>
+                <v>AIM Gauge</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1197"</v>
+              <v n="TextDefault">"ALL"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>全部</v>
+                <v>ALL</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1188"</v>
+              <v n="TextDefault">"ALL  STOP"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>全部停止</v>
+                <v>ALL STOP</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1647"</v>
+              <v n="TextDefault">"ALL Clear"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>全部清除</v>
+                <v>ALL Clear</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1634"</v>
+              <v n="TextDefault">"ALL Set"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>全部设置</v>
+                <v>ALL Set</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"492"</v>
+              <v n="TextDefault">"ALL STOP"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>全部停止</v>
+                <v>ALL STOP</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"882"</v>
+              <v n="TextDefault">"AlmSw"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>报警信号</v>
+                <v>AlmSw</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1796"</v>
+              <v n="TextDefault">"AMX IP:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3635"</v>
+              <v n="TextDefault">"AMX Port:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3264"</v>
+              <v n="TextDefault">"Ar(500)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"210"</v>
+              <v n="TextDefault">"ARM"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>机械手</v>
+                <v>ARM</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"238"</v>
+              <v n="TextDefault">"Axis Status"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>轴状态</v>
+                <v>Axis Status</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2158"</v>
+              <v n="TextDefault">"BacHe Port:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3570"</v>
+              <v n="TextDefault">"BacHe RF IP:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"966"</v>
+              <v n="TextDefault">"Back"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>Back</v>
+                <v>Back</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1122"</v>
+              <v n="TextDefault">"BACK OF HELIUM"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>背氦</v>
+                <v>BACK OF HELIUM</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3376"</v>
+              <v n="TextDefault">"Baise Config：Disable-Dis OR Enable-En"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>基础配置：禁用和使能</v>
+                <v>Baise Config：Disable-Dis OR Enable-En</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"4927"</v>
+              <v n="TextDefault">"BC:%.1fA"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>BC:%.1A</v>
+                <v>BC:%.1A</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1873"</v>
+              <v n="TextDefault">"BRACK"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>制动</v>
+                <v>BRACK</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1934"</v>
+              <v n="TextDefault">"BT:%.1f℃"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>BT:%.1℃</v>
+                <v>BT:%.1℃</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"187"</v>
+              <v n="TextDefault">"Busy"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>运行中</v>
+                <v>Busy</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3897"</v>
+              <v n="TextDefault">"BV:%.1frpm"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>BT:%.1fpm</v>
+                <v>BT:%.1fpm</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"590"</v>
+              <v n="TextDefault">"BW_Limit"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>BW_Limit</v>
+                <v>BW_Limit</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2787"</v>
+              <v n="TextDefault">"C4F8(200)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"5406"</v>
+              <v n="TextDefault">"C:%.1fA"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>C:%.1A</v>
+                <v>C:%.1A</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2077"</v>
+              <v n="TextDefault">"Cancel"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>取消</v>
+                <v>Cancel</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1538"</v>
+              <v n="TextDefault">"CF4(200)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"301"</v>
+              <v n="TextDefault">"CHAMBER"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>腔体</v>
+                <v>CHAMBER</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3502"</v>
+              <v n="TextDefault">"Chamber"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>腔体</v>
+                <v>Chamber</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1702"</v>
+              <v n="TextDefault">"Chamber "</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>腔体</v>
+                <v>Chamber</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1370"</v>
+              <v n="TextDefault">"Chamber ATM state"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>腔体大气</v>
+                <v>Chamber ATM state</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"384"</v>
+              <v n="TextDefault">"Charmber Vent"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>腔体破空</v>
+                <v>Chamber Vent</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1142"</v>
+              <v n="TextDefault">"CHF3(200)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2293"</v>
+              <v n="TextDefault">"CHILLER"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>水冷机</v>
+                <v>CHILLER</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1594"</v>
+              <v n="TextDefault">"Chiller Port:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2019"</v>
+              <v n="TextDefault">"Chillerl IP:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2457"</v>
+              <v n="TextDefault">"Chinese"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>中文</v>
+                <v>Chinese</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2889"</v>
+              <v n="TextDefault">"Clear Changes"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>清除</v>
+                <v>Clear Changes</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"438"</v>
+              <v n="TextDefault">"Clear Info"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>清除信息</v>
+                <v>Clear Info</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1280"</v>
+              <v n="TextDefault">"CloEN"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>启用关闭</v>
+                <v>CloEN</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2166"</v>
+              <v n="TextDefault">"CLOSE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>关闭</v>
+                <v>CLOSE</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2438"</v>
+              <v n="TextDefault">"Close"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>关闭</v>
+                <v>Close</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"295"</v>
+              <v n="TextDefault">"Config"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>配置</v>
+                <v>Config</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"5846"</v>
+              <v n="TextDefault">"CsCd"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>CsCd</v>
+                <v>CsCd</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"820"</v>
+              <v n="TextDefault">"Curr Page"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>当前页</v>
+                <v>Curr Page</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1591"</v>
+              <v n="TextDefault">"CURRENT"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>电流</v>
+                <v>CURRENT</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"206"</v>
+              <v n="TextDefault">"D:%d"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>D:%d</v>
+                <v>D:%d</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"309"</v>
+              <v n="TextDefault">"Data Change"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>数据变更</v>
+                <v>Data Change</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3129"</v>
+              <v n="TextDefault">"DC:%.1fA"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>DC:%.1A</v>
+                <v>DC:%.1A</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1256"</v>
+              <v n="TextDefault">"DCC"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>减速</v>
+                <v>DCC</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1499"</v>
+              <v n="TextDefault">"DCSw"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>DCSw</v>
+                <v>DCSw</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1048"</v>
+              <v n="TextDefault">"DEC"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>减 </v>
+                <v>DEC</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1580"</v>
+              <v n="TextDefault">"DELETE  RECIPE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>删除配方</v>
+                <v>DELETE RECIPE</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"149"</v>
+              <v n="TextDefault">"DIRECTION"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>点动</v>
+                <v>DIRECTION</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"4575"</v>
+              <v n="TextDefault">"DL:%.1f"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>DL:%.1f</v>
+                <v>DL:%.1f</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"240"</v>
+              <v n="TextDefault">"Dog_Prox"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>Dog_Prox</v>
+                <v>Dog_Prox</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"188"</v>
+              <v n="TextDefault">"Done"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>完成</v>
+                <v>Done</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3154"</v>
+              <v n="TextDefault">"DRY PUM"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>干泵</v>
+                <v>DRY PUM</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2232"</v>
+              <v n="TextDefault">"DT:%.1f℃"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>DT:%.1f</v>
+                <v>DT:%.1f</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"506"</v>
+              <v n="TextDefault">"DV:%.1frpm"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>DV:%.1frpm</v>
+                <v>DV:%.1frpm</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"800"</v>
+              <v n="TextDefault">"editor"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>编辑者</v>
+                <v>editor</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2584"</v>
+              <v n="TextDefault">"ELE."</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>电台</v>
+                <v>ELE.</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"185"</v>
+              <v n="TextDefault">"Enable"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>启用</v>
+                <v>Enable</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"491"</v>
+              <v n="TextDefault">"ENABLE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>启用</v>
+                <v>ENABLE</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"507"</v>
+              <v n="TextDefault">"Enable Beep"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>启用蜂鸣器</v>
+                <v>Enable Beep</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"430"</v>
+              <v n="TextDefault">"Enable Save"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>启用保存</v>
+                <v>Enable Save</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2168"</v>
+              <v n="TextDefault">"English"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>英文</v>
+                <v>English</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"186"</v>
+              <v n="TextDefault">"ErrID"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>错误ID</v>
+                <v>ErrID</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"150"</v>
+              <v n="TextDefault">"Error"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>报错</v>
+                <v>Error</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1837"</v>
+              <v n="TextDefault">"Error "</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>报错</v>
+                <v>Error</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1284"</v>
+              <v n="TextDefault">"ErrSw"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>ErrSw</v>
+                <v>ErrSw</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2629"</v>
+              <v n="TextDefault">"Etching"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>蚀刻</v>
+                <v>Etching</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1312"</v>
+              <v n="TextDefault">"ET_T"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>ET_T </v>
+                <v>ET_T </v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3456"</v>
+              <v n="TextDefault">"ExtCd"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>ErrCd</v>
+                <v>ErrCd</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"183"</v>
+              <v n="TextDefault">"ExtEN"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>ExtEN</v>
+                <v>ExtEN</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"181"</v>
+              <v n="TextDefault">"ExtSw"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>ExtSw</v>
+                <v>ExtSw</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1053"</v>
+              <v n="TextDefault">"FAILURE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>报错</v>
+                <v>FAILURE</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"25"</v>
+              <v n="TextDefault">"FAST
+VALVE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>主抽阀</v>
+                <v>FAST
+PUM</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1383"</v>
+              <v n="TextDefault">"FLOW
+(sccm)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>流量
+(sccm)</v>
+                <v>FLOW
+(sccm)</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1181"</v>
+              <v n="TextDefault">"FOR. POWER"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>反馈功率</v>
+                <v>FOR. POWER</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3145"</v>
+              <v n="TextDefault">"Force Back Of Helium IN Control"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>强制背氦进气控制</v>
+                <v>Force Back Of Helium IN Control</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3586"</v>
+              <v n="TextDefault">"Force GateDoor Control"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>强制GD控制</v>
+                <v>Force GateDoor Control</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2030"</v>
+              <v n="TextDefault">"Force PDV Control"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>强制PDV控制</v>
+                <v>Force PDV Control</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"847"</v>
+              <v n="TextDefault">"FORELINE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>前置阀</v>
+                <v>FORELINE</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"589"</v>
+              <v n="TextDefault">"FW_Limit"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>FW_Limit</v>
+                <v>FW_Limit</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1140"</v>
+              <v n="TextDefault">"GAS
+LINE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>气路</v>
+                <v>GAS
+LINE</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"661"</v>
+              <v n="TextDefault">"GAS BOX"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>气柜</v>
+                <v>GAS BOX</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1836"</v>
+              <v n="TextDefault">"GAS LINE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>气路</v>
+                <v>GAS LINE</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"683"</v>
+              <v n="TextDefault">"GATE DOOR"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>闸门</v>
+                <v>GATE DOOR</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2792"</v>
+              <v n="TextDefault">"Gate Door"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>闸门</v>
+                <v>Gate Door</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"804"</v>
+              <v n="TextDefault">"Go"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>执行</v>
+                <v>Go</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1599"</v>
+              <v n="TextDefault">"GVA"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>前端阀</v>
+                <v>GVA</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2627"</v>
+              <v n="TextDefault">"GVA ALL CL"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>GVA 全关</v>
+                <v>GVA ALL CL</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2227"</v>
+              <v n="TextDefault">"GVA ALL OP"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>GVA 全开</v>
+                <v>GVA ALL OP</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1078"</v>
+              <v n="TextDefault">"GVA10
+(Vent)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"621"</v>
+              <v n="TextDefault">"GVB"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>后端阀</v>
+                <v>GVB </v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1049"</v>
+              <v n="TextDefault">"GVB ALL CL"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>GVB 全关</v>
+                <v>GVB ALL CL</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1306"</v>
+              <v n="TextDefault">"GVB ALL OP"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>GVB 全开</v>
+                <v>GVB ALL OP</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2693"</v>
+              <v n="TextDefault">"He(500)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1792"</v>
+              <v n="TextDefault">"HI"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1937"</v>
+              <v n="TextDefault">"Hide Log Page"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>隐藏日志</v>
+                <v>Hide Log Page</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3195"</v>
+              <v n="TextDefault">"HL:%.1f"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>HL:%.1f</v>
+                <v>HL:%.1f</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1050"</v>
+              <v n="TextDefault">"HO"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1484"</v>
+              <v n="TextDefault">"HOME"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>原点</v>
+                <v>HOME</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"556"</v>
+              <v n="TextDefault">"HZ"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>HZ</v>
+                <v>HZ</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2189"</v>
+              <v n="TextDefault">"I:%d"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>I:%d</v>
+                <v>I:%d</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2021"</v>
+              <v n="TextDefault">"IN"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>工作位</v>
+                <v>IN</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1852"</v>
+              <v n="TextDefault">"INC"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>加</v>
+                <v>INC</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"331"</v>
+              <v n="TextDefault">"Information"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>Information</v>
+                <v>Information</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3323"</v>
+              <v n="TextDefault">"Input"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>Input</v>
+                <v>Input</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3271"</v>
+              <v n="TextDefault">"IO"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>IO</v>
+                <v>IO</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1930"</v>
+              <v n="TextDefault">"IP &amp; Port"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2554"</v>
+              <v n="TextDefault">"ISO. Valve"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>PDV真空阀</v>
+                <v>ISO.Valve</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2028"</v>
+              <v n="TextDefault">"ISO.VALVE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>ISO阀</v>
+                <v>ISO.Gauge</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"361"</v>
+              <v n="TextDefault">"L:%d"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"860"</v>
+              <v n="TextDefault">"LIFT PIN"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>顶针</v>
+                <v>LIFT PIN</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1311"</v>
+              <v n="TextDefault">"LL LID"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>LL盖检测</v>
+                <v>LL LID</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1222"</v>
+              <v n="TextDefault">"LL VENT"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>LL破空阀</v>
+                <v>LL VENT</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"529"</v>
+              <v n="TextDefault">"LOAD"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>LOAD</v>
+                <v>LOAD</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1413"</v>
+              <v n="TextDefault">"Load Config"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>加载配置</v>
+                <v>Load Config</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"574"</v>
+              <v n="TextDefault">"LOAD LOCK"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>上料锁</v>
+                <v>LOAD LOCK</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1029"</v>
+              <v n="TextDefault">"Load Lock Vent"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>上料腔破空</v>
+                <v>Load Lock Vent</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2814"</v>
+              <v n="TextDefault">"Load Wafer"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>上晶圆</v>
+                <v>Load Wafer</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"662"</v>
+              <v n="TextDefault">"Local IP:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>本地IP:</v>
+                <v>Local IP:</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2598"</v>
+              <v n="TextDefault">"Local Port:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>本地端口:</v>
+                <v>Local Port:</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"686"</v>
+              <v n="TextDefault">"LOG"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>日志</v>
+                <v>LOG</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1786"</v>
+              <v n="TextDefault">"Machine Vent"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>整机破空</v>
+                <v>Machine Pump</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2276"</v>
+              <v n="TextDefault">"Manual"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>手动</v>
+                <v>Manual</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"812"</v>
+              <v n="TextDefault">"Max Page"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>最大页</v>
+                <v>Max Page</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1860"</v>
+              <v n="TextDefault">"MFC"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2176"</v>
+              <v n="TextDefault">"MODE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>模式</v>
+                <v>MODE</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1003"</v>
+              <v n="TextDefault">"mToor"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2996"</v>
+              <v n="TextDefault">"mTorr"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1322"</v>
+              <v n="TextDefault">"MV:%d"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>MV:%d</v>
+                <v>MV:%d</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"497"</v>
+              <v n="TextDefault">"N"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"907"</v>
+              <v n="TextDefault">"N2(50)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"965"</v>
+              <v n="TextDefault">"Next"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>Next</v>
+                <v>Next</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1221"</v>
+              <v n="TextDefault">"NON"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1196"</v>
+              <v n="TextDefault">"None"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>None</v>
+                <v>None</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2107"</v>
+              <v n="TextDefault">"NORMAL"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>正常</v>
+                <v>NORMAL</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1576"</v>
+              <v n="TextDefault">"NorSw"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2529"</v>
+              <v n="TextDefault">"Note View"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>操作提示</v>
+                <v>Note View</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3200"</v>
+              <v n="TextDefault">"O2(10)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"166"</v>
+              <v n="TextDefault">"O2(100)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"741"</v>
+              <v n="TextDefault">"OK"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>确认</v>
+                <v>OK</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"4365"</v>
+              <v n="TextDefault">"OpCd"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"619"</v>
+              <v n="TextDefault">"OpEN"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"525"</v>
+              <v n="TextDefault">"OPEN"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>打开</v>
+                <v>OPEN</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2129"</v>
+              <v n="TextDefault">"Open"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>打开</v>
+                <v>Open</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1452"</v>
+              <v n="TextDefault">"Operator"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>操作</v>
+                <v>Operator</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3393"</v>
+              <v n="TextDefault">"operator"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>操作员</v>
+                <v>operator</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3519"</v>
+              <v n="TextDefault">"Other Par"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>其他配置</v>
+                <v>Other_Par</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2844"</v>
+              <v n="TextDefault">"OT_1"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2337"</v>
+              <v n="TextDefault">"OT_2"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2543"</v>
+              <v n="TextDefault">"OT_3"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1107"</v>
+              <v n="TextDefault">"Output"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>Output</v>
+                <v>Output</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1249"</v>
+              <v n="TextDefault">"P"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1324"</v>
+              <v n="TextDefault">"P:%d"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>P:%d</v>
+                <v>P:%d</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"828"</v>
+              <v n="TextDefault">"Page"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>Page</v>
+                <v>Page</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1505"</v>
+              <v n="TextDefault">"PARAMETERS OF THEN SELECTED RECIPE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>所选配方参数</v>
+                <v>PARAMETERS OF THE SELECTED RECIPE</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1298"</v>
+              <v n="TextDefault">"PASHE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"588"</v>
+              <v n="TextDefault">"Pause"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>暂停</v>
+                <v>Pause</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"948"</v>
+              <v n="TextDefault">"PDV"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>PDV</v>
+                <v>PDV</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"483"</v>
+              <v n="TextDefault">"PDV IP:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1477"</v>
+              <v n="TextDefault">"PDV Port:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1001"</v>
+              <v n="TextDefault">"Please keep pressing to trigger"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>Please keep pressing to trigger</v>
+                <v>Please keep pressing to trigger</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2040"</v>
+              <v n="TextDefault">"Please keep pressing to trigger the absolute motion loop"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>Please keep pressing to trigger the absolute motion loop</v>
+                <v>Please keep pressing to trigger the absolute motion loop</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2858"</v>
+              <v n="TextDefault">"Please keep pressing to trigger the relative motion loop"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>Please keep pressing to trigger the relative motion loop</v>
+                <v>Please keep pressing to trigger the relative motion loop</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1916"</v>
+              <v n="TextDefault">"POS."</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>位置</v>
+                <v>POS.</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"870"</v>
+              <v n="TextDefault">"POSITION"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>位置</v>
+                <v>POSITION</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2474"</v>
+              <v n="TextDefault">"POU Run Log Show:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>程序运行日志:</v>
+                <v>POU Run Log Show</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1451"</v>
+              <v n="TextDefault">"POWER"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>启动</v>
+                <v>POWER</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"887"</v>
+              <v n="TextDefault">"POWER RF"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>下电极源</v>
+                <v>POWER RF</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1442"</v>
+              <v n="TextDefault">"Power RF"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>下电极源</v>
+                <v>Power RF</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2719"</v>
+              <v n="TextDefault">"Power RF IP:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1947"</v>
+              <v n="TextDefault">"Power RF Port:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"239"</v>
+              <v n="TextDefault">"PowerEN"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>PowerEN</v>
+                <v>PowerEN</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3178"</v>
+              <v n="TextDefault">"PRE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1820"</v>
+              <v n="TextDefault">"PRE."</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>压力</v>
+                <v>PRE.</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2715"</v>
+              <v n="TextDefault">"PRESET"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"171"</v>
+              <v n="TextDefault">"PRF"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"591"</v>
+              <v n="TextDefault">"PTPErrID"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>PTPErrID</v>
+                <v>PTPErrID</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1977"</v>
+              <v n="TextDefault">"PV"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>PV</v>
+                <v>PV</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"71"</v>
+              <v n="TextDefault">"PV POS."</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>反馈位置</v>
+                <v>PV POS.</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"685"</v>
+              <v n="TextDefault">"PV PRE."</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>压力</v>
+                <v>PV PRE.</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"5189"</v>
+              <v n="TextDefault">"PV:%.1f"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"161"</v>
+              <v n="TextDefault">"Recipe"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>配方</v>
+                <v>Recipe</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"610"</v>
+              <v n="TextDefault">"RECIPE NAME"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>配方名</v>
+                <v>RECIPE NAME</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3036"</v>
+              <v n="TextDefault">"record"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>记录</v>
+                <v>record</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2022"</v>
+              <v n="TextDefault">"REF. POWER"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>反射功率</v>
+                <v>REF. POWER</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"321"</v>
+              <v n="TextDefault">"REM. TIME"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>剩余时间</v>
+                <v>REM. TIME</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1082"</v>
+              <v n="TextDefault">"RemainTime:%d s"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>剩余时间:%d 秒</v>
+                <v>RemainTime:%d s</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2425"</v>
+              <v n="TextDefault">"Reset"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>复位</v>
+                <v>Reset</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1305"</v>
+              <v n="TextDefault">"RetCd"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"184"</v>
+              <v n="TextDefault">"RetEN"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>RetEN</v>
+                <v>RetEN</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"180"</v>
+              <v n="TextDefault">"RetSw"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>RetSw</v>
+                <v>RetSw</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"592"</v>
+              <v n="TextDefault">"RF Co-Control"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>RF共同控制</v>
+                <v>RF Co-Control</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"655"</v>
+              <v n="TextDefault">"RF DC BIAS"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>偏压</v>
+                <v>RF DC BIAS</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1110"</v>
+              <v n="TextDefault">"ROUGH
+VALVE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>粗抽阀</v>
+                <v>ROUGH
+VALVE</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1676"</v>
+              <v n="TextDefault">"Rough Pump"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>粗抽</v>
+                <v>Rough Pump</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2733"</v>
+              <v n="TextDefault">"Runing"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>运行</v>
+                <v>Runing</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1675"</v>
+              <v n="TextDefault">"S"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2711"</v>
+              <v n="TextDefault">"Save Changes"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>变更</v>
+                <v>Save Change</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2690"</v>
+              <v n="TextDefault">"Save Config"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>保存配置</v>
+                <v>Save Config</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"434"</v>
+              <v n="TextDefault">"Save the current info"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>Save the current info</v>
+                <v>Save the current info</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2373"</v>
+              <v n="TextDefault">"Sccm"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2102"</v>
+              <v n="TextDefault">"SD:%d"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2199"</v>
+              <v n="TextDefault">"SELECT RECIPE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>配方选择</v>
+                <v>SELECT RECIPE</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1414"</v>
+              <v n="TextDefault">"SET"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>设置</v>
+                <v>SET</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"48"</v>
+              <v n="TextDefault">"SET POINT"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>目标值</v>
+                <v>Set Point</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"450"</v>
+              <v n="TextDefault">"SET POINT (Max)
+(sccm)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>目标值(最大)
+(sccm)</v>
+                <v>SET POINT(Max)
+(sccm)</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3128"</v>
+              <v n="TextDefault">"SET TIME"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>时间设置</v>
+                <v>SET TIME</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3300"</v>
+              <v n="TextDefault">"Set:%.1f"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>设置:%.1f</v>
+                <v>Set:%.1f</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3117"</v>
+              <v n="TextDefault">"SF6(200)"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1526"</v>
+              <v n="TextDefault">"Show Log Page"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>显示日志</v>
+                <v>Show Log Page</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"24"</v>
+              <v n="TextDefault">"SI:%d"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>SI:%d</v>
+                <v>SI:%d</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"578"</v>
+              <v n="TextDefault">"SLOW
+VALVE"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>预抽阀</v>
+                <v>SLOW
+PUM</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1064"</v>
+              <v n="TextDefault">"SMV:%d"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>SMV:%d</v>
+                <v>SMV:%d</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2050"</v>
+              <v n="TextDefault">"SOURCE RF"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>源RF</v>
+                <v>SOURCE RF</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1715"</v>
+              <v n="TextDefault">"Source RF"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>源RF</v>
+                <v>Source RF</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1683"</v>
+              <v n="TextDefault">"Source RF IP:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2025"</v>
+              <v n="TextDefault">"Source RF Port:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"678"</v>
+              <v n="TextDefault">"SP:%d"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>SP:%d</v>
+                <v>SP:%d</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1817"</v>
+              <v n="TextDefault">"SPEED"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>转速</v>
+                <v>SPEED</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"585"</v>
+              <v n="TextDefault">"SRF"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1021"</v>
+              <v n="TextDefault">"START"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>启动</v>
+                <v>START</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1002"</v>
+              <v n="TextDefault">"Start"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>启动</v>
+                <v>Start</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"179"</v>
+              <v n="TextDefault">"Status"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>Status</v>
+                <v>Status</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1784"</v>
+              <v n="TextDefault">"STATUS"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>状态</v>
+                <v>STATUS</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2455"</v>
+              <v n="TextDefault">"Stop"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>停止</v>
+                <v>Stop</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1632"</v>
+              <v n="TextDefault">"STOP"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>停止</v>
+                <v>STOP</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3303"</v>
+              <v n="TextDefault">"SV:%.1f"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2460"</v>
+              <v n="TextDefault">"T1"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2366"</v>
+              <v n="TextDefault">"T2"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"4036"</v>
+              <v n="TextDefault">"T:%.1f℃"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3004"</v>
+              <v n="TextDefault">"TEMP"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>温度</v>
+                <v>TEMP</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"848"</v>
+              <v n="TextDefault">"Temp."</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>温度</v>
+                <v>Temp.</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"330"</v>
+              <v n="TextDefault">"Time"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>Time</v>
+                <v>Time</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2190"</v>
+              <v n="TextDefault">"TIME"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>时间</v>
+                <v>TIME</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2583"</v>
+              <v n="TextDefault">"Tips for action"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1236"</v>
+              <v n="TextDefault">"Torr"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"5"</v>
+              <v n="TextDefault">"TURBO PUM"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>分子泵</v>
+                <v>TURBO PUM</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3032"</v>
+              <v n="TextDefault">"TURBO PUM TAIL"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>分子泵尾排</v>
+                <v>TURBO PUM TAIL</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2380"</v>
+              <v n="TextDefault">"UnLoad Wafer"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>下晶圆</v>
+                <v>UnLoad Wafer</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1420"</v>
+              <v n="TextDefault">"User"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>用户</v>
+                <v>User</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"134"</v>
+              <v n="TextDefault">"V"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>V</v>
+                <v>V</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"4141"</v>
+              <v n="TextDefault">"V:%.1frpm"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"296"</v>
+              <v n="TextDefault">"V:%d"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1009"</v>
+              <v n="TextDefault">"Vent Valve"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>破空阀</v>
+                <v>Vent Valve</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1822"</v>
+              <v n="TextDefault">"Ver:%s"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1756"</v>
+              <v n="TextDefault">"W"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2169"</v>
+              <v n="TextDefault">"Wafer In Chamber"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>晶圆在腔体内</v>
+                <v>Wafer In Chamber</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2251"</v>
+              <v n="TextDefault">"WAFER ON ARM"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>晶圆检测</v>
+                <v>WAFER ON ARM</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2256"</v>
+              <v n="TextDefault">"Welcome,%s"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>欢迎，%s</v>
+                <v>Welcome,%s</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2299"</v>
+              <v n="TextDefault">"×"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1475"</v>
+              <v n="TextDefault">"℃"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>℃</v>
+                <v>℃</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"579"</v>
+              <v n="TextDefault">"√"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"4025"</v>
+              <v n="TextDefault">"伸出/吸"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>伸出/吸</v>
+                <v>Extend/Vacuum</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2437"</v>
+              <v n="TextDefault">"使能"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>使能</v>
+                <v>Enable</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"10"</v>
+              <v n="TextDefault">"停止"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>停止</v>
+                <v>Stop</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1686"</v>
+              <v n="TextDefault">"允许正向运动"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>允许正向运动</v>
+                <v>Enable Forward</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"6032"</v>
+              <v n="TextDefault">"允许负向运动"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>允许负向运动</v>
+                <v>Enable Backward</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2793"</v>
+              <v n="TextDefault">"分子泵"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>分子泵</v>
+                <v>TB</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2541"</v>
+              <v n="TextDefault">"到位等待时间 [ms]:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>到位等待时间 [ms]:</v>
+                <v>Arrived Wait Time [ms]:</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3023"</v>
+              <v n="TextDefault">"前级阀"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>前级阀</v>
+                <v>ForLineValve</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"750"</v>
+              <v n="TextDefault">"原点"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>原点</v>
+                <v>HomeSensor</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"5437"</v>
+              <v n="TextDefault">"原点状态:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>原点状态:</v>
+                <v>Homed Status:</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2935"</v>
+              <v n="TextDefault">"参数设置说明"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>参数设置说明</v>
+                <v>Parameter Setting Explain</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"897"</v>
+              <v n="TextDefault">"启动"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>启动</v>
+                <v>Start</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"9987"</v>
+              <v n="TextDefault">"回原"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>回原</v>
+                <v>Home</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3911"</v>
+              <v n="TextDefault">"回原循环"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>回原循环</v>
+                <v>Homing Loop</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2815"</v>
+              <v n="TextDefault">"回原正常速度 [mm/s]:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>回原正常速度 [mm/s]:</v>
+                <v>Home Normal Speed [mm/s]:</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"7285"</v>
+              <v n="TextDefault">"回原爬行速度[mm/s]:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>回原爬行速度[mm/s]:</v>
+                <v>Home Slow Speed [mm/s]:</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"967"</v>
+              <v n="TextDefault">"复位"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>复位</v>
+                <v>Reset</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1228"</v>
+              <v n="TextDefault">"定位速度设置 [mm/s]"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>定位速度设置 [mm/s]</v>
+                <v>Vel Speed [mm/s]</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"7878"</v>
+              <v n="TextDefault">"实际位置 [mm]"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>实际位置 [mm]</v>
+                <v>Actual Pos [mm]</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"9652"</v>
+              <v n="TextDefault">"实际速度 [mm/s]"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>实际速度 [mm/s]</v>
+                <v>Actual Vel [mm/s]</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"7164"</v>
+              <v n="TextDefault">"往返运动速度 [mm/s]:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>往返运动速度 [mm/s]:</v>
+                <v>Loop Velocity [mm/s]:</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"8523"</v>
+              <v n="TextDefault">"循环次数:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>循环次数:</v>
+                <v>Loop Times:</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2615"</v>
+              <v n="TextDefault">"快抽阀"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>快抽阀</v>
+                <v>Fast Valve</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1823"</v>
+              <v n="TextDefault">"手动加热"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>手动加热</v>
+                <v>Manual Het</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"9121"</v>
+              <v n="TextDefault">"暂停"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>暂停</v>
+                <v>Pause</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1589"</v>
+              <v n="TextDefault">"更改密码"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>更改密码</v>
+                <v>Change Password</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1230"</v>
+              <v n="TextDefault">"机械泵"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>机械泵</v>
+                <v>Machine Pum</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1898"</v>
+              <v n="TextDefault">"欢迎，请点击右上角登陆
+界面或登录后选择相应功
+能进行操作"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>欢迎，请点击右上角登陆
+界面或登录后选择相应功
+能进行操作</v>
+                <v>Welcome, please click on the login screen
+ in the upper right corner 
+or 
+select the corresponding function after logging in</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"519"</v>
+              <v n="TextDefault">"正向/反向"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>正向/反向</v>
+                <v>Positive/Negative</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3927"</v>
+              <v n="TextDefault">"正向软限位 [mm]:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>正向软限位 [mm]:</v>
+                <v>Positive Soft Limit [mm]:</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"4624"</v>
+              <v n="TextDefault">"正限位"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>正限位</v>
+                <v>Positive Sensor</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2155"</v>
+              <v n="TextDefault">"水冷机"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>水冷机</v>
+                <v>Chiller</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"7519"</v>
+              <v n="TextDefault">"点动"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>点动</v>
+                <v>Jog</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"576"</v>
+              <v n="TextDefault">"点动速度设置 [mm/s]"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>点动速度设置 [mm/s]</v>
+                <v>Jog Velocity [mm/s]</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"814"</v>
+              <v n="TextDefault">"电极升降台"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>电极升降台</v>
+                <v>Electrode</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1881"</v>
+              <v n="TextDefault">"登        入"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>登        入</v>
+                <v>LogIn</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2170"</v>
+              <v n="TextDefault">"登        出"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>登        出</v>
+                <v>LogOut</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1291"</v>
+              <v n="TextDefault">"相对定位位置设置 [mm]"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>相对定位位置设置 [mm]</v>
+                <v>Relative Position [mm]</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"195"</v>
+              <v n="TextDefault">"相对循环"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>相对循环</v>
+                <v>RelativeLoop</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"10873"</v>
+              <v n="TextDefault">"相对模式"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>相对模式</v>
+                <v>RelativeMode</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1553"</v>
+              <v n="TextDefault">"禁止"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>禁止</v>
+                <v>Abandon</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"693"</v>
+              <v n="TextDefault">"管        理"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>管        理</v>
+                <v>Config</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1141"</v>
+              <v n="TextDefault">"粗抽阀"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>粗抽阀</v>
+                <v>Rough Valve</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"8848"</v>
+              <v n="TextDefault">"终点位置[mm]:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>终点位置[mm]:</v>
+                <v>End Position[mm]:</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"5283"</v>
+              <v n="TextDefault">"绝对定位位置设置 [mm]"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>绝对定位位置设置 [mm]</v>
+                <v>Absolute Position [mm]</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3673"</v>
+              <v n="TextDefault">"绝对循环"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>绝对循环</v>
+                <v>Absolute Loop</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3724"</v>
+              <v n="TextDefault">"绝对模式"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>绝对模式</v>
+                <v>AbsoluteMode</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"7449"</v>
+              <v n="TextDefault">"缩回/吹"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>缩回/吹</v>
+                <v>Retract/Break</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"632"</v>
+              <v n="TextDefault">"自动加热"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>自动加热</v>
+                <v>Auto Heat</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"189"</v>
+              <v n="TextDefault">"自学习"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>自学习</v>
+                <v>Auto Learn</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"6295"</v>
+              <v n="TextDefault">"设零"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>设零</v>
+                <v>Set to Zero</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2786"</v>
+              <v n="TextDefault">"负向软限位 [mm]:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>负向软限位 [mm]:</v>
+                <v>Negative Soft Limit [mm]:</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"4462"</v>
+              <v n="TextDefault">"负限位"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>负限位</v>
+                <v>Negetive Sensor</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"5037"</v>
+              <v n="TextDefault">"起点位置 [mm]:"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>起点位置 [mm]:</v>
+                <v>Start Position [mm]:</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3352"</v>
+              <v n="TextDefault">"输入"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>输入</v>
+                <v>Input</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3910"</v>
+              <v n="TextDefault">"输出"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>输出</v>
+                <v>Output</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"6480"</v>
+              <v n="TextDefault">"速度模式"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>速度模式</v>
+                <v>VelocityMode</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2953"</v>
+              <v n="TextDefault">"钟摆阀"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>钟摆阀</v>
+                <v>PDV</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3427"</v>
+              <v n="TextDefault">"需切换界面左上角控制模式为“配置模式”，根据参数栏
+
+左上方提示内容及其设置框说明标题，设置相应的参数并按
+
+“保存配置”按钮3秒以上，直到右侧黄灯闪烁
+
+设置完成参数后需根据相应需求选择对应控制模式"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>需切换界面左上角控制模式为“配置模式”，根据参数栏
+
+左上方提示内容及其设置框说明标题，设置相应的参数并按
+
+“保存配置”按钮3秒以上，直到右侧黄灯闪烁
+
+设置完成参数后需根据相应需求选择对应控制模式</v>
+                <v>Switch control mode to Configuration Mode.
+Press the 'Save' button for more than 3 seconds until the yellow light on the right flashes</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"406"</v>
+              <v n="TextDefault">"顶针"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>顶针</v>
+                <v>LiftPin</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1344"</v>
+              <v n="TextDefault">"预抽阀"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>预抽阀</v>
+                <v>Rough Valve</v>
+              </l>
+            </o>
+          </l>
+          <l n="Languages" t="ArrayList" cet="String">
+            <v>Chinese</v>
+            <v>English</v>
+          </l>
+          <v n="GuidInit">{497d583e-9b20-448c-bfcc-2205dbe5aa9b}</v>
+          <v n="GuidReInit">{f8f497e2-024b-44af-b34c-65042a2ffce7}</v>
+          <v n="GuidExitX">{b27088a9-0581-4615-8b46-1c6e60ef312b}</v>
+        </o>
+      </Data>
+      <TypeList>
+        <Type n="ArrayList">System.Collections.ArrayList</Type>
+        <Type n="GlobalTextListObject">{63784cbb-9ba0-45e6-9d69-babf3f040511}</Type>
+        <Type n="Guid">System.Guid</Type>
+        <Type n="String">System.String</Type>
+        <Type n="TextListRow">{53da1be7-ad25-47c3-b0e8-e26286dad2e0}</Type>
+      </TypeList>
+    </XmlArchive>
+  </GlobalTextList>
+</TcPlcObject>

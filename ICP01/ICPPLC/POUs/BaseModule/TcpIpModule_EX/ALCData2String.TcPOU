@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="ALCData2String" Id="{5fc5db8c-f9e7-4d79-9a01-390c20e8bec7}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION ALCData2String : STRING(255)
+VAR_INPUT
+	ALCData			:ST_TCPIP_DATA_STRUCT_ALC;//ALC数据
+END_VAR
+VAR
+	strTemp			:STRING(255):='';
+	iTemp			:UINT;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[strTemp:='';
+strTemp:=CONCAT(STR1:=strTemp,STR2:=TO_STRING(ALCData.channel));
+strTemp:=CONCAT(STR1:=strTemp,STR2:=';');
+strTemp:=CONCAT(STR1:=strTemp,STR2:=TO_STRING(ALCData.msgType));
+strTemp:=CONCAT(STR1:=strTemp,STR2:=';');
+strTemp:=CONCAT(STR1:=strTemp,STR2:=TO_STRING(ALCData.funCode));
+strTemp:=CONCAT(STR1:=strTemp,STR2:=';');
+strTemp:=CONCAT(STR1:=strTemp,STR2:=TO_STRING(ALCData.value1));
+strTemp:=CONCAT(STR1:=strTemp,STR2:=';');
+strTemp:=CONCAT(STR1:=strTemp,STR2:=TO_STRING(ALCData.value2));
+strTemp:=CONCAT(STR1:=strTemp,STR2:=';');
+strTemp:=CONCAT(STR1:=strTemp,STR2:=TO_STRING(ALCData.value3));
+strTemp:=CONCAT(STR1:=strTemp,STR2:=';');
+strTemp:=CONCAT(STR1:=strTemp,STR2:=TO_STRING(ALCData.value4));
+strTemp:=CONCAT(STR1:=strTemp,STR2:=';');
+strTemp:=CONCAT(STR1:=strTemp,STR2:=TO_STRING(ALCData.value5));
+strTemp:=CONCAT(STR1:=strTemp,STR2:=';');
+strTemp:=CONCAT(STR1:=strTemp,STR2:=TO_STRING(ALCData.errID));
+strTemp:=CONCAT(STR1:=strTemp,STR2:=';');
+FOR iTemp:=1 TO g_nMaxByte_Client DO
+	strTemp:=CONCAT(strTemp,F_ToCHR(c:=ALCData.str[iTemp]));
+END_FOR
+
+ALCData2String:=strTemp;]]></ST>
+    </Implementation>
+    <LineIds Name="ALCData2String">
+      <LineId Id="14" Count="22" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

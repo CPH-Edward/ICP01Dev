@@ -1,0 +1,92 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <ImagePool Name="ImagePool1" Id="{781e2a5a-a0e0-4529-ba1f-751259e72f90}">
+    <XmlArchive>
+      <Data>
+        <o xml:space="preserve" t="ImagePoolObject">
+          <v n="UniqueIdGenerator">"68"</v>
+          <l n="BitmapPool" t="ArrayList" cet="ImagePoolItem">
+            <o>
+              <v n="BitmapID">"background"</v>
+              <v n="FileID">"5ce3da45-db07-42e7-a21c-a00fff4ed8f6|C:\Picture\rie-ui-bg@1x.png"</v>
+              <v n="ItemID">22</v>
+            </o>
+            <o>
+              <v n="BitmapID">"eva1201"</v>
+              <v n="FileID">"5ce3da45-db07-42e7-a21c-a00fff4ed8f6|C:\Picture\eva1201.png"</v>
+              <v n="ItemID">24</v>
+            </o>
+            <o>
+              <v n="BitmapID">"icp01"</v>
+              <v n="FileID">"5ce3da45-db07-42e7-a21c-a00fff4ed8f6|C:\Picture\ICP01.png"</v>
+              <v n="ItemID">25</v>
+            </o>
+            <o>
+              <v n="BitmapID">"Gedion"</v>
+              <v n="FileID">"5ce3da45-db07-42e7-a21c-a00fff4ed8f6|C:\Picture\1Gideon.png"</v>
+              <v n="ItemID">27</v>
+            </o>
+            <o>
+              <v n="BitmapID">"Loadding"</v>
+              <v n="FileID">"5ce3da45-db07-42e7-a21c-a00fff4ed8f6|C:\Picture\rie-ui-bg--2--1@1x.png"</v>
+              <v n="ItemID">43</v>
+            </o>
+            <o>
+              <v n="BitmapID">"up"</v>
+              <v n="FileID">"5ce3da45-db07-42e7-a21c-a00fff4ed8f6|C:\Picture\up.png"</v>
+              <v n="ItemID">46</v>
+            </o>
+            <o>
+              <v n="BitmapID">"down"</v>
+              <v n="FileID">"5ce3da45-db07-42e7-a21c-a00fff4ed8f6|C:\Picture\down.png"</v>
+              <v n="ItemID">49</v>
+            </o>
+            <o>
+              <v n="BitmapID">"autoImg"</v>
+              <v n="FileID">"5ce3da45-db07-42e7-a21c-a00fff4ed8f6|C:\Picture\gas-outline1.png"</v>
+              <v n="ItemID">51</v>
+            </o>
+            <o>
+              <v n="BitmapID">"ViewBack"</v>
+              <v n="FileID">"5ce3da45-db07-42e7-a21c-a00fff4ed8f6|C:\Picture\P1.png"</v>
+              <v n="ItemID">56</v>
+            </o>
+            <o>
+              <v n="BitmapID">""</v>
+              <v n="FileID">""</v>
+              <v n="ItemID">65</v>
+            </o>
+          </l>
+          <v n="GuidInit">{36d99868-4b40-4c90-adf7-d1e8dcc5f419}</v>
+          <v n="GuidReInit">{c66dd256-a98c-4814-81d8-64fca82b7f70}</v>
+          <v n="GuidExitX">{10188cb5-0fd2-4f6b-a083-621691027226}</v>
+          <v n="ValidIds">true</v>
+        </o>
+      </Data>
+      <TypeList>
+        <Type n="ArrayList">System.Collections.ArrayList</Type>
+        <Type n="Boolean">System.Boolean</Type>
+        <Type n="Guid">System.Guid</Type>
+        <Type n="ImagePoolItem">{215b2719-0347-4e4d-ba85-8bcd66946f66}</Type>
+        <Type n="ImagePoolObject">{bb0b9044-714e-4614-ad3e-33cbdf34d16b}</Type>
+        <Type n="Int32">System.Int32</Type>
+        <Type n="String">System.String</Type>
+      </TypeList>
+    </XmlArchive>
+    <ObjectProperties>
+      <XmlArchive>
+        <Data>
+          <o xml:space="preserve" t="ImagePoolPropertiesObject">
+            <v n="DownloadOnlyUsedImages">true</v>
+            <v n="Internal">false</v>
+            <n n="SymbolTextList" />
+          </o>
+        </Data>
+        <TypeList>
+          <Type n="Boolean">System.Boolean</Type>
+          <Type n="ImagePoolPropertiesObject">{a67e96c6-3fd3-4d25-a9ff-723c6b2f78cb}</Type>
+        </TypeList>
+      </XmlArchive>
+    </ObjectProperties>
+  </ImagePool>
+</TcPlcObject>

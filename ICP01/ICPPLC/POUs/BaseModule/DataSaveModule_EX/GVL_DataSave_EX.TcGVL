@@ -1,0 +1,36 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <GVL Name="GVL_DataSave_EX" Id="{ed5408b7-cd0a-42d1-8395-7b646b52f015}">
+    <Declaration><![CDATA[VAR_GLOBAL CONSTANT
+	gMaxNumLength			: UDINT := 12800;//文件存储的字符最大容量  256000
+	gNumBegin				: UDINT := 1;
+END_VAR
+
+VAR_GLOBAL CONSTANT
+	(*这部分可按照实际项目去分配数量*)
+	gMAX_BOOL_NUM			: UDINT := 179;//实际180
+	gMAX_DINT_NUM			: UDINT := 179;//实际180
+	gMAX_LREAL_NUM			: UDINT := 899;//实际899
+	// Recipe
+	gRecipeMAX_String_NUM	: UDINT := 22;//实际20
+	gRecipeMAX_Show_Max		: UDINT := 20;
+	
+	gRecipeNameMAX_String_NUM	: UDINT := 99;//实际100
+	gRecipeStepMaxShow:UDINT:=22;
+END_VAR
+
+VAR_GLOBAL CONSTANT
+	gMAX_CSV_ROWS 			: UDINT := gMAX_BOOL_NUM + gMAX_DINT_NUM + gMAX_LREAL_NUM + 3;
+	gMAX_CSV_COLUMNS 		: UDINT := 4;//实际有5列
+	gMAX_CSV_FIELD_LENGTH	: UDINT := gMAX_BOOL_NUM + gMAX_DINT_NUM + gMAX_LREAL_NUM + 3;
+	// Recipe
+	gRecipeMAX_CSV_ROWS 		: UDINT := gRecipeMAX_String_NUM + 1;
+	gRecipeMAX_CSV_COLUMNS 		: UDINT := 19;// 实际有20列
+	gRecipeMAX_CSV_FIELD_LENGTH	: UDINT := gRecipeMAX_String_NUM + 1;
+	
+	gRecipeNameMAX_CSV_ROWS 		: UDINT := gRecipeNameMAX_String_NUM + 1;
+	gRecipeNameMAX_CSV_COLUMNS 		: UDINT := 4;// 实际有20列
+	gRecipeNameMAX_CSV_FIELD_LENGTH	: UDINT := gRecipeNameMAX_String_NUM + 1;
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

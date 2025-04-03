@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="ST_StationConfigBase" Id="{1d7a0085-6f4d-4a55-842d-3f364e0edd60}">
+    <Declaration><![CDATA[TYPE ST_StationConfigBase :
+STRUCT
+	Pos1						:LREAL;//大尺寸物料——相机聚焦位置
+	Move_Pos1					:BOOL;//移动到大尺寸物料相机聚焦位
+	SavePar						:BOOL;//参数保存
+	AixActVel					:LREAL;//轴对象实际速度
+	AixActPos					:LREAL;//轴对象实际位置
+	AixNameShow					:WSTRING;//现实名称
+	AixChineseName				:WSTRING;//中文名称
+	AixEnglishName				:STRING;//英文名称
+	RunVel						:LREAL;//运行速度
+	Stop						:BOOL;//运动复位
+	Reset						:BOOL;//运动停止
+	moveerror					:BOOL;//运动出错
+	pos1name					:WSTRING:="位置1";
+	savepos1btname				:WSTRING:="保存位置1";
+	movetopos1btname			:WSTRING:="移动到位置1";
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

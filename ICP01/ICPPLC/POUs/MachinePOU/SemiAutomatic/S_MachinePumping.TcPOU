@@ -1,0 +1,199 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="S_MachinePumping" Id="{6f9cea6d-ac12-48b1-9f95-7cb1546c390d}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM S_MachinePumping
+VAR_INPUT
+	bInit				:BOOL:=FALSE;// 初始化状态 busy/done/errDone
+	bTrig				:BOOL:=FALSE;// 执行触发 信号
+	bReset				:BOOL:=FALSE;// 报错 复位
+	bPause				:BOOL:=FALSE;// 暂停 运行
+	bStop				:BOOL:=FALSE;// 停止 运行
+	bAbort				:BOOL:=FALSE;// 中止 运行
+	
+END_VAR
+VAR_OUTPUT
+	busy				:BOOL;
+	done				:BOOL;
+	errDone				:BOOL;
+END_VAR
+VAR
+	actStep				:ActStepBase;
+END_VAR
+VAR
+	i: INT;
+	t1:ton;
+	t2:ton;
+	t3:ton;
+	notchoose:BOOL;
+	timeOutTime:TIME:=T#120S;
+	safecheckTime:TIME:=T#1S;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[busy:=actStep.isBusy();
+done:=actStep.isDone();
+errDone:=actStep.isError();
+actStep.Act_Pause(pause:=bPause);
+
+IF bTrig THEN
+	bTrig:=FALSE;
+	IF NOT busy THEN
+		actStep.Act_ex();
+	END_IF
+END_IF
+
+//状态复位
+IF bInit THEN
+	bInit:=FALSE;
+	Act_init_status();
+END_IF
+
+IF bAbort OR bStop THEN
+	bAbort:=FALSE;
+	bStop:=FALSE;
+	Act_init_status();
+	actStep.toZeroStep();
+	gShowLogTextTitle:='NON';
+END_IF
+ActionRun(tempActStep:=actStep);]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{dfc70ef0-f996-48e0-9073-34d8d93fbda3}" />
+    <Method Name="Act_Ex" Id="{5a336a2f-ec6d-469c-9ac9-9a06af7b8525}">
+      <Declaration><![CDATA[(*
+---Trigger action
+*)
+METHOD Act_Ex : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT busy THEN
+	actStep.Act_ex();
+	Act_Ex:=TRUE;
+ELSE
+	Act_Ex:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Init_Status" Id="{39748cf2-0b4f-4cca-b7be-71361bd7a49d}">
+      <Declaration><![CDATA[(*
+---功能: 状态复位 busy/done/errDone;
+*)
+METHOD Act_Init_Status
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[actStep.Act_Init();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ActionRun" Id="{d0814706-da90-4c29-b859-a969d625c04c}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE ActionRun
+VAR_INPUT
+	tempActStep:ITFActStep;
+END_VAR
+VAR
+END_VAR
+VAR_STAT//此处定义静态变量, 保证每次进入该函数时能够在线监控当前值
+	tempStep:DINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[tempStep:=tempActStep.getStep();
+CASE tempStep OF
+0:
+	IF tempActStep.isEx() THEN
+		tempActStep.setBusyFlag();
+		tempActStep.toBeginStep();
+	END_IF
+	t1(IN:= FALSE );
+	t2(IN:= FALSE );
+	t3(IN:= FALSE );
+10:
+	gShowLogTextTitle:='Machine Pumping';
+	IF gRunningState<>RunningStatus.eErrorState THEN
+		tempActStep.addStep(10,FALSE);
+	ELSE
+		error_Trigger(105);
+		tempActStep.toErrDoneStep();
+	END_IF
+20:
+	IF NOT gICP.ForeLineGauge.error AND gICP.ForeLineGauge.outputValue<gRoughtPumVaccum*10 THEN
+		tempActStep.addStep(10,FALSE);
+	ELSE
+		error_Trigger(107);
+		tempActStep.toErrDoneStep();
+	END_IF
+30:
+	tempActStep.toStep(200,FALSE);
+200:
+	tempActStep.addStep(10,TRUE);
+210:
+	S_RoughPumping.Act_Init_Status();
+	S_RoughPumping.Act_Ex();
+	tempActStep.addStep(10,FALSE);
+220:
+	IF S_RoughPumping.done THEN
+		gShowLogTextTitle:='Machine Pumping';
+		ups_CX51X0.Act_Wrtie();
+		tempActStep.addStep(10,FALSE);
+	END_IF
+	IF S_RoughPumping.errDone THEN
+		tempActStep.toErrDoneStep();
+	END_IF
+230:
+	tempActStep.toStep(1000,FALSE);
+1000:
+	tempActStep.toDoneStep();
+
+60000://Done
+	tempActStep.setDoneFlag();
+	tempActStep.toZeroStep();
+	
+65000://Error
+	tempActStep.setErrDoneFlag();
+	tempActStep.toZeroStep();
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="S_MachinePumping">
+      <LineId Id="49" Count="0" />
+      <LineId Id="385" Count="2" />
+      <LineId Id="406" Count="12" />
+      <LineId Id="422" Count="0" />
+      <LineId Id="530" Count="1" />
+      <LineId Id="489" Count="0" />
+      <LineId Id="510" Count="0" />
+      <LineId Id="509" Count="0" />
+      <LineId Id="560" Count="0" />
+      <LineId Id="395" Count="0" />
+      <LineId Id="446" Count="0" />
+    </LineIds>
+    <LineIds Name="S_MachinePumping.Act_Ex">
+      <LineId Id="14" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="17" Count="0" />
+    </LineIds>
+    <LineIds Name="S_MachinePumping.Act_Init_Status">
+      <LineId Id="15" Count="0" />
+    </LineIds>
+    <LineIds Name="S_MachinePumping.ActionRun">
+      <LineId Id="1943" Count="10" />
+      <LineId Id="2343" Count="0" />
+      <LineId Id="1954" Count="2" />
+      <LineId Id="2332" Count="0" />
+      <LineId Id="1957" Count="5" />
+      <LineId Id="2333" Count="0" />
+      <LineId Id="1963" Count="3" />
+      <LineId Id="1982" Count="2" />
+      <LineId Id="2301" Count="4" />
+      <LineId Id="2344" Count="0" />
+      <LineId Id="2322" Count="0" />
+      <LineId Id="2306" Count="5" />
+      <LineId Id="2179" Count="10" />
+      <LineId Id="1092" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

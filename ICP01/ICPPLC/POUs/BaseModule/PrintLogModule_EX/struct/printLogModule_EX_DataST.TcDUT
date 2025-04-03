@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="printLogModule_EX_DataST" Id="{a2c1c46a-908d-4d1a-a0b2-a40896cceef0}">
+    <Declaration><![CDATA[TYPE printLogModule_EX_DataST :
+STRUCT
+	sTime			:WSTRING(255);
+	msg				:WSTRING(255);//T_MaxString
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

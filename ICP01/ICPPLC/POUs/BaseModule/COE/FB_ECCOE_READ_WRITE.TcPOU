@@ -1,0 +1,137 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="FB_ECCOE_READ_WRITE" Id="{c40bf0c2-40bb-47c4-af90-bcf9177e8ee6}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_ECCOE_READ_WRITE
+VAR_INPUT
+	sNetId      			: T_AmsNetId:= '';//I/O->Devices->Device 1(EtherCAT)-->EtherCAT选项卡->NetId
+    nSlaveAddr  			: UINT;//I/O->Devices->Device 1(EtherCAT)-->选中对应的驱动器(例如Drive 20)->EtherCAT选项卡->EtherCAT Addr
+    nIndex					: WORD := 0;//待读写的参数索引
+	nSubIndex      			: BYTE;//待读写的参数索引的子索引
+    pReadBuff     			: PVOID;//待读的数据缓存
+	cbReadBuffLen			: UDINT;//待读的数据缓存长度；使用sizeof
+    pWriteBuff     			: PVOID;//待写的数据缓存
+	cbWriteBuffLen			: UDINT;//待写的数据缓存长度：使用sizeof
+END_VAR
+VAR_OUTPUT
+	bBusy					: BOOL;
+	bDone					: BOOL;
+    bError      			: BOOL;
+    nErrId      			: UDINT;
+END_VAR
+VAR
+	fbEcCoeSdoRead  		: FB_EcCoeSdoRead;
+	fbEcCoeSdoWrite  		: FB_EcCoeSdoWrite;
+	ftrig_Busy				: F_TRIG;
+	f2trig_Busy				: F_TRIG;
+	f3trig_Busy				: F_TRIG;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[fbEcCoeSdoRead(
+	sNetId:= sNetId, 
+	nSlaveAddr:= nSlaveAddr, 
+	nSubIndex:= nSubIndex, 
+	nIndex:= nIndex, 
+	pDstBuf:= pReadBuff, 
+	cbBufLen:= cbReadBuffLen, 
+	bExecute:= , 
+	tTimeout:= , 
+	bBusy=> , 
+	bError=> , 
+	nErrId=> );
+fbEcCoeSdoWrite(
+	sNetId:= sNetId, 
+	nSlaveAddr:= nSlaveAddr, 
+	nSubIndex:= nSubIndex, 
+	nIndex:= nIndex, 
+	pSrcBuf:= pWriteBuff, 
+	cbBufLen:= cbWriteBuffLen, 
+	bExecute:= , 
+	tTimeout:= , 
+	bBusy=> , 
+	bError=> , 
+	nErrId=> );
+
+bBusy:=fbEcCoeSdoRead.bBusy OR fbEcCoeSdoWrite.bBusy;
+bError:=fbEcCoeSdoRead.bError OR fbEcCoeSdoWrite.bError;
+IF fbEcCoeSdoRead.bError THEN
+	nErrId:=fbEcCoeSdoRead.nErrId;
+ELSIF fbEcCoeSdoWrite.bError THEN
+	nErrId:=fbEcCoeSdoWrite.nErrId;
+ELSE
+	nErrId:=0;
+END_IF
+ftrig_Busy(CLK:= bBusy, Q=> );
+IF bBusy THEN
+	bDone:=FALSE;
+END_IF
+IF NOT bError AND ftrig_Busy.Q THEN
+	bDone:=TRUE;
+END_IF
+f2trig_Busy(CLK:= fbEcCoeSdoRead.bBusy, Q=> );
+IF f2trig_Busy.Q THEN
+	fbEcCoeSdoRead(bExecute:=FALSE);
+END_IF
+f3trig_Busy(CLK:= fbEcCoeSdoWrite.bBusy, Q=> );
+IF f3trig_Busy.Q THEN
+	fbEcCoeSdoWrite(bExecute:=FALSE);
+END_IF
+]]></ST>
+    </Implementation>
+    <Method Name="Act_Read" Id="{fdb7d9cc-0656-4a64-bc73-2b1e21c23395}">
+      <Declaration><![CDATA[METHOD Act_Read : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[fbEcCoeSdoRead(bExecute:=FALSE);
+
+fbEcCoeSdoRead(bExecute:=TRUE);
+
+bDone:=FALSE;
+Act_Read:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Write" Id="{82c9ac87-c6b5-47b1-a74e-def4ae233510}">
+      <Declaration><![CDATA[METHOD Act_Write : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[fbEcCoeSdoWrite(bExecute:=FALSE);
+
+fbEcCoeSdoWrite(bExecute:=TRUE);
+
+bDone:=FALSE;
+Act_Write:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="FB_ECCOE_READ_WRITE">
+      <LineId Id="33" Count="10" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="45" Count="10" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="60" Count="12" />
+      <LineId Id="105" Count="0" />
+      <LineId Id="74" Count="2" />
+      <LineId Id="110" Count="2" />
+      <LineId Id="114" Count="2" />
+      <LineId Id="118" Count="0" />
+      <LineId Id="109" Count="0" />
+      <LineId Id="59" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_ECCOE_READ_WRITE.Act_Read">
+      <LineId Id="5" Count="0" />
+      <LineId Id="7" Count="1" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="6" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_ECCOE_READ_WRITE.Act_Write">
+      <LineId Id="6" Count="1" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="8" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

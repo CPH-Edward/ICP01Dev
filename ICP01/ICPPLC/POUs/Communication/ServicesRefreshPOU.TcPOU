@@ -1,0 +1,114 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="ServicesRefreshPOU" Id="{7a24e9ba-1200-41bb-b230-905719de732c}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM ServicesRefreshPOU
+VAR_OUTPUT
+	bDone:BOOL;
+	bErrDone:BOOL;
+	sErrTxt:STRING;
+END_VAR
+VAR
+	bInit:BOOL;
+	tInit:TON;
+	nStep:INT;
+	fbNT_StartProcess:NT_StartProcess;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[tInit(IN:= bInit, PT:= T#500MS, Q=> , ET=> );
+IF NOT tInit.Q THEN
+	nStep:=10;
+	bInit:=TRUE;
+	RETURN;
+END_IF
+
+CASE nStep OF
+	0:
+		;
+	10:
+		bDone:=FALSE;
+		bErrDone:=FALSE;
+		sErrTxt:='';
+		fbNT_StartProcess(Start:=FALSE);
+		nStep:=nStep+10;
+	20:
+		fbNT_StartProcess(
+			NETID:= , 
+			PATHSTR:= '\Windows\system32\cmd.exe', 
+			DIRNAME:= '\Windows\system32', 
+			COMNDLINE:= '/c services refresh htp0:', 
+			START:= TRUE, 
+			TMOUT:= , 
+			BUSY=> , 
+			ERR=> , 
+			ERRID=> );
+		IF NOT fbNT_StartProcess.BUSY THEN
+			IF fbNT_StartProcess.ERR THEN
+				sErrTxt:=CONCAT('Could not restart webserver! ErrorID: ', TO_STRING(fbNT_StartProcess.ERRID));
+				bErrDone:=TRUE;
+				nStep:=0;
+			ELSE
+				nStep:=nStep+10;
+			END_IF
+			fbNT_StartProcess(Start:=FALSE);
+		END_IF
+	30:
+		nStep:=nStep+10;
+	40:
+		fbNT_StartProcess(Start:=FALSE);
+		nStep:=nStep+10;
+	50:
+		fbNT_StartProcess(
+			NETID:= , 
+			PATHSTR:= '\Windows\system32\cmd.exe', 
+			DIRNAME:= '\Windows\system32', 
+			COMNDLINE:= '/c iisreset/restart', 
+			START:= TRUE, 
+			TMOUT:= , 
+			BUSY=> , 
+			ERR=> , 
+			ERRID=> );
+		IF NOT fbNT_StartProcess.BUSY THEN
+			IF fbNT_StartProcess.ERR THEN
+				sErrTxt:=CONCAT('Could not restart webserver! ErrorID: ', TO_STRING(fbNT_StartProcess.ERRID));
+				bErrDone:=TRUE;
+				nStep:=0;
+			ELSE
+				nStep:=nStep+10;
+			END_IF
+			fbNT_StartProcess(Start:=FALSE);
+		END_IF
+	60:
+		nStep:=100;
+	
+	100:
+		bDone:=TRUE;
+		nStep:=0;
+END_CASE
+
+]]></ST>
+    </Implementation>
+    <LineIds Name="ServicesRefreshPOU">
+      <LineId Id="3" Count="1" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="8" Count="26" />
+      <LineId Id="76" Count="0" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="75" Count="0" />
+      <LineId Id="37" Count="1" />
+      <LineId Id="40" Count="1" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="72" Count="0" />
+      <LineId Id="79" Count="0" />
+      <LineId Id="82" Count="19" />
+      <LineId Id="77" Count="0" />
+      <LineId Id="102" Count="1" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="80" Count="1" />
+      <LineId Id="42" Count="2" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

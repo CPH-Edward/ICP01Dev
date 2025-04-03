@@ -1,0 +1,29 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="POU_Test" Id="{0b577caa-b73d-4a1d-80e9-1a9aceb2b453}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM POU_Test
+VAR
+	readBuff:ARRAY [1..10] OF ST_DataFmtBase;
+	fbFileReadWrite:FB_IOFileReadWrite;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[fbFileReadWrite(
+	readBuff:= readBuff, 
+	sFileName:= 'E:\FilePath\file.csv', 
+	bRead:= , 
+	sTxtHead:= 'GROUP,NUM,ENG,CHN,NO USE', 
+	bBusy=> , 
+	bDone=> , 
+	bError=> , 
+	nErrid=> );]]></ST>
+    </Implementation>
+    <LineIds Name="POU_Test">
+      <LineId Id="8" Count="2" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="11" Count="2" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

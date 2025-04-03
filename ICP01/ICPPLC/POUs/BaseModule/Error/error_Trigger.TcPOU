@@ -1,0 +1,110 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="error_Trigger" Id="{bc2485ac-ad7a-4601-9a6f-f9dccf8c5295}" SpecialFunc="None">
+    <Declaration><![CDATA[//设备报警处理
+FUNCTION error_Trigger : BOOL
+VAR_INPUT
+	errorID					:DINT;//error id
+END_VAR
+VAR
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF g_Max_Data_Elements<=gError_hTable.nCount THEN//哈希表内容超过100条，直接返回
+	RETURN;
+END_IF
+gError_fbTable.A_Lookup(key:=TO_DWORD(errorID),hTable:=gError_hTable);//从哈希表中查询是否有正在报警的id
+IF gError_fbTable.bOk THEN//如果有，直接返回，不再报警该id；如果无，则添加到哈希表中，并报警提示
+	//value:= gError_fbTable.getValue;
+	RETURN;//已经报警过该错误
+ELSE
+	(* Entry not found *)
+	gError_fbTable.A_Add(key:=TO_DWORD(errorID),putValue :=TO_UDINT(errorID), hTable:=gError_hTable);
+END_IF
+//print之前，先进行ErrorMonitor将错误内容进行分配；如果错误内容写死，可以不用这么写
+errorMonitor();
+error_Printf(errorID);
+
+IF g_d_ErrorBegin<=errorID AND errorID<=g_d_ErrorEnd THEN
+	CASE gErrorARRAY[errorID].eErrLevel OF
+		Error_Level_0:
+			//gErrorARRAY[errorID].bError:=TRUE;
+			IF gAutoRunningFlag THEN
+				//PLC_MainSW.appendSend(0,0,E_CmdID_SW.SW_Error,0.0,0.0,0.0,0.0,gErrorARRAY[errorID].eErrLevel,gErrorARRAY[errorID].uErrID,gErrorARRAY[errorID].sErrTXT);
+				//PLC_MainSW.appendSend(0,0,E_CmdID_SW.SW_Error,0.0,0.0,0.0,0.0,0.0,ErrCodeProcess(errorID),'');
+				//PLC_MainSW.appendSend(TO_STRING(ErrCodeProcess(errorID)));
+			END_IF
+		Error_Level_1:
+			//gErrorARRAY[errorID].bError:=TRUE;
+			IF gAutoRunningFlag THEN
+				//PLC_MainSW.appendSend(0,0,E_CmdID_SW.SW_Error,0.0,0.0,0.0,0.0,gErrorARRAY[errorID].eErrLevel,gErrorARRAY[errorID].uErrID,gErrorARRAY[errorID].sErrTXT);
+				//PLC_MainSW.appendSend(TO_STRING(ErrCodeProcess(errorID)));
+			END_IF
+		Error_Level_2:
+			//gErrorARRAY[errorID].bError:=TRUE;
+			IF gAutoRunningFlag THEN
+				//PLC_MainSW.appendSend(0,0,E_CmdID_SW.SW_Error,0.0,0.0,0.0,0.0,gErrorARRAY[errorID].eErrLevel,gErrorARRAY[errorID].uErrID,gErrorARRAY[errorID].sErrTXT);
+				//PLC_MainSW.appendSend(TO_STRING(ErrCodeProcess(errorID)));
+			END_IF
+		Error_Level_3:
+			gErrorARRAY[errorID].bError:=TRUE;
+			IF gAutoRunningFlag THEN
+				//PLC_MainSW.appendSend(0,0,E_CmdID_SW.SW_Error,0.0,0.0,0.0,0.0,gErrorARRAY[errorID].eErrLevel,gErrorARRAY[errorID].uErrID,gErrorARRAY[errorID].sErrTXT);
+				//PLC_MainSW.appendSend(TO_STRING(ErrCodeProcess(errorID)));
+			END_IF
+		Error_Level_4:
+			gErrorARRAY[errorID].bError:=TRUE;
+			IF gAutoRunningFlag THEN
+				//PLC_MainSW.appendSend(0,0,E_CmdID_SW.SW_Error,0.0,0.0,0.0,0.0,gErrorARRAY[errorID].eErrLevel,gErrorARRAY[errorID].uErrID,gErrorARRAY[errorID].sErrTXT);
+				//PLC_MainSW.appendSend(TO_STRING(ErrCodeProcess(errorID)));
+			END_IF
+	END_CASE
+END_IF
+
+
+]]></ST>
+    </Implementation>
+    <LineIds Name="error_Trigger">
+      <LineId Id="91" Count="2" />
+      <LineId Id="79" Count="0" />
+      <LineId Id="82" Count="1" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="84" Count="0" />
+      <LineId Id="89" Count="0" />
+      <LineId Id="88" Count="0" />
+      <LineId Id="81" Count="0" />
+      <LineId Id="159" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="68" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="122" Count="1" />
+      <LineId Id="131" Count="0" />
+      <LineId Id="103" Count="0" />
+      <LineId Id="151" Count="0" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="104" Count="0" />
+      <LineId Id="132" Count="2" />
+      <LineId Id="52" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="135" Count="2" />
+      <LineId Id="51" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="138" Count="2" />
+      <LineId Id="22" Count="1" />
+      <LineId Id="113" Count="0" />
+      <LineId Id="141" Count="2" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="69" Count="0" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="70" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

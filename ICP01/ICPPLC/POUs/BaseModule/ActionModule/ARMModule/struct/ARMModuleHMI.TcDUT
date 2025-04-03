@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="ARMModuleHMI" Id="{8a4866e9-df09-4d33-a261-18ef54752b60}">
+    <Declaration><![CDATA[{attribute 'pack_mode' := 1}
+TYPE ARMModuleHMI :
+STRUCT
+//control signal or data
+	INAndHOME		: BOOL:=FALSE;// 单控件触发信号
+
+	IN				: BOOL:=FALSE;// IN触发信号
+	HOME			: BOOL:=FALSE;// HOME触发信号
+	reset			: BOOL:=FALSE;// 复位信号
+	stop			: BOOL:=FALSE;// 停止信号
+	power			: BOOL:=TRUE;//no power, two relay will lost power
+
+//monitor
+	INAprSw			: BOOL:=FALSE;//HW: ARM IN approach switch
+	HOMEAprSw		: BOOL:=FALSE;//HW: ARM HOME approach switch	
+	INRelay			: BOOL:=FALSE;//HW: ARM IN action relay
+	HOMERelay		: BOOL:=FALSE;//HW: ARM HOME action relay	
+
+	enableHome		: BOOL:=TRUE;//for outside control instance
+	enableIN		: BOOL:=TRUE;//for outside control instance
+//state
+	HMIEnable		: BOOL:=TRUE;
+	enable			: BOOL;
+	busy			: BOOL;
+	done			: BOOL;
+	error			: BOOL;
+	extenderror		: BOOL;
+	retracterror	: BOOL;
+	errID			: DINT;
+	nameTXT			: STRING;// ARM名字
+	errTXT			: STRING;
+	INcondition		: BOOL;// IN条件
+	HOMEcondition	: BOOL;// HOME条件
+END_STRUCT
+END_TYPE
+(*
+按照字节对齐规则，将变量按字节大小按顺序定义，用于ADS读取
+*)
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

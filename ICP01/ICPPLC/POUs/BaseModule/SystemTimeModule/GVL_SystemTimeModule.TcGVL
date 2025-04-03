@@ -1,0 +1,11 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <GVL Name="GVL_SystemTimeModule" Id="{0f02fb37-c895-4af3-9868-b8420a6dd8a1}">
+    <Declaration><![CDATA[//{attribute 'qualified_only'}
+VAR_GLOBAL
+END_VAR
+VAR_GLOBAL CONSTANT
+	gSystemTimeMaxNum		:UINT:=2000;// systemTimeModule 计时器数组最大值 最大值为2000
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

@@ -1,0 +1,16 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="RunningStatus" Id="{d4ae58d2-4bce-4c77-8aeb-3edb2cfa354e}">
+    <Declaration><![CDATA[TYPE RunningStatus :
+(
+	eManualState	:= 1,//手动状态
+	eAutoState	 	:= 2,//自动状态
+	ePauseState		:= 3,//暂停状态
+	eStopState		:= 4,//停止状态
+	eErrorState		:= 5,//错误状态
+	eHomeState		:= 6 //回原点状态
+)UINT;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

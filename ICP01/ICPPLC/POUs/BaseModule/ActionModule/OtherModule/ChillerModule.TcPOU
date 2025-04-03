@@ -1,0 +1,96 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="ChillerModule" Id="{f22be671-1fd5-40a1-8861-0666989c1245}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK ChillerModule
+VAR_INPUT
+	condition:BOOL;// 显示条件
+	IP:STRING;
+	Port: INT;
+	alrmmaxTempValue:REAL;// 警告上限
+	alrmminTempValue:REAL;// 警告下限
+	alrmmaxSpeedValue:REAL;// 警告上限
+	alrmminSpeedValue:REAL;// 警告下限
+END_VAR
+VAR_OUTPUT
+	TempValue:REAL;
+	SpeedValue:REAL;
+	Error:BOOL;
+END_VAR
+VAR
+	changeTempStep	:UDINT;
+	readStateStep	:UDINT;
+	resetStep		:UDINT;
+	startStep		:UDINT;
+	stopTempStep	:UDINT;
+	
+	changeTempBusy	:BOOL;
+	readStateBusy	:BOOL;
+	resetBusy		:BOOL;
+	startBusy		:BOOL;
+	stopTempBusy	:BOOL;
+	
+	changeTempError	:BOOL;
+	readStateError	:BOOL;
+	resetError		:BOOL;
+	startError		:BOOL;
+	stopTempError	:BOOL;
+	
+	
+	changeTempDone	:BOOL;
+	readStateDone	:BOOL;
+	resetDone		:BOOL;
+	startDone		:BOOL;
+	stopTempDone	:BOOL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// List
+// send
+// action]]></ST>
+    </Implementation>
+    <Action Name="ACT_ChangeTemp" Id="{a3191764-4c24-478d-b7ef-6a4b60716dbd}">
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ACT_ReadState" Id="{84bfa657-e1dc-49fe-9b7a-1bdce448e2d5}">
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ACT_Reset" Id="{179b7537-94cf-45f2-8196-ae794f8e8d93}">
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ACT_Start" Id="{5b1bb69f-31af-45bf-a758-5d5c241bc14c}">
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ACT_Stop" Id="{b8212aa5-03f9-4572-8f6f-a12acddeacee}">
+      <Implementation>
+        <ST><![CDATA[]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="ChillerModule">
+      <LineId Id="9" Count="0" />
+      <LineId Id="25" Count="1" />
+    </LineIds>
+    <LineIds Name="ChillerModule.ACT_ChangeTemp">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule.ACT_ReadState">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule.ACT_Reset">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule.ACT_Start">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule.ACT_Stop">
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

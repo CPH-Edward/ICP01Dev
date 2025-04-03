@@ -1,0 +1,17 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="ControlMode" Id="{30e0c6e2-1f04-4d76-8d85-0bc7675414fd}">
+    <Declaration><![CDATA[TYPE ControlMode :
+(
+	eAutoCtrMode	 	:= 1,//自动控制模式
+	eManualCtrMode		:= 2,//手动控制模式
+	eDebugMode			:= 3,//待开发
+	eSemiAutoMode		:= 4,//半自动控制模式
+	
+	eLoopMode			:= 8,//老化模式
+	eConfig				:= 9//配置模式
+)UINT;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

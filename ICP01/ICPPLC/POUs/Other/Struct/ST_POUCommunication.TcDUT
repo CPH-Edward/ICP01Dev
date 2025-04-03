@@ -1,0 +1,26 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="ST_POUCommunication" Id="{3f69b507-69c8-401c-977d-fd8bb1fad637}">
+    <Declaration><![CDATA[TYPE ST_POUCommunication :
+STRUCT
+	CanLoad:BOOL;//允许上料
+	LoadDone:BOOL;//上料完成
+	
+	SafePosConfirm:BOOL;//安全位置确认
+	SafePosConfirmUnLoad:BOOL;//下料安全位置确认
+	
+	LoadCanHandle:BOOL;//允许交接,上料
+	LoadHandleDone:BOOL;//交接完成,上料
+	
+	CanUnLoad:BOOL;//允许下料
+	UnLoadDone:BOOL;//下料完成
+	
+	UnLoadCanHandle:BOOL;//允许交接,上料
+	UnLoadHandleDone:BOOL;//交接完成,上料
+	
+	cantoUnload:BOOL;//允许测试载具直接到下料位
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

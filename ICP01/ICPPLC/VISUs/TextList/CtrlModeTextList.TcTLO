@@ -1,0 +1,68 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <TextList Name="CtrlModeTextList" Id="{e4f8be30-58f9-44e9-ba04-54a46d8e6e6b}">
+    <XmlArchive>
+      <Data>
+        <o xml:space="preserve" t="TextListObject">
+          <v n="UniqueIdGenerator">"0"</v>
+          <l n="TextList" t="ArrayList" cet="TextListRow">
+            <o>
+              <v n="TextID">"1"</v>
+              <v n="TextDefault">"自动模式"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>自动模式</v>
+                <v>Auto Mode</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2"</v>
+              <v n="TextDefault">"手动模式"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>手动模式</v>
+                <v>Manual Mode</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"3"</v>
+              <v n="TextDefault">"调试模式"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>调试模式</v>
+                <v>Debug Mode</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"9"</v>
+              <v n="TextDefault">"配置模式"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>配置模式</v>
+                <v>Config Mode</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">""</v>
+              <v n="TextDefault">""</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+          </l>
+          <l n="Languages" t="ArrayList" cet="String">
+            <v>Chinese</v>
+            <v>English</v>
+          </l>
+          <v n="GuidInit">{e18a64d0-3ab1-4a8b-b650-da8fe3512c18}</v>
+          <v n="GuidReInit">{0be74f17-55f7-4b0b-a957-993d84a1a73a}</v>
+          <v n="GuidExitX">{67ffaa8f-1e23-4cf4-b49e-42691df48052}</v>
+        </o>
+      </Data>
+      <TypeList>
+        <Type n="ArrayList">System.Collections.ArrayList</Type>
+        <Type n="Guid">System.Guid</Type>
+        <Type n="String">System.String</Type>
+        <Type n="TextListObject">{2bef0454-1bd3-412a-ac2c-af0f31dbc40f}</Type>
+        <Type n="TextListRow">{53da1be7-ad25-47c3-b0e8-e26286dad2e0}</Type>
+      </TypeList>
+    </XmlArchive>
+  </TextList>
+</TcPlcObject>

@@ -1,0 +1,346 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="S_CO_ControlRF" Id="{19f4cb56-ddf9-4fb2-af01-0ec5222bb4fb}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM S_CO_ControlRF
+VAR_INPUT
+	bInit				:BOOL:=FALSE;// 初始化状态 busy/done/errDone
+	bTrig				:BOOL:=FALSE;// 执行触发 信号
+	bReset				:BOOL:=FALSE;// 报错 复位
+	bPause				:BOOL:=FALSE;// 暂停 运行
+	bStop				:BOOL:=FALSE;// 停止 运行
+	bAbort				:BOOL:=FALSE;// 中止 运行
+	
+END_VAR
+VAR_OUTPUT
+	busy				:BOOL;
+	done				:BOOL;
+	errDone				:BOOL;
+	stopDone			:BOOL;
+END_VAR
+VAR
+	actStep				:ActStepBase;
+END_VAR
+VAR
+	i: INT;
+	t1:ton;
+	t2:ton;
+	t3:ton;
+	openErrorDelayTon:TON;
+	notchoose:BOOL;
+	timeOutTime:TIME:= T#60S;
+	ventTime:TIME:=T#15S;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[busy:=actStep.isBusy();
+done:=actStep.isDone();
+errDone:=actStep.isError();
+actStep.Act_Pause(pause:=bPause);
+
+IF bTrig THEN
+	bTrig:=FALSE;
+	IF NOT busy THEN
+		actStep.Act_ex();
+	END_IF
+END_IF
+
+//状态复位
+IF bInit THEN
+	bInit:=FALSE;
+	Act_init_status();
+END_IF
+
+IF bAbort OR bStop THEN
+	bAbort:=FALSE;
+	bStop:=FALSE;
+	Act_init_status();
+	actStep.toZeroStep();
+	gShowLogTextTitle:='NON';
+	IF gICP.PowerRF.closeCondition AND gICP.SourceRF.closeCondition THEN
+		gICP.PowerRF.Act_Close();
+		gICP.SourceRF.Act_Close();
+		IF gICP.HeINExtRelay THEN
+			gICP.HeINValve.Act_Retract();
+		END_IF
+		gOperatorLog.append('RF_CO_Control CLOSE');
+		gICP.PowerRF.co_control:=FALSE;
+		gICP.SourceRF.co_control:=FALSE;
+	ELSE
+		error_Trigger(102);
+	END_IF
+END_IF
+ActionRun(tempActStep:=actStep);
+IF NOT gICP.PowerRFOpenRelay AND NOT gICP.SourceRFOpenRelay AND 
+	gICP.PowerRF.reflectedpower<1 AND gICP.PowerRF.forwardpower<1 AND
+    gICP.SourceRF.reflectedpower<1 AND gICP.SourceRF.forwardpower<1 THEN
+	stopDone:=TRUE;
+ELSE
+	stopDone:=FALSE;
+END_IF]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{33498429-9d79-4b7c-9457-d7b17a832ce6}" />
+    <Method Name="Act_Ex" Id="{359b9dc5-15d2-40e7-9a14-670d0307d303}">
+      <Declaration><![CDATA[(*
+---Trigger action
+*)
+METHOD Act_Ex : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT busy THEN
+	actStep.Act_ex();
+	Act_Ex:=TRUE;
+ELSE
+	Act_Ex:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Init_Status" Id="{acc84f9d-6252-4349-97e3-82dbfd9d01d1}">
+      <Declaration><![CDATA[(*
+---功能: 状态复位 busy/done/errDone;
+*)
+METHOD Act_Init_Status
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[actStep.Act_Init();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ActionRun" Id="{a60e0f1e-0242-4e2f-84c2-01177099b99f}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE ActionRun
+VAR_INPUT
+	tempActStep:ITFActStep;
+END_VAR
+VAR_STAT//此处定义静态变量, 保证每次进入该函数时能够在线监控当前值
+	tempStep:DINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[tempStep:=tempActStep.getStep();
+CASE tempStep OF
+0:
+	IF tempActStep.isEx() THEN
+		tempActStep.setBusyFlag();
+		tempActStep.toBeginStep();
+	END_IF
+	t1(IN:= FALSE );
+	t2(IN:= FALSE );
+	t3(IN:= FALSE );
+10:
+	IF NOT S_Etching.busy THEN
+		gShowLogTextTitle:='CO_Control RF';
+	END_IF
+	IF gICP.PowerRF.openCondition AND gICP.SourceRF.openCondition THEN
+		tempActStep.addStep(10,FALSE);
+		gICP.PowerRF.co_control:=TRUE;
+		gICP.SourceRF.co_control:=TRUE;
+		gRunningLog.append(CONCAT('RF_CO_Control POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append(CONCAT('RF_CO_Control Open,PowerRF POWER:',UDINT_TO_STRING(gICP.PowerRF.setpower)));
+		gRunningLog.append(CONCAT('RF_CO_Control Open,SourceRF POWER:',UDINT_TO_STRING(gICP.SourceRF.setpower)));
+		IF gCO_ControlRFTimeRemain<>gRFSetTime OR  gCO_ControlRFTimeRemain=0 THEN //  gCO_ControlRFTimeRemain=0代表初次设定
+			gRFSetTime:=gRFSetTime;
+		ELSE
+			gRFSetTime:=gCO_ControlRFTimeRemain;
+		END_IF
+		gRunningLog.append(CONCAT('RF_CO_Control Open,SET TIME:',UDINT_TO_STRING(gRFSetTime)));
+	ELSE
+		error_Trigger(100);
+	END_IF
+20:
+	IF gICP.PowerRF.setpower>0 THEN
+		IF gICP.PowerRF.Act_Open() THEN
+			gRunningLog.append(CONCAT('RF_CO_Control POU Run:',DINT_TO_STRING(tempStep)));
+			gRunningLog.append(' PowerRF Open');
+			tempActStep.addStep(10,FALSE);
+		END_IF
+	ELSE
+		tempActStep.addStep(20,FALSE);
+	END_IF
+30:
+	IF gICP.PowerRF.Get_Done_Open() THEN
+		gRunningLog.append(CONCAT('RF_CO_Control POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('RF_CO_Control POU Run: PowerRF Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+	IF gICP.PowerRF.error THEN
+		error_Trigger(101);
+		tempActStep.toErrDoneStep();
+	END_IF
+40:
+	IF gICP.PowerRF.setpower>0 THEN
+		IF gICP.SourceRF.Act_Open() THEN
+			gRunningLog.append(CONCAT('RF_CO_Control POU Run:',DINT_TO_STRING(tempStep)));
+			gRunningLog.append('RF_CO_Control POU Run: SourceRF Open');
+			tempActStep.addStep(10,FALSE);
+		END_IF
+	ELSE
+		tempActStep.addStep(30,FALSE);
+	END_IF
+50:
+	IF gICP.SourceRF.Get_Done_Open() THEN
+		gRunningLog.append(CONCAT('RF_CO_Control POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('RF_CO_Control POU Run: SourceRF Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+	IF gICP.SourceRF.error THEN
+		error_Trigger(101);
+		tempActStep.toErrDoneStep();
+	END_IF
+60:
+	openErrorDelayTon(IN:=TRUE,PT:=UDINT_TO_TIME(gCO_ControlRFTime*1000));// 反射调整超时时间
+	gCO_ControlRFRMTime:=TIME_TO_UDINT(openErrorDelayTon.ET/1000);
+	gCO_ControlRFRMTime:=gCO_ControlRFTime-gCO_ControlRFRMTime;
+	IF openErrorDelayTon.Q THEN
+		tempActStep.addStep(10,FALSE);
+		gCO_ControlRFRMTime:=0;
+		openErrorDelayTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	IF gICP.S_MFCMonitFlowNotZero THEN
+		error_Trigger(120);
+		tempActStep.toErrDoneStep();
+		RETURN;
+	END_IF
+	IF bPause THEN
+		gICP.PowerRF.Act_Close();
+		gICP.SourceRF.Act_Close();
+		gRunningLog.append(CONCAT('RF_CO_Control POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('RF_CO_Control POU Run: PC Click The Pause Function');
+		tempActStep.toErrDoneStep();
+	END_IF
+70:
+	gRunningLog.append(CONCAT('RF_CO_Control POU Run:',DINT_TO_STRING(tempStep)));
+	gRunningLog.append('RF_CO_Control POU Run: RF Close');
+	gICP.PowerRF.Act_Close();
+	gICP.SourceRF.Act_Close();
+	tempActStep.addStep(10,FALSE);
+80:
+	IF gICP.PowerRF.Get_Done_Close() AND gICP.PowerRF.Get_Done_Close()  THEN
+		gRunningLog.append(CONCAT('RF_CO_Control POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('RF_CO_Control POU Run: RF Close Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+90:
+	tempActStep.toDoneStep();
+1000:
+	tempActStep.toDoneStep();
+
+60000://Done
+	tempActStep.setDoneFlag();
+	tempActStep.toZeroStep();
+	gICP.PowerRF.co_control:=FALSE;
+	gICP.SourceRF.co_control:=FALSE;
+	
+65000://Error
+	tempActStep.setErrDoneFlag();
+	tempActStep.toZeroStep();
+	gICP.PowerRF.Act_Close();
+	gICP.SourceRF.Act_Close();
+	gICP.PowerRF.co_control:=FALSE;
+	gICP.SourceRF.co_control:=FALSE;
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="S_CO_ControlRF">
+      <LineId Id="49" Count="0" />
+      <LineId Id="385" Count="2" />
+      <LineId Id="406" Count="2" />
+      <LineId Id="666" Count="0" />
+      <LineId Id="670" Count="0" />
+      <LineId Id="411" Count="7" />
+      <LineId Id="422" Count="0" />
+      <LineId Id="530" Count="1" />
+      <LineId Id="489" Count="0" />
+      <LineId Id="510" Count="0" />
+      <LineId Id="509" Count="0" />
+      <LineId Id="664" Count="0" />
+      <LineId Id="587" Count="1" />
+      <LineId Id="590" Count="0" />
+      <LineId Id="671" Count="2" />
+      <LineId Id="632" Count="0" />
+      <LineId Id="601" Count="1" />
+      <LineId Id="599" Count="1" />
+      <LineId Id="589" Count="0" />
+      <LineId Id="395" Count="0" />
+      <LineId Id="446" Count="0" />
+      <LineId Id="592" Count="0" />
+      <LineId Id="596" Count="0" />
+      <LineId Id="595" Count="0" />
+      <LineId Id="593" Count="0" />
+      <LineId Id="597" Count="1" />
+      <LineId Id="594" Count="0" />
+    </LineIds>
+    <LineIds Name="S_CO_ControlRF.Act_Ex">
+      <LineId Id="14" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="17" Count="0" />
+    </LineIds>
+    <LineIds Name="S_CO_ControlRF.Act_Init_Status">
+      <LineId Id="15" Count="0" />
+    </LineIds>
+    <LineIds Name="S_CO_ControlRF.ActionRun">
+      <LineId Id="1302" Count="10" />
+      <LineId Id="2194" Count="1" />
+      <LineId Id="2192" Count="0" />
+      <LineId Id="2174" Count="6" />
+      <LineId Id="2232" Count="1" />
+      <LineId Id="2235" Count="1" />
+      <LineId Id="2234" Count="0" />
+      <LineId Id="2181" Count="1" />
+      <LineId Id="2217" Count="0" />
+      <LineId Id="2066" Count="0" />
+      <LineId Id="2069" Count="0" />
+      <LineId Id="2144" Count="0" />
+      <LineId Id="2147" Count="0" />
+      <LineId Id="2198" Count="1" />
+      <LineId Id="2148" Count="0" />
+      <LineId Id="2145" Count="0" />
+      <LineId Id="2149" Count="1" />
+      <LineId Id="2085" Count="2" />
+      <LineId Id="2196" Count="1" />
+      <LineId Id="2088" Count="4" />
+      <LineId Id="2077" Count="0" />
+      <LineId Id="2081" Count="0" />
+      <LineId Id="2151" Count="0" />
+      <LineId Id="2154" Count="0" />
+      <LineId Id="2200" Count="1" />
+      <LineId Id="2155" Count="0" />
+      <LineId Id="2152" Count="0" />
+      <LineId Id="2156" Count="1" />
+      <LineId Id="2153" Count="0" />
+      <LineId Id="2096" Count="1" />
+      <LineId Id="2202" Count="0" />
+      <LineId Id="2205" Count="0" />
+      <LineId Id="2098" Count="4" />
+      <LineId Id="2082" Count="0" />
+      <LineId Id="2103" Count="0" />
+      <LineId Id="2105" Count="6" />
+      <LineId Id="2159" Count="0" />
+      <LineId Id="2104" Count="0" />
+      <LineId Id="2160" Count="0" />
+      <LineId Id="2166" Count="2" />
+      <LineId Id="2162" Count="0" />
+      <LineId Id="2225" Count="1" />
+      <LineId Id="2228" Count="0" />
+      <LineId Id="2230" Count="1" />
+      <LineId Id="2229" Count="0" />
+      <LineId Id="2227" Count="0" />
+      <LineId Id="2112" Count="0" />
+      <LineId Id="2206" Count="1" />
+      <LineId Id="2113" Count="4" />
+      <LineId Id="2208" Count="1" />
+      <LineId Id="2118" Count="3" />
+      <LineId Id="1668" Count="5" />
+      <LineId Id="2124" Count="1" />
+      <LineId Id="1674" Count="3" />
+      <LineId Id="2189" Count="1" />
+      <LineId Id="2057" Count="0" />
+      <LineId Id="2126" Count="0" />
+      <LineId Id="1092" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

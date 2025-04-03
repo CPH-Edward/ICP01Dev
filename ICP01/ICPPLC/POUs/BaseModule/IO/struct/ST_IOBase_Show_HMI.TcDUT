@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="ST_IOBase_Show_HMI" Id="{1af8355c-eb31-49d5-bab1-63907753d1b0}">
+    <Declaration><![CDATA[{attribute 'pack mode' := 1}
+TYPE ST_IOBase_Show_HMI :
+STRUCT
+	bIO:ARRAY [1..16] OF BOOL;
+	iInfor:ARRAY [1..16] OF DINT;
+	sInfor:ARRAY [1..16] OF WSTRING;
+	iMaxPage:DINT:=1;
+	iCurrPage:DINT:=1;
+	iTargerPage:DINT:=1;
+	bNextPage:BOOL;
+	bBackPage:BOOL;
+	bTargerPage:BOOL;
+	sIOType:STRING:='Input';// 'Input' or 'Output'
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

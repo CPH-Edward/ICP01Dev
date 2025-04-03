@@ -1,0 +1,55 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="CloseAllSocket" Id="{7b565654-c153-4c7d-9f62-ba04530f34f6}" SpecialFunc="None">
+    <Declaration><![CDATA[//在PLC 重新启动的时候 关闭所以Socket
+PROGRAM CloseAllSocket
+VAR
+	fbSocketCloseAll : FB_SocketCloseAll;
+    bCloseAll        : BOOL := TRUE;
+	tInit 			 : TON;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[tInit(IN:=TRUE , PT:=T#10MS , Q=> , ET=> );
+IF NOT tInit.Q THEN
+	fbSocketCloseAll( bExecute:= FALSE );
+	RETURN;
+END_IF
+
+IF bCloseAll THEN(*On PLC reset or program download close all old connections *)
+    bCloseAll := FALSE;
+	fbSocketCloseAll(
+		sSrvNetId:= '', 
+		bExecute:= TRUE, 
+		tTimeout:= T#10S, 
+		bBusy=> , 
+		bError=> , 
+		nErrId=> );
+ELSE
+    fbSocketCloseAll( bExecute:= FALSE );
+END_IF]]></ST>
+    </Implementation>
+    <Action Name="VersionLog" Id="{000443c0-5947-4bc9-b5c7-42a04627e261}">
+      <Implementation>
+        <ST><![CDATA[(*
+版本: V1.0.0.0
+说明:
+	1. 首个版本
+//**************************************************//
+版本: V1.0.0.1
+说明:
+	1. 上电后延时关闭所有旧的连接
+//**************************************************//
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="CloseAllSocket">
+      <LineId Id="3" Count="16" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="CloseAllSocket.VersionLog">
+      <LineId Id="2" Count="8" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

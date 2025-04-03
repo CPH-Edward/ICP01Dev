@@ -1,0 +1,1347 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="ARMModule" Id="{5178593f-0ac9-4b59-8fd0-85621de5b337}" SpecialFunc="None">
+    <Declaration><![CDATA[(*
+--报错编号0: 无报错
+--报错编号1: IN Error
+--报错编号2: HOME Error
+*)
+FUNCTION_BLOCK ARMModule
+VAR_IN_OUT
+	WarmHMI					:WARMStruct;
+	NoteHMI					:NoteStruct;
+	operatorLog				:printLogModule_EX;
+END_VAR
+VAR_INPUT
+	HMIItf						:ARMModuleHMI;// 每个ARM对象都关联了一个HMI
+	armType						:ARMType:=ARMType_SinSun;// 设置ARM的类型, 可通过该变量修改具体发送的协议内容、、
+	
+	real_TimeMonitor			:BOOL:=TRUE;//实时状态检测
+	
+	IN							:BOOL:=FALSE;// 进信号
+	INCondition					:BOOL:=TRUE;//  进信号条件
+	HOME						:BOOL:=FALSE;// 回触发信号
+	HOMECondition				:BOOL:=TRUE;// 回启停条件
+	
+	JOG							:BOOL:=FALSE;// 点动发信号
+	
+	readCondition				:BOOL:=TRUE;// 循环读取状态条件
+	
+	JOGCondition				:BOOL:=TRUE;// 点动启停条件
+	reset						:BOOL:=FALSE;//复位信号
+	stop						:BOOL:=FALSE;//停止信号
+	power						:BOOL:=TRUE;// ARM动作后是否关闭继电器得电状态, TRUE--保持得电,FALSE--断开得电
+	enable						:BOOL:=TRUE;//ARM禁用条件
+	//ctrlMode					:ControlMode:=ControlMode.eManualCtrMode;//eManualCtrMode or eAutoCtrMode
+	hmiEN						:BOOL:=TRUE;//HMI 启用条件
+	setpos						:DINT:=8900;// 位置设定
+	setvel						:DINT:=10;// 速度设定
+	
+	jogsetDir					:BOOL:=FALSE;// 方向设定、、 点动设置慎用；
+	jogsetlen					:DINT:=1;// 寸动设定、、 点动设置慎用
+	minPos						:INT:=0;
+	maxPos						:INT:=9000;
+	errorDelayTime				:TIME:=T#30S;//ARM感应器感应超时
+	//doneDelayTimeShort		:TIME:=T#100MS;//ARM感应到位延时---取消使用
+	//doneDelayTimeLong			:TIME:=T#500MS;//无ARM感应到位延时---取消使用
+	doneDelayTimeShortIN		:TIME:=T#100MS;//ARM感应到位延时_伸出
+	doneDelayTimeShortHOME		:TIME:=T#100MS;//ARM感应到位延时_收回
+	doneDelayTimeLongIN			:TIME:=T#500MS;//无ARM感应到位延时_伸出
+	doneDelayTimeLongHOME		:TIME:=T#500MS;//无ARM感应到位延时_收回
+	errorID						:UDINT:=0;//ARM错误报警分配的起始ID
+	nameTXT						:STRING(255):='';//ARM名字
+	
+	INAprSw						:BOOL:=FALSE;//ARM伸出感应器信号,需要链接到实际的IO点
+	HOMEAprSw					:BOOL:=FALSE;//ARM收回感应器信号,需要链接到实际的IO点
+	enableINAprSw				:BOOL:=TRUE;//启用伸出感应器,针对只有一个传感器的ARM
+	enableHOMEAprSw				:BOOL:=TRUE;//启用收回感应器,针对只有一个传感器的ARM
+	noteWTXT_IN					:WSTRING(255):="";//ARM伸出动作NoteTXT 中文
+	noteWTXT_HOME				:WSTRING(255):="";//ARM缩回动作NoteTXT 中文
+END_VAR
+VAR_OUTPUT
+	INRelay					:BOOL:=FALSE;//ARM伸出执行继电器,需要链接到实际的IO点
+	HOMERelay				:BOOL:=FALSE;//ARM收回执行继电器,需要链接到实际的IO点
+	note_IN					:BOOL:=FALSE;// 操作提示：true 伸出、打开执行无法下发
+	note_HOME				:BOOL:=FALSE;// 操作提示：true 缩回、关闭执行无法下发
+	note_JOG				:BOOL:=FALSE;// 操作提示：true 缩回、关闭执行无法下发
+	busy					:BOOL;// ARM动作Busy状态
+	done					:BOOL;// ARM动作Done状态
+	INdone					:BOOL;// ARM动作伸出完成
+	HOMEdone				:BOOL;// ARM动作收回完成
+	readdone				:BOOL;// ARM状态完成
+	readbusy				:BOOL;
+	readerror				:BOOL;
+	error					:BOOL;//ARM动作error状态
+	errID					:UDINT;//ARM动作errID
+	errTXT					:STRING(255):='';//ARM动作errTXT
+	errWTXT					:WSTRING(255):="";//ARM动作errTXT 中文
+	notRun					:BOOL;
+	actpos					:INT;
+	jogBusy					:BOOL;
+END_VAR
+	
+VAR
+	firstPower				:BOOL:=TRUE;
+	firstPowerTON			:TON;
+	readAndWriteLock		:BOOL;
+	INErrorDelayTon			:Ton;
+	INDoneDelayTon			:Ton;
+	HOMEErrorDelayTon		:Ton;
+	HOMEDoneDelayTon		:Ton;
+	
+	INTrigRAlc			:R_Trig;//上升沿触发
+	
+	INTrigR1				:R_Trig;//上升沿触发
+	HOMETrigR1			:R_Trig;//上升沿触发
+	resetTrigR1				:R_Trig;//上升沿触发
+	stopTrigR1				:R_Trig;//上升沿触发
+	powerTrigR1				:R_Trig;//上升沿触发
+	
+	INStep					:UINT:=0;
+	HOMEStep				:UINT:=0;
+	errorStep				:UINT:=0;
+	readStep				:UINT:=0;
+	
+	notBusyMonitorDelayTon:TON;//动作不切换时，延迟检测
+	notBusyMonitorDelayTime:TIME:=T#2S;//动作不切换延迟检测时间
+	noteTON_P:tON;            // 操作提示标志位延时继电器
+	noteTON_N:tON;            // 操作提示标志位延时继电器
+	noteRTrig_P:R_TRIG;          // 操作提示
+	noteRTrig_N:R_TRIG;          // 操作提示
+	INcheckDelayTime	:TON; // 输出到输入检测时间
+	INcheckDelayTimeS	:TIME; // 输出到输入检测时间
+	INcheckRtrig:R_TRIG;     // 输出到输入检测
+	HOMEcheckDelayTime	:TON; // 输出到输入检测时间
+	HOMEcheckDelayTimeS	:TIME; // 输出到输入检测时间
+	HOMEcheckRtrig:R_TRIG;     // 输出到输入检测
+	
+	IndelaycheckTON:TON;
+	HomedelaycheckTON:TON;
+	IndelaycheckTime:TIME:=T#100MS;
+	HomedelaycheckTime:TIME:=T#100MS;
+	
+	readTon1:TON;
+	readTon2:TON;
+	
+	t1:TON;
+	jogResetTON:TON;
+	jogResetTime:DINT;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[Init_ACT();
+Error_ACT();
+IN_ACT();
+HOME_ACT();
+Reset_ACT();
+Read_ACT();
+Error_ACT();
+RealMonitor_ACT();
+//		INend:=TRUE;
+//		firstPower:=TRUE;
+//	END_IF
+//	IF HOMEAprSw AND NOT INAprSw THEN
+//		HOMEract:=TRUE;
+//		firstPower:=TRUE;
+//	END_IF
+//	IF (NOT INAprSw) AND (NOT HOMEAprSw) THEN
+//		errorStep:=3;
+//	END_IF
+//	IF (INAprSw) AND (HOMEAprSw) THEN
+//		errorStep:=3;
+//	END_IF
+//END_IF]]></ST>
+    </Implementation>
+    <Folder Name="Error" Id="{61d5195e-3198-4fb3-bdd7-47716e7dc210}" />
+    <Folder Name="Private" Id="{6f912c6e-96c3-47d6-b256-f7f57ba0770f}" />
+    <Method Name="Act_DirectionJog" Id="{eb1e9bbc-b2fa-4c10-9456-e339ac330053}">
+      <Declaration><![CDATA[(*
+触发缩回动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_DirectionJog : BOOL
+VAR_IN_OUT
+	_noteHMI:NoteStruct;
+END_VAR
+VAR_INPUT
+	dir:BOOL;
+	vel:DINT;
+	len:DINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND JOGCondition AND NOT busy THEN// AND NOT busy
+	// pos:=0;
+	// vel:=0;
+	jogsetDir:=dir;
+	jogsetlen:=len;
+	IF (actpos-len>=minPos AND NOT dir) OR (actpos+len<=maxPos AND dir)THEN
+		IF jogsetDir THEN
+			FuncModule_RS232_ARM.ArmIN(pos:=actpos+len,vel:=setvel,acc:=10);
+		ELSE
+			FuncModule_RS232_ARM.ArmIN(pos:=actpos-len,vel:=setvel,acc:=10);
+		END_IF
+		note_IN:=FALSE;
+		note_HOME:=FALSE;
+		note_JOG:=FALSE;
+		IF vel>0 THEN
+			jogResetTime:=len/vel;
+		END_IF
+		jogBusy:=TRUE;
+	ELSE
+		note_IN:=FALSE;
+		note_HOME:=FALSE;
+		note_JOG:=TRUE;
+		_noteHMI.showFlag:=TRUE;
+		_noteHMI.showText:='';
+		_noteHMI.showText:=CONCAT(_noteHMI.showText,nameTXT);
+		_noteHMI.showText:=CONCAT(_noteHMI.showText,' JOG Condition Not Satisfied!');
+	END_IF
+	Act_DirectionJog:=TRUE;
+ELSE
+	Act_DirectionJog:=FALSE;
+	note_IN:=FALSE;
+	note_HOME:=FALSE;
+	note_JOG:=TRUE;
+	_noteHMI.showFlag:=TRUE;
+	_noteHMI.showText:='';
+	_noteHMI.showText:=CONCAT(_noteHMI.showText,nameTXT);
+	_noteHMI.showText:=CONCAT(_noteHMI.showText,' JOG Condition Not Satisfied!');
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_HOME" Id="{2d2c0817-7218-472c-ba62-9c3141f58319}">
+      <Declaration><![CDATA[(*
+触发缩回动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_HOME : BOOL
+VAR_IN_OUT
+	_noteHMI:NoteStruct;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND HOMECondition THEN// AND NOT busy
+	// pos:=0;
+	// vel:=0;
+	Act_HOME:=HOME:=TRUE;
+ELSE
+	IF gCtrlMode=ControlMode.eManualCtrMode THEN
+		note_IN:=FALSE;
+		note_HOME:=FALSE;
+		note_JOG:=TRUE;
+		_noteHMI.showFlag:=TRUE;
+		_noteHMI.showText:='';
+		_noteHMI.showText:=CONCAT(_noteHMI.showText,nameTXT);
+		_noteHMI.showText:=CONCAT(_noteHMI.showText,' HOME Condition Not Satisfied!');
+	END_IF
+	Act_HOME:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_HOME_Auto" Id="{9671f471-bf0f-43c3-9bd5-6f030ff939f8}">
+      <Declaration><![CDATA[(*
+触发缩回动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_HOME_Auto : BOOL
+
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND HOMECondition THEN// AND NOT busy
+	// pos:=0;
+	// vel:=0;
+	Act_HOME_Auto:=HOME:=TRUE;
+ELSE
+	Act_HOME_Auto:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_IN" Id="{2faa2301-f337-49aa-acf7-d5b6723ae6fb}">
+      <Declaration><![CDATA[(*
+触发伸出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_IN : BOOL
+VAR_IN_OUT
+	_noteHMI:NoteStruct;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND INCondition THEN// AND NOT busy
+	// pos:=pos;
+	// vel:=vel;
+	Act_IN:=IN:=TRUE;
+ELSE
+	IF gCtrlMode=ControlMode.eManualCtrMode THEN
+		note_IN:=TRUE;
+		note_HOME:=FALSE;
+		_noteHMI.showFlag:=TRUE;
+		_noteHMI.showText:='';
+		_noteHMI.showText:=CONCAT(_noteHMI.showText,nameTXT);
+		_noteHMI.showText:=CONCAT(_noteHMI.showText,' IN Condition Not Satisfied!');
+	END_IF
+	Act_IN:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_IN_Auto" Id="{f429c395-c2c7-4f23-be84-c72b32324c6e}">
+      <Declaration><![CDATA[(*
+触发伸出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_IN_Auto : BOOL
+
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND INCondition THEN// AND NOT busy
+	// pos:=pos;
+	// vel:=vel;
+	Act_IN_Auto:=IN:=TRUE;
+ELSE
+	Act_IN_Auto:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Reset" Id="{fd2f7e8b-8654-4984-a025-16ef921822a9}">
+      <Declaration><![CDATA[(*
+触发复位报警动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Reset : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Reset:=reset:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Stop" Id="{e1c9bcac-d2bd-4fe6-9271-ad2e92c739f1}">
+      <Declaration><![CDATA[(*
+触发停止输出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Stop : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Stop:=stop:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Error_ACT" Id="{42732f6a-bedb-4bc7-a100-a400aff8b646}" FolderPath="Error\">
+      <Implementation>
+        <ST><![CDATA[CASE errorStep OF
+	0:
+		error:=FALSE;
+		errID:=0;
+		errTXT:='';
+ (*
+	1:
+		error:=TRUE;
+		errID:=errorID+errorStep;
+		errTXT:=CONCAT(STR1:=nameTXT,STR2:=' Extend Error!');
+		errWTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 伸出(打开)错误");
+	2:
+		error:=TRUE;
+		errID:=errorID+errorStep;
+		errTXT:=CONCAT(STR1:=nameTXT,STR2:=' Retract Error!');
+		errWTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 缩回(关闭)错误");
+		*)
+	1..5:
+		error:=TRUE;
+		errID:=getErrID(errorStep);
+		errTXT:=getErrTXT(errorStep);
+		errWTXT:=getErrWTXT(errorStep);
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="Get_Done_HOME" Id="{4c795a2b-b61d-4989-bd26-139c76dbe370}">
+      <Declaration><![CDATA[METHOD Get_Done_HOME : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_HOME:=HOMEdone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_Done_IN" Id="{56503962-c766-4072-a37c-96d8ad352bc0}">
+      <Declaration><![CDATA[METHOD Get_Done_IN : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_IN:=INdone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrID" Id="{86cf06bc-09e1-4625-9ebc-583a234812cb}">
+      <Declaration><![CDATA[METHOD getErrID : UDINT
+VAR_INPUT
+	errID					:UDINT;//取值范围1~2
+END_VAR
+VAR
+	nErrID					:UDINT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[nErrID:=errorID+errID;
+
+getErrID:=nErrID;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrTXT" Id="{375193e7-8991-4a15-be55-84361efc079d}">
+      <Declaration><![CDATA[METHOD getErrTXT : STRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~2
+END_VAR
+VAR
+	sErrTXT					:STRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' IN Error!');
+	2:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' HOME Error!');
+	3:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' SensorCheck Error!');
+	4:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Home/IN Time Out Error!');
+	5:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Communication Error!');
+ELSE
+	sErrTXT:=CONCAT(STR1:=nameTXT,STR2:='');
+END_CASE
+getErrTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrWTXT" Id="{97796d33-02fa-4892-9854-17982875c81c}">
+      <Declaration><![CDATA[METHOD getErrWTXT : WSTRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~16
+END_VAR
+VAR
+	sErrTXT					:WSTRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 去工作位错误");
+	2:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 回原点错误");
+	3:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 传感器检测异常");
+	4:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 回原或去目标位超时异常");
+	5:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 通讯异常");
+ELSE
+	sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:="");
+END_CASE
+getErrWTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="HOME_ACT" Id="{43b9ce96-2ffe-41c0-977e-d144240bfad7}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[// ARMHOME--HOME 触发
+IF HOME AND NOT HOMECondition THEN
+	note_HOME:=TRUE;
+	note_IN:=FALSE;
+	note_JOG:=FALSE;
+	NoteHMI.showFlag:=TRUE;
+	NoteHMI.showText:='';
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,nameTXT);
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,' Home Condition Not Satisfied!');
+	operatorLog.append(CONCAT(nameTXT,' HOME Not Done'));
+END_IF
+IF HOME AND enable AND HOMECondition THEN// AND NOT busy
+	busy:=TRUE;
+	IN:=FALSE;
+	INdone:=FALSE;
+	HOMEdone:=FALSE;
+	INStep:=0;
+	HOMEStep:=10;
+	note_IN:=FALSE;
+	note_HOME:=FALSE;
+	note_JOG:=FALSE;
+	readAndWriteLock:=TRUE;
+	operatorLog.append(CONCAT(nameTXT,' HOME Done'));
+	//errorStep:=0;
+END_IF
+HOME:=FALSE;
+// Jog先不考虑，万不得已再使用
+// IN ,Home,Jog任意一个Busy；则Recive程序先不动；分别进入程序没发送之类，之后一直采集位置，监控是否到位
+CASE HOMEStep OF
+0:
+	//ready
+	
+10:
+	HOMEErrorDelayTon(IN:=FALSE);
+	HOMEDoneDelayTon(IN:=FALSE);
+	HOMEStep:=20;
+	INRelay:=FALSE;
+	HOMERelay:=TRUE;
+	FuncModule_RS232_ARM.readSopFlag:=FALSE;
+	FuncModule_RS232_ARM.ArmHOME();
+15:
+	HomedelaycheckTON(IN:=TRUE,PT:=HomedelaycheckTime);
+	IF HomedelaycheckTON.Q THEN
+		HOMEStep:=20;
+		HomedelaycheckTON(IN:=FALSE);
+	END_IF
+20:
+	IF NOT HOMEAprSw OR HOMEAprSw THEN // 读取传感器状态  AND readPos=HomePos
+		HOMEStep:=30;
+		HOMEErrorDelayTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	HOMEErrorDelayTon(IN:=(NOT HOMEAprSw),PT:=errorDelayTime);// or readPos<>HomePos
+	IF HOMEErrorDelayTon.Q THEN
+		HOMEStep:=200;
+		INdone:=FALSE;
+		HOMEdone:=FALSE;
+		errorStep:=4;
+		HOMEErrorDelayTon(IN:=FALSE);
+	END_IF
+	
+30:
+	HOMEStep:=100;
+	readAndWriteLock:=FALSE;
+100:
+	HOMEErrorDelayTon(IN:=(NOT HOMEAprSw),PT:=errorDelayTime);// rec pos=setpos or SW HOME Sensor
+	IF HOMEErrorDelayTon.Q THEN
+		//done:=FALSE;
+		INdone:=FALSE;
+		HOMEdone:=FALSE;
+		errorStep:=2;
+		HOMEStep:=200;
+		RETURN;
+	END_IF
+	IF enableHOMEAprSw THEN
+		HOMEDoneDelayTon(IN:=HOMEAprSw AND FuncModule_RS232_ARM.readSopFlag,PT:=doneDelayTimeShortHOME);
+	ELSE
+		HOMEDoneDelayTon(IN:=NOT enableHOMEAprSw,PT:=doneDelayTimeLongHOME);
+	END_IF
+	
+	IF HOMEDoneDelayTon.Q THEN
+		IF HOMEAprSw THEN
+			busy:=FALSE;
+			//done:=TRUE;
+			INdone:=FALSE;
+			HOMEdone:=TRUE;
+			errorStep:=0;
+			HOMEStep:=150;
+		ELSE
+			busy:=FALSE;
+			//done:=TRUE;
+			INdone:=FALSE;
+			HOMEdone:=FALSE;
+			errorStep:=2;
+			HOMEStep:=200;
+		END_IF
+	END_IF
+150:
+	readAndWriteLock:=FALSE;
+	HOMEStep:=0;
+200:
+	readAndWriteLock:=FALSE;
+	HOMEStep:=0;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="IN_ACT" Id="{1e47c01e-9c0e-412d-a004-a6a572abcc57}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//气缸伸出--IN 触发
+IF IN AND NOT INCondition THEN
+	note_IN:=TRUE;
+	note_HOME:=FALSE;
+	note_JOG:=FALSE;
+	NoteHMI.showFlag:=TRUE;
+	NoteHMI.showText:='';
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,nameTXT);
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,' IN Condition Not Satisfied!');
+	operatorLog.append(CONCAT(nameTXT,' In Not Done'));
+END_IF
+IF IN AND enable AND INCondition THEN// AND NOT busy
+	busy:=TRUE;
+	HOME:=FALSE;
+	INdone:=FALSE;
+	HOMEdone:=FALSE;
+	INStep:=10;
+	HOMEStep:=0;
+	note_IN:=FALSE;
+	note_HOME:=FALSE;
+	note_JOG:=FALSE;
+	readAndWriteLock:=TRUE;
+	operatorLog.append(CONCAT(CONCAT(nameTXT,' IN'),DINT_TO_STRING(setvel)));
+	//errorStep:=0;
+END_IF
+IN:=FALSE;
+// Jog先不考虑，万不得已再使用
+// IN ,Home,Jog任意一个Busy；则Recive程序先不动；分别进入程序没发送之类，之后一直采集位置，监控是否到位
+CASE INStep OF
+0:
+	//ready
+	
+10:
+	INErrorDelayTon(IN:=FALSE);
+	INDoneDelayTon(IN:=FALSE);
+	IndelaycheckTON(IN:=FALSE);
+	INStep:=15;
+	INRelay:=TRUE;
+	FuncModule_RS232_ARM.readSopFlag:=FALSE;
+	FuncModule_RS232_ARM.ArmIN(pos:=setpos,vel:=setvel,acc:=10);
+	// send:vel
+	HOMERelay:=FALSE;
+15:
+	IndelaycheckTON(IN:=TRUE,PT:=IndelaycheckTime);
+	IF IndelaycheckTON.Q THEN
+		INStep:=20;
+		IndelaycheckTON(IN:=FALSE);
+	END_IF
+20:
+	IF NOT HOMEAprSw (*AND readPos=InPos*) THEN // 读取数据，判断接收的数据是否是设定的Vel；
+		INStep:=30;
+		INErrorDelayTon(IN:=FALSE);
+		RETURN;
+	ELSE
+		INStep:=15;
+	END_IF
+	INErrorDelayTon(IN:=(HOMEAprSw (*OR readPos<>InPos*) ),PT:=errorDelayTime);
+	IF INErrorDelayTon.Q THEN
+		INStep:=200;
+		INdone:=FALSE;
+		HOMEdone:=FALSE;
+		errorStep:=4;
+		INErrorDelayTon(IN:=FALSE);
+	END_IF
+	
+30:
+	// send:pos
+	INStep:=100;
+	readAndWriteLock:=FALSE;
+	
+100:
+	INErrorDelayTon(IN:=(HOMEAprSw OR NOT FuncModule_RS232_ARM.readSopFlag),PT:=errorDelayTime);// rec pos=setpos or SW IN Sensor
+	IF INErrorDelayTon.Q THEN
+		//done:=FALSE;
+		INdone:=FALSE;
+		HOMEdone:=FALSE;
+		errorStep:=1;
+		INStep:=200;
+		RETURN;
+	END_IF
+	IF enableINAprSw THEN// Run则通过指令知道设备在什么地方
+		INDoneDelayTon(IN:=NOT HOMEAprSw AND FuncModule_RS232_ARM.readSopFlag,PT:=doneDelayTimeShortIN);// rec pos=setpos
+	ELSE
+		INDoneDelayTon(IN:=NOT enableINAprSw,PT:=doneDelayTimeLongIN);
+	END_IF
+	
+	IF INDoneDelayTon.Q THEN
+		IF NOT HOMEAprSw THEN
+			busy:=FALSE;
+			//done:=TRUE;
+			INdone:=TRUE;
+			HOMEdone:=FALSE;
+			errorStep:=0;
+			INStep:=150;
+		ELSE
+			busy:=FALSE;
+			//done:=TRUE;
+			INdone:=FALSE;
+			HOMEdone:=FALSE;
+			errorStep:=1;
+			INStep:=200;
+		END_IF
+	END_IF
+150:
+	readAndWriteLock:=FALSE;
+	INStep:=0;
+200:
+	readAndWriteLock:=FALSE;
+	INStep:=0;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Init_ACT" Id="{ab633209-a1c8-4aa6-9c48-88ab18109d25}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[done:=(INdone OR HOMEdone);
+InitHMI_ACT();
+manualCtrl_ACT();
+
+IF NOT FuncModule_RS232_ARM.serialConnected AND firstPowerTON.Q THEN
+	errorStep:=5;
+END_IF
+noteTON_P(IN:=note_IN,PT:=T#0.1S);
+noteRTrig_P(CLK:=noteTON_P.Q);
+IF noteRTrig_P.Q THEN
+//	gLog_Note.append_EX(noteWTXT_Ext);
+END_IF
+noteTON_N(IN:=note_HOME,PT:=T#0.1S);
+noteRTrig_N(CLK:=noteTON_N.Q);
+IF noteRTrig_N.Q THEN
+//	gLog_Note.append_EX(noteWTXT_Ret);
+END_IF
+
+jogResetTON(in:=jogBusy,PT:=DINT_TO_TIME(jogResetTime*1000));
+IF jogResetTON.Q THEN
+	jogBusy:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="InitHMI_ACT" Id="{a4d73a12-d759-4e2f-8733-bdcb85a5b94c}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[HMIItf.INAprSw:=INAprSw;
+HMIItf.HOMEAprSw:=HOMEAprSw;
+HMIItf.enableIN:=enableINAprSw;
+HMIItf.enableHOME:=enableHOMEAprSw;
+HMIItf.HMIEnable:=hmiEN;
+HMIItf.enable:=enable;
+HMIItf.done:=done;
+HMIItf.busy:=busy;
+HMIItf.error:=error;
+HMIItf.errID:=UDINT_TO_DINT(errID);
+HMIItf.errTXT:=errTXT;
+HMIItf.INRelay:=INRelay;
+HMIItf.HOMERelay:=HOMERelay;
+HMIItf.power:=power;
+HMIItf.nameTXT:=nameTXT;
+HMIItf.extenderror:=error AND errorID=1;
+HMIItf.retracterror:=error AND errorID=2;
+HMIItf.INcondition:=INCondition;
+HMIItf.HOMEcondition:=HOMECondition;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ManualCtrl_ACT" Id="{bab89cdb-3df8-41e9-81fe-8a75b9b5ebc9}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//HMI手动控制
+//IF ctrlMode=eManualCtrMode THEN
+IF hmiEN THEN
+	INTrigRAlc(CLK:=HMIItf.INAndHOME);
+	IF INTrigRAlc.Q THEN// AND NOT busy
+		IF INRelay THEN//如果伸出继电器或伸出传感器亮，则认为已经伸出过
+			HOME:=TRUE;
+		END_IF
+		IF HOMERelay THEN
+			IN:=TRUE;
+		END_IF
+		IF NOT INRelay AND NOT HOMERelay THEN
+			IF INAprSw THEN
+				HOME:=TRUE;
+			END_IF
+			IF HOMEAprSw THEN
+				IN:=TRUE;
+			END_IF
+		END_IF
+	END_IF
+	INTrigR1(CLK:=HMIItf.IN);
+	IF INTrigR1.Q THEN// AND NOT busy
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want the ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,' to INChamber?');
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'INChamber')>0 THEN
+		IN:=TRUE;
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'INChamber')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	
+	HOMETrigR1(CLK:=HMIItf.HOME);
+	IF HOMETrigR1.Q THEN// AND NOT busy
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want to the ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,' to Homing?');
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Homing')>0 THEN
+		HOME:=TRUE;
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Homing')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	
+	resetTrigR1(CLK:=HMIItf.reset);
+	IF resetTrigR1.Q THEN// AND NOT busy
+		reset:=TRUE;
+	END_IF
+	
+	stopTrigR1(CLK:=HMIItf.stop);
+	IF stopTrigR1.Q THEN// AND NOT busy
+		stop:=TRUE;
+	END_IF
+	
+	powerTrigR1(CLK:=HMIItf.power);
+	IF powerTrigR1.Q THEN// AND NOT busy
+		IF power THEN
+			power:=FALSE;
+		ELSE
+			power:=TRUE;
+		END_IF
+	END_IF
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Read_ACT" Id="{5a915d55-1d3e-4e73-aee8-b7e14471024a}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//气缸收回--read 触发
+firstPowerTON(IN:=firstPower,PT:=T#5S);
+IF NOT readAndWriteLock AND NOT readbusy AND readStep=0 AND readCondition THEN// AND NOT busy
+	readdone:=FALSE;
+	readStep:=10;
+	readbusy:=TRUE;
+	readerror:=FALSE;
+END_IF
+CASE readStep OF
+0:
+	//ready
+	readTon1(IN:=FALSE);
+	readTon2(IN:=FALSE);
+10:// State
+	IF readAndWriteLock THEN
+		readStep:=5000;
+	ELSE
+		FuncModule_RS232_ARM.readPosFlag:=FALSE;
+		FuncModule_RS232_ARM.GetPos();
+		readStep:=readStep+10;
+	END_IF
+20:
+	IF readAndWriteLock THEN
+		readStep:=5000;
+	ELSE
+		IF FuncModule_RS232_ARM.readPosFlag THEN
+			FuncModule_RS232_ARM.readPosFlag:=FALSE;
+			// 数据处理
+			actpos:=FuncModule_RS232_ARM.POS;
+			readTon1(IN:=FALSE);
+			readStep:=25;
+			RETURN;
+		END_IF
+		readTon1(IN:=TRUE,PT:=T#500MS);// 超时
+		IF readTon1.Q THEN
+			readStep:=6000;
+			readTon1(IN:=FALSE);
+			readTon2(IN:=FALSE);
+			RETURN;
+		END_IF
+		;
+	END_IF
+25:
+	t1(IN:=TRUE,PT:=T#0.5S);
+	IF t1.Q THEN
+		readStep:=5000;
+		t1(IN:=FALSE);
+	END_IF
+100:// Internal RTD1
+	IF readAndWriteLock THEN
+		readStep:=5000;
+	ELSE
+		FuncModule_RS232_ARM.readStateFlag:=FALSE;
+		FuncModule_RS232_ARM.GetState();
+		readStep:=readStep+10;
+	END_IF	
+110:
+	IF readAndWriteLock THEN
+		readStep:=5000;
+	ELSE
+		IF FuncModule_RS232_ARM.readStateFlag THEN
+			FuncModule_RS232_ARM.readStateFlag:=FALSE;
+			// 数据处理
+			readTon1(IN:=FALSE);
+			readStep:=5000;
+			RETURN;
+		END_IF
+		readTon1(IN:=TRUE,PT:=T#500MS);// 超时
+		IF readTon1.Q THEN
+			readStep:=6000;
+			readTon1(IN:=FALSE);
+			readTon2(IN:=FALSE);
+			RETURN;
+		END_IF
+		;
+	END_IF
+	
+5000:
+	readbusy:=FALSE;
+	readdone:=TRUE;
+	readStep:=0;
+	readerror:=FALSE;
+6000:
+	readbusy:=FALSE;
+	readdone:=TRUE;
+	readStep:=0;
+	readerror:=TRUE;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="RealMonitor_ACT" Id="{17ba47d3-a7f3-4bbd-92fa-92fe6148762c}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[notBusyMonitorDelayTon(IN:=NOT busy,PT:=notBusyMonitorDelayTime);
+IF real_TimeMonitor THEN
+	IF notBusyMonitorDelayTon.Q THEN
+		//伸出实时检测
+//		IF (enableINAprSw AND NOT INAprSw) AND INRelay THEN
+//			errorStep:=1;
+//		END_IF
+	
+//		//缩回实时检测	
+//		IF (enableINAprSw AND NOT HOMEAprSw) AND HOMERelay  THEN
+//			errorStep:=2;
+//		END_IF
+	END_IF
+END_IF
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Reset_ACT" Id="{f1cd7d96-62f7-4f7c-8cb2-f463906d3bda}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[IF reset THEN
+	IF NOT power THEN
+		INRelay:=FALSE;
+		HOMERelay:=FALSE;
+	END_IF
+	busy:=FALSE;
+	//done:=FALSE;
+	//extdone:=FALSE;
+	//retdone:=FALSE;
+	errorStep:=0;
+	note_IN:=FALSE;
+	note_HOME:=FALSE;
+	note_JOG:=FALSE;
+	reset:=FALSE;
+END_IF
+
+IF stop THEN
+	stop:=FALSE;
+	INRelay:=FALSE;
+	HOMERelay:=FALSE;
+	note_IN:=FALSE;
+	note_HOME:=FALSE;
+	note_JOG:=FALSE;
+	busy:=FALSE;
+	INStep:=0;
+	HOMEStep:=0;
+	FuncModule_RS232_ARM.ArmStop();
+	//无自锁检测说法，直接停
+//	extStep:=0;
+//	retStep:=0;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="VersionLog" Id="{d39467f5-f3b6-44db-a6a6-51d5a3de33a7}">
+      <Implementation>
+        <ST><![CDATA[(*
+版本: V1.0.0.0
+说明:
+	1. 首个版本
+	2. 含普通气缸\真空吸类型的控制
+	3. 可配置是否有到位信号, 以及到位稳定时间
+(--------------------------------------------------)
+新版本: V1.0.1.0
+更新时间: 2019/11/20 19:00
+更新说明:
+	1. 优化编写方式
+	2. 修改错误编码起始位，现改为从1开始
+(--------------------------------------------------)
+新版本: V1.0.1.1
+更新时间: 2020/03/23 23:00
+更新说明:
+	1. 优化报错方式
+	2. 增加伸出、缩回、复位和停止触发函数
+(--------------------------------------------------)
+新版本: V1.0.1.2
+更新时间: 2020/04/22 09:50
+更新说明:
+	1. 增加中文报警输出
+(--------------------------------------------------)
+新版本: V1.0.1.3
+更新时间: 2020/09/16
+更新说明:
+	1. 开放错误ID、错误文本信息获取接口
+(--------------------------------------------------)
+新版本: V1.0.1.4
+更新时间: 2020/10/06
+更新说明:
+	1. 移除控制模式变量，增加HMI启用条件
+	2. 增加外部获取伸出缩回完成信号接口函数
+(--------------------------------------------------)
+新版本: V1.0.1.5
+更新时间: 2020/10/14
+更新说明:
+	1. 优化代码
+(--------------------------------------------------)
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="ARMModule">
+      <LineId Id="559" Count="4" />
+      <LineId Id="692" Count="0" />
+      <LineId Id="564" Count="1" />
+      <LineId Id="569" Count="12" />
+      <LineId Id="212" Count="0" />
+    </LineIds>
+    <LineIds Name="ARMModule.Act_DirectionJog">
+      <LineId Id="34" Count="2" />
+      <LineId Id="49" Count="1" />
+      <LineId Id="65" Count="0" />
+      <LineId Id="68" Count="3" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="81" Count="1" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="84" Count="0" />
+      <LineId Id="86" Count="1" />
+      <LineId Id="85" Count="0" />
+      <LineId Id="72" Count="0" />
+      <LineId Id="78" Count="1" />
+      <LineId Id="77" Count="0" />
+      <LineId Id="74" Count="2" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="37" Count="2" />
+      <LineId Id="89" Count="5" />
+      <LineId Id="88" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="ARMModule.Act_HOME">
+      <LineId Id="34" Count="4" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="65" Count="5" />
+      <LineId Id="62" Count="1" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="ARMModule.Act_HOME_Auto">
+      <LineId Id="34" Count="4" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="ARMModule.Act_IN">
+      <LineId Id="72" Count="13" />
+      <LineId Id="71" Count="0" />
+    </LineIds>
+    <LineIds Name="ARMModule.Act_IN_Auto">
+      <LineId Id="78" Count="5" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="ARMModule.Act_Reset">
+      <LineId Id="5" Count="1" />
+    </LineIds>
+    <LineIds Name="ARMModule.Act_Stop">
+      <LineId Id="6" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="ARMModule.Error_ACT">
+      <LineId Id="1" Count="0" />
+      <LineId Id="15" Count="2" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="12" Count="2" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="18" Count="2" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="27" Count="4" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="3" Count="0" />
+    </LineIds>
+    <LineIds Name="ARMModule.Get_Done_HOME">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="ARMModule.Get_Done_IN">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="ARMModule.getErrID">
+      <LineId Id="22" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="ARMModule.getErrTXT">
+      <LineId Id="22" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="66" Count="1" />
+      <LineId Id="74" Count="1" />
+      <LineId Id="82" Count="1" />
+      <LineId Id="40" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="ARMModule.getErrWTXT">
+      <LineId Id="21" Count="2" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="81" Count="1" />
+      <LineId Id="89" Count="1" />
+      <LineId Id="97" Count="1" />
+      <LineId Id="55" Count="3" />
+      <LineId Id="14" Count="0" />
+    </LineIds>
+    <LineIds Name="ARMModule.HOME_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="81" Count="2" />
+      <LineId Id="216" Count="0" />
+      <LineId Id="211" Count="2" />
+      <LineId Id="210" Count="0" />
+      <LineId Id="219" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="3" Count="6" />
+      <LineId Id="78" Count="1" />
+      <LineId Id="217" Count="0" />
+      <LineId Id="195" Count="0" />
+      <LineId Id="218" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="89" Count="0" />
+      <LineId Id="12" Count="10" />
+      <LineId Id="214" Count="0" />
+      <LineId Id="196" Count="0" />
+      <LineId Id="98" Count="9" />
+      <LineId Id="110" Count="10" />
+      <LineId Id="194" Count="0" />
+      <LineId Id="198" Count="0" />
+      <LineId Id="215" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="25" Count="4" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="199" Count="0" />
+      <LineId Id="33" Count="8" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="61" Count="3" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="201" Count="0" />
+      <LineId Id="72" Count="0" />
+      <LineId Id="74" Count="3" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="200" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="56" Count="0" />
+      <LineId Id="202" Count="0" />
+      <LineId Id="205" Count="0" />
+      <LineId Id="208" Count="0" />
+      <LineId Id="206" Count="1" />
+      <LineId Id="209" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="ARMModule.IN_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="114" Count="1" />
+      <LineId Id="119" Count="0" />
+      <LineId Id="270" Count="0" />
+      <LineId Id="266" Count="2" />
+      <LineId Id="265" Count="0" />
+      <LineId Id="274" Count="0" />
+      <LineId Id="113" Count="0" />
+      <LineId Id="3" Count="6" />
+      <LineId Id="108" Count="1" />
+      <LineId Id="271" Count="0" />
+      <LineId Id="253" Count="0" />
+      <LineId Id="272" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="125" Count="0" />
+      <LineId Id="127" Count="0" />
+      <LineId Id="126" Count="0" />
+      <LineId Id="13" Count="6" />
+      <LineId Id="145" Count="0" />
+      <LineId Id="20" Count="1" />
+      <LineId Id="269" Count="0" />
+      <LineId Id="264" Count="0" />
+      <LineId Id="132" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="143" Count="1" />
+      <LineId Id="146" Count="0" />
+      <LineId Id="150" Count="0" />
+      <LineId Id="147" Count="1" />
+      <LineId Id="134" Count="0" />
+      <LineId Id="133" Count="0" />
+      <LineId Id="151" Count="0" />
+      <LineId Id="156" Count="0" />
+      <LineId Id="154" Count="0" />
+      <LineId Id="228" Count="1" />
+      <LineId Id="152" Count="1" />
+      <LineId Id="155" Count="0" />
+      <LineId Id="159" Count="2" />
+      <LineId Id="157" Count="0" />
+      <LineId Id="187" Count="0" />
+      <LineId Id="158" Count="0" />
+      <LineId Id="162" Count="1" />
+      <LineId Id="184" Count="1" />
+      <LineId Id="238" Count="0" />
+      <LineId Id="183" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="25" Count="4" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="255" Count="0" />
+      <LineId Id="33" Count="5" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="91" Count="0" />
+      <LineId Id="94" Count="3" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="257" Count="0" />
+      <LineId Id="102" Count="0" />
+      <LineId Id="104" Count="3" />
+      <LineId Id="117" Count="0" />
+      <LineId Id="256" Count="0" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="259" Count="4" />
+      <LineId Id="258" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="ARMModule.Init_ACT">
+      <LineId Id="2" Count="1" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="21" Count="1" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="6" Count="3" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="18" Count="2" />
+    </LineIds>
+    <LineIds Name="ARMModule.InitHMI_ACT">
+      <LineId Id="2" Count="3" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="6" Count="8" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="16" Count="3" />
+    </LineIds>
+    <LineIds Name="ARMModule.ManualCtrl_ACT">
+      <LineId Id="2" Count="1" />
+      <LineId Id="32" Count="1" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="45" Count="1" />
+      <LineId Id="48" Count="4" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="4" Count="1" />
+      <LineId Id="54" Count="3" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="64" Count="0" />
+      <LineId Id="66" Count="4" />
+      <LineId Id="72" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="8" Count="2" />
+      <LineId Id="83" Count="3" />
+      <LineId Id="82" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="87" Count="0" />
+      <LineId Id="76" Count="5" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="13" Count="18" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="ARMModule.Read_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="270" Count="0" />
+      <LineId Id="3" Count="0" />
+      <LineId Id="94" Count="0" />
+      <LineId Id="100" Count="0" />
+      <LineId Id="176" Count="0" />
+      <LineId Id="259" Count="0" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="13" Count="2" />
+      <LineId Id="113" Count="0" />
+      <LineId Id="16" Count="1" />
+      <LineId Id="201" Count="1" />
+      <LineId Id="200" Count="0" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="261" Count="0" />
+      <LineId Id="114" Count="0" />
+      <LineId Id="204" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="181" Count="1" />
+      <LineId Id="184" Count="0" />
+      <LineId Id="186" Count="2" />
+      <LineId Id="269" Count="0" />
+      <LineId Id="189" Count="10" />
+      <LineId Id="185" Count="0" />
+      <LineId Id="183" Count="0" />
+      <LineId Id="263" Count="2" />
+      <LineId Id="268" Count="0" />
+      <LineId Id="266" Count="1" />
+      <LineId Id="132" Count="0" />
+      <LineId Id="206" Count="1" />
+      <LineId Id="205" Count="0" />
+      <LineId Id="210" Count="0" />
+      <LineId Id="262" Count="0" />
+      <LineId Id="211" Count="0" />
+      <LineId Id="208" Count="0" />
+      <LineId Id="139" Count="0" />
+      <LineId Id="213" Count="1" />
+      <LineId Id="212" Count="0" />
+      <LineId Id="217" Count="13" />
+      <LineId Id="216" Count="0" />
+      <LineId Id="215" Count="0" />
+      <LineId Id="241" Count="0" />
+      <LineId Id="172" Count="0" />
+      <LineId Id="177" Count="0" />
+      <LineId Id="175" Count="0" />
+      <LineId Id="179" Count="0" />
+      <LineId Id="257" Count="0" />
+      <LineId Id="173" Count="0" />
+      <LineId Id="178" Count="0" />
+      <LineId Id="174" Count="0" />
+      <LineId Id="180" Count="0" />
+      <LineId Id="258" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="ARMModule.RealMonitor_ACT">
+      <LineId Id="6" Count="0" />
+      <LineId Id="36" Count="11" />
+      <LineId Id="51" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="ARMModule.Reset_ACT">
+      <LineId Id="2" Count="8" />
+      <LineId Id="13" Count="1" />
+      <LineId Id="27" Count="1" />
+      <LineId Id="15" Count="6" />
+      <LineId Id="25" Count="1" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="31" Count="3" />
+      <LineId Id="23" Count="1" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="ARMModule.VersionLog">
+      <LineId Id="49" Count="16" />
+      <LineId Id="67" Count="7" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="76" Count="1" />
+      <LineId Id="79" Count="10" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,20 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <GVL Name="GVL_AllCONSTANT" Id="{ffe0444a-2342-4106-a603-e5e807d13996}">
+    <Declaration><![CDATA[//{attribute 'qualified_only'}
+VAR_GLOBAL CONSTANT
+	gParSaveMax						:UDINT:=20;
+	gNoteArryMaxNum					:INT:=10;
+	gRoughtPumVaccum				:REAL:=40.0;// mTorr
+	gLoadLockPumSVaccum				:REAL:=90000.0;// mTorr
+	gUltimateVacuum					:REAL:=5E-5;// 极限真空 Torr
+	gATMPressure					:REAL:=740000.0;// 大气压力
+	gATMPressureChamber				:REAL:=760000.0;// 大气压力
+	gLVacuumPressureChamber			:REAL:=600.0;// 低气压 40mTorr以下
+	gDifferentialPressure			:real:=300;
+	gRFRFOffset						:UDINT:=5;
+	gRFReflectPowerMin				:UDINT:=10;
+	gMFCMonitParLimit				:UDINT:=1;
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

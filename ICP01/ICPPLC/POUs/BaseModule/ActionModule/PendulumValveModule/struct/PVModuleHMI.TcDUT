@@ -1,0 +1,61 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="PVModuleHMI" Id="{da052897-81de-4795-827d-4b9322b840aa}">
+    <Declaration><![CDATA[{attribute 'pack_mode' := 1}
+TYPE PVModuleHMI :
+STRUCT
+//control signal or data
+	OpenAndClose	: BOOL:=FALSE;//单控件触发信号
+
+	open			: BOOL:=FALSE;//打开触发信号
+	close			: BOOL:=FALSE;//关闭触发信号
+	opentemp		: BOOL:=FALSE;//打开触发信号
+	closetemp		: BOOL:=FALSE;//关闭触发信号
+	reset			: BOOL:=FALSE;//复位信号
+	stop			: BOOL:=FALSE;//停止信号
+	power			: BOOL:=TRUE;//no power, two relay will lost power
+	
+	mode			: BOOL:=FALSE; // 控制模式 false Pos;true PRE
+	modetemp		: BOOL:=FALSE; // 控制模式 false Pos;true PRE
+	
+	set				: BOOL;
+	clear			: BOOL;		
+	config			: BOOL;		
+	
+	setPressure		: REAL:=0.0;// 压力值
+	setflag			: BOOL;
+	clearflag		: BOOL;
+	actPressure		: REAL:=0.0;// 实际压力值
+	actPos			: REAL:=0.0;// 实际开度
+
+//monitor
+	openAprSw		: BOOL:=FALSE;//HW: PV openent approach switch
+	closeAprSw		: BOOL:=FALSE;//HW: PV close approach switch	
+	openRelay		: BOOL:=FALSE;//HW: PV openent action relay
+	closeRelay		: BOOL:=FALSE;//HW: PV close action relay	
+
+	enableopen		: BOOL:=TRUE;//for outside control instance
+	enableclose		: BOOL:=TRUE;//for outside control instance
+//state
+	HMIEnable		: BOOL:=TRUE;
+	enable			: BOOL;
+	busy			: BOOL;
+	done			: BOOL;
+	error			: BOOL;
+	openerror		: BOOL;
+	closeerror		: BOOL;
+	errID			: DINT;
+	nameTXT			: STRING;// PV名字
+	errTXT			: STRING;
+	opencondition	: BOOL;// 开条件
+	closecondition	: BOOL;// 关条件
+	
+	setPointNotEq	:BOOL;
+END_STRUCT
+END_TYPE
+(*
+按照字节对齐规则，将变量按字节大小按顺序定义，用于ADS读取
+*)
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

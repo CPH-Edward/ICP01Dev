@@ -1,0 +1,24 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <GVL Name="GVL_Datasave" Id="{c155395f-8355-48a5-8b6f-06d396ad6fb9}">
+    <Declaration><![CDATA[//{attribute 'qualified_only'}
+VAR_GLOBAL
+//位置成组安全移动
+	//上料相机轴
+	DOEAXIS1AxisParSet				: ARRAY [1..20] OF ST_StationConfigBase;
+	DOEAXIS2AxisParSet				: ARRAY [1..20] OF ST_StationConfigBase;
+	//速度设置
+	//临时采取用快速设置的方式
+//	gStepAxisVel					:LREAL:=2.0;
+//	gServoAxisVel					:LREAL:=20.0;
+
+	
+	gTestDelayTime: DINT;
+	gDataArrName2					: ARRAY [1..20] OF WSTRING;// 20个点位名称
+//DOE共轴界面参数设置
+END_VAR
+VAR_GLOBAL PERSISTENT
+	;
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

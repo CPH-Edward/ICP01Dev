@@ -1,0 +1,60 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <TextList Name="RunModeTypeTexList" Id="{b8ce8886-2068-4cd8-a249-60604adb6f91}">
+    <XmlArchive>
+      <Data>
+        <o xml:space="preserve" t="TextListObject">
+          <v n="UniqueIdGenerator">"0"</v>
+          <l n="TextList" t="ArrayList" cet="TextListRow">
+            <o>
+              <v n="TextID">"0"</v>
+              <v n="TextDefault">"正常生产"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>正常生产</v>
+                <v>Normal Product</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"1"</v>
+              <v n="TextDefault">"动态重复性"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>动态重复性</v>
+                <v>GRR</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">"2"</v>
+              <v n="TextDefault">"静态重复性"</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v>静态重复性</v>
+                <v>ARR</v>
+              </l>
+            </o>
+            <o>
+              <v n="TextID">""</v>
+              <v n="TextDefault">""</v>
+              <l n="LanguageTexts" t="ArrayList" cet="String">
+                <v></v>
+                <v></v>
+              </l>
+            </o>
+          </l>
+          <l n="Languages" t="ArrayList" cet="String">
+            <v>Chinese</v>
+            <v>English</v>
+          </l>
+          <v n="GuidInit">{e9cf4306-e00a-4651-ba04-4438f0f1ed92}</v>
+          <v n="GuidReInit">{0e551103-7883-47e6-b56e-aae9ca4052a0}</v>
+          <v n="GuidExitX">{57cf03f5-038f-41a1-82ec-fd940be52673}</v>
+        </o>
+      </Data>
+      <TypeList>
+        <Type n="ArrayList">System.Collections.ArrayList</Type>
+        <Type n="Guid">System.Guid</Type>
+        <Type n="String">System.String</Type>
+        <Type n="TextListObject">{2bef0454-1bd3-412a-ac2c-af0f31dbc40f}</Type>
+        <Type n="TextListRow">{53da1be7-ad25-47c3-b0e8-e26286dad2e0}</Type>
+      </TypeList>
+    </XmlArchive>
+  </TextList>
+</TcPlcObject>

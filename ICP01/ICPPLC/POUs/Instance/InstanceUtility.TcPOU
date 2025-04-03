@@ -1,0 +1,167 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="InstanceUtility" Id="{55528ad9-e351-4dd1-a750-377943ddc0fe}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM InstanceUtility
+VAR
+	systemTime1						: TIMESTRUCT;
+
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(*********** 公共部分 ***********)
+(*log对象 实例化*)
+
+	gLog(
+		sRootDirPath:= 'C:\Log', 
+		sFileName:= 'All_Log.txt', 
+		enable:=TRUE, 
+		enableShowInfo:= TRUE, 
+		clearShowInfo:= , 
+		enableDelete:= TRUE, 
+		storageDays:= 20, 
+		busy=> , 
+		error=> , 
+		errID=> , 
+		errTxt=> );
+	gDownTimeLog(
+		sRootDirPath:= 'C:\Log', 
+		sFileName:= 'gDownTimeLog.txt', 
+		enable:=TRUE , 
+		enableShowInfo:= TRUE, 
+		clearShowInfo:= , 
+		enableDelete:= TRUE, 
+		storageDays:= 20, 
+		busy=> , 
+		error=> , 
+		errID=> , 
+		errTxt=> );
+	gDataChangeLog(
+		sRootDirPath:= 'C:\Log', 
+		sFileName:= 'gDataChangeLog.txt', 
+		enable:= TRUE, 
+		enableShowInfo:= TRUE, 
+		clearShowInfo:= , 
+		enableDelete:= TRUE, 
+		storageDays:= 20, 
+		busy=> , 
+		error=> , 
+		errID=> , 
+		errTxt=> );
+	gOperatorLog(
+		sRootDirPath:= 'C:\Log', 
+		sFileName:= 'gOperatorLog.txt', 
+		enable:= TRUE, 
+		enableShowInfo:= TRUE, 
+		clearShowInfo:= , 
+		enableDelete:= TRUE, 
+		storageDays:= 30, 
+		busy=> , 
+		error=> , 
+		errID=> , 
+		errTxt=> );
+	gRunningLog(
+		sRootDirPath:= 'C:\Log', 
+		sFileName:= 'gRunningLog.txt', 
+		enable:= TRUE, 
+		enableShowInfo:= TRUE, 
+		clearShowInfo:= , 
+		enableDelete:= TRUE, 
+		storageDays:= 30, 
+		busy=> , 
+		error=> , 
+		errID=> , 
+		errTxt=> );
+	
+(*通用对象 实例化*)/////////////////////////////////////////////////////计时内容可以根据情况删减
+
+	fb_systemTimeModule(systemTime=>systemTime1 , timeInterval=> );//时钟实例化
+	g_SystemTime:=fb_systemTimeModule.getStrSysTime();//界面现实时间
+	
+	fb_systemTimeModule.enableTime(11);// Load cycle time 统计
+	fb_systemTimeModule.enableTime(12);// Test cycle time 统计
+	fb_systemTimeModule.enableTime(13);// UnLoad cycle time 统计
+	fb_systemTimeModule.enableTime(14);// Toltal cycle time 统计
+	fb_systemTimeModule.enableTime(15);// Test BreakDOwm cycle time 统计
+	
+//	fb_systemTimeModule.enableTime(20);
+//	fb_systemTimeModule.enableTime(30);
+//	fb_systemTimeModule.enableTime(31);
+//	fb_systemTimeModule.enableTime(32);
+//	// fb_systemTimeModule.enableTime(33);
+//	fb_systemTimeModule.enableTime(35);
+//	fb_systemTimeModule.enableTime(36);
+//	fb_systemTimeModule.enableTime(37);
+//	fb_systemTimeModule.enableTime(38);
+//	// fb_systemTimeModule.enableTime(50);
+	
+//	// fb_systemTimeModule.enableTime(100);
+	
+//	fb_systemTimeModule.enableTime(200);
+	
+	
+
+	
+//	fb_systemTimeModule.enableTime(500);
+//	fb_systemTimeModule.enableTime(510);
+	
+//// Sta1	
+//	fb_systemTimeModule.enableTime(610);// Sta1 Load Time
+//	fb_systemTimeModule.enableTime(611);// Sta1 Time of Load Pos to Test Start Pos
+//	fb_systemTimeModule.enableTime(612);// Sta1 Time of Test End Pos to UnLoad Pos
+//	fb_systemTimeModule.enableTime(613);// Sta1 TestTime
+//	fb_systemTimeModule.enableTime(614);// Sta1 UnLoad Time
+//	fb_systemTimeModule.enableTime(615);// Sta1 Time of UnLoad Pos to Load Pos	
+   
+
+	
+	]]></ST>
+    </Implementation>
+    <LineIds Name="InstanceUtility">
+      <LineId Id="404" Count="0" />
+      <LineId Id="396" Count="0" />
+      <LineId Id="356" Count="0" />
+      <LineId Id="367" Count="4" />
+      <LineId Id="510" Count="1" />
+      <LineId Id="372" Count="3" />
+      <LineId Id="922" Count="0" />
+      <LineId Id="957" Count="10" />
+      <LineId Id="956" Count="0" />
+      <LineId Id="1003" Count="10" />
+      <LineId Id="400" Count="0" />
+      <LineId Id="1026" Count="10" />
+      <LineId Id="1025" Count="0" />
+      <LineId Id="1043" Count="10" />
+      <LineId Id="1042" Count="0" />
+      <LineId Id="995" Count="0" />
+      <LineId Id="399" Count="0" />
+      <LineId Id="726" Count="0" />
+      <LineId Id="392" Count="0" />
+      <LineId Id="485" Count="0" />
+      <LineId Id="1019" Count="0" />
+      <LineId Id="717" Count="0" />
+      <LineId Id="719" Count="2" />
+      <LineId Id="989" Count="0" />
+      <LineId Id="547" Count="1" />
+      <LineId Id="603" Count="2" />
+      <LineId Id="609" Count="0" />
+      <LineId Id="387" Count="0" />
+      <LineId Id="606" Count="2" />
+      <LineId Id="614" Count="0" />
+      <LineId Id="637" Count="1" />
+      <LineId Id="687" Count="1" />
+      <LineId Id="619" Count="1" />
+      <LineId Id="631" Count="0" />
+      <LineId Id="630" Count="0" />
+      <LineId Id="626" Count="0" />
+      <LineId Id="636" Count="0" />
+      <LineId Id="676" Count="0" />
+      <LineId Id="642" Count="4" />
+      <LineId Id="651" Count="0" />
+      <LineId Id="677" Count="0" />
+      <LineId Id="653" Count="0" />
+      <LineId Id="647" Count="0" />
+      <LineId Id="635" Count="0" />
+      <LineId Id="613" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

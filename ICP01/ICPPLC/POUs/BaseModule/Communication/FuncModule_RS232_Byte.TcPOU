@@ -1,0 +1,289 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="FuncModule_RS232_Byte" Id="{12fba6f2-f96d-44dd-9dd0-fdc05f5c9578}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM FuncModule_RS232_Byte
+VAR_INPUT
+	serialExcute				:BOOL;// RS485开始一次参数读取
+	serialSlaveID				:UINT;// 485从站节点号
+END_VAR
+VAR_OUTPUT
+	serialBusy						:BOOL;
+	serialDone						:BOOL;
+	serialError						:BOOL;
+	temperature				:REAL;//分子泵温度
+	current					:REAL;//分子泵电流
+	speed					:REAL;//分子泵转速
+END_VAR
+VAR
+	currentTemp:INT;// 电流中转变量
+	temperatureTemp				:DINT;// 温度中转变量
+	speedTemp					:DINT;// 速度中转变量
+	(*
+	 *xBuffer 的作用是，在 PLC 要发送的数据和串行通讯的硬件 Process Data 之间设置一个缓存区。
+	 *比如 KL6outData22B 类型的接口，每个 PLC 周期只能发送 22 字节。假如程序需要发送的数据为 100 个，
+	 *那么实际上 PLC 程序是把这些数据放到 TxBuffer 中，再由硬件分几个 PLC 周期发送出去
+	*)
+	TxBuffer_TMP:					ComBuffer;		
+	RxBuffer_TMP:					ComBuffer;
+	
+	COMin				AT%I*		:KL6inData22B;		
+	COMout				AT%Q*		:KL6outData22B;
+		
+	COMportControl					:SerialLineControl;
+	
+	//Byte方式
+	send1:							SendData;
+	receive1:						ReceiveData;
+ 
+	Timer1:							TON;
+	t1:								TON;
+	ITemp:INT;
+	
+	nSendByteLength: 				UDINT:= 11;	//发送数据的长度
+	arr_SendData:					ARRAY[1..20]			OF		BYTE;(*READ*)//发送数据
+	arr_RcvData:					ARRAY[1..200]			OF		BYTE;//接受数据
+	arr_RcvData_Temp:				ARRAY[1..200]			OF		BYTE;//接受数据中转
+	arr_RcvData_Clear:				ARRAY[1..200]			OF		BYTE;//接受数据清空
+	arr_Temp:						ARRAY [1..2] OF BYTE;//高低位互换
+	arr_Temp1:						ARRAY [1..2] OF BYTE;//高低位互换
+	serialStep						:UINT;				//处理步数
+	serialErrorID					:UINT;
+	serialTimeOut:BOOL;//接收数据超时
+	serialRecError:BOOL;//接收数据错误
+	testReal:REAL;
+	strTemp:STRING;
+	//字符串方式
+	(*send1:							SendString;
+	receive1:						ReceiveString;
+	
+	Timer1:							TON;
+	
+	_sendString:					STRING:='4567';
+	_receive1string:				STRING;
+	_recvLast:						STRING;				//保存上一个周期接收的字符*)
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(*
+ *功能块的作用，把 TxBuffer 缓存区的数据经过 Process Data 的 ComOut 发送出去，
+ *而把 ComIn 中的数据接收到 RxBuffer。引用这个功能块的程序执行周期越短，
+ *数据交换的效率就越高，所以这段程序应该放在快速任务中作为 Backgroud 代码无条件执行。
+*)
+COMportControl(
+	Mode:= SERIALLINEMODE_KL6_22B_STANDARD, 
+	pComIn:= ADR(COMin), 
+	pComOut:= ADR(COMout), 
+	SizeComIn:= SIZEOF(COMin), 
+	Error=> , 
+	ErrorID=> , 
+	TxBuffer:= TxBuffer_TMP, 
+	RxBuffer:= RxBuffer_TMP );
+IF receive1.Error <> COMERROR_NOERROR THEN
+	serialRecError:=TRUE;
+END_IF
+receive1(
+	pPrefix:= , 
+	LenPrefix:= , 
+	pSuffix:= , 
+	LenSuffix:= , 
+	pReceiveData:= ADR(arr_RcvData), 
+	SizeReceiveData:= 100, 
+	Timeout:= T#100MS, //临时设置成10S调试用
+	Reset:= , 
+	DataReceived=> , 
+	busy=> , 
+	Error=> , 
+	RxTimeout=> , 
+	LenReceiveData=> , 
+	RXbuffer:= RxBuffer_TMP);
+//testReal:=BYTE_TO_REAL(arr_RcvData_Temp);
+CASE serialStep OF
+	0:
+	IF serialExcute THEN
+		serialExcute:=FALSE;
+		IF NOT serialBusy THEN
+			serialStep:=10;
+			serialBusy:=TRUE;
+			serialDone:=FALSE;
+			serialError:=FALSE;
+			serialTimeOut:=FALSE;
+			serialRecError:=FALSE;
+			receive1(//复位
+				pPrefix:= , 
+				LenPrefix:= , 
+				pSuffix:= , 
+				LenSuffix:= , 
+				pReceiveData:= , 
+				SizeReceiveData:=, 
+				Timeout:= T#300MS, 
+				Reset:= , 
+				DataReceived=> , 
+				busy=> , 
+				Error=> , 
+				RxTimeout=> , 
+				LenReceiveData=> , 
+				RXbuffer:= RxBuffer_TMP);
+		END_IF
+	END_IF
+	Timer1(IN:= FALSE);
+	;
+	10:
+		//第二和第三位代表ID号
+		arr_SendData[1]	:=16#40;
+		IF serialSlaveID<16 THEN
+			arr_SendData[2]:=F_ToASC(str:='0');
+			arr_SendData[3]:=F_ToASC(str:=CalASII_Str(serialSlaveID));
+		ELSE
+			arr_SendData[2]:=F_ToASC(str:=CalASII_Str(serialSlaveID/16));
+			arr_SendData[3]:=F_ToASC(str:=CalASII_Str(serialSlaveID MOD 16));
+		END_IF
+		arr_SendData[4]:=16#02;
+		arr_SendData[5]:=16#30;
+		arr_SendData[6]:=16#30;
+		arr_SendData[7]:=16#31;
+		arr_SendData[8]:=16#3F;
+		arr_SendData[9]:=16#5B;
+		arr_SendData[10]:=16#03;
+		arr_SendData[11]:=16#AB;
+		serialStep:=100;
+	100:
+		send1(
+			pSendData:= ADR(arr_SendData), 
+			Length:= nSendByteLength, 
+			Busy=> , 
+			Error=> , 
+			TXbuffer:= TxBuffer_TMP);
+		serialStep:=serialStep+20;
+	110:
+		Timer1(IN:= NOT timer1.q, PT:=T#00MS);
+		IF Timer1.Q THEN
+			serialStep:=serialStep+10;
+			Timer1(IN:= FALSE);
+		END_IF
+	120:
+		Timer1(IN:= NOT timer1.q, PT:=T#50000MS);
+		IF Timer1.Q THEN
+			serialStep:=6000;
+			Timer1(IN:= FALSE);
+			serialTimeOut:=TRUE;
+			RETURN;
+		END_IF
+		IF NOT receive1.busy  THEN
+			Timer1(IN:= FALSE);
+			serialTimeOut:=FALSE;
+			serialStep:=200;
+		END_IF
+		IF receive1.Error <> COMERROR_NOERROR THEN
+			serialRecError:=TRUE;
+		END_IF
+	200://数据处理
+		arr_RcvData_Temp:=arr_RcvData;
+		arr_RcvData:=arr_RcvData_Clear;
+		serialStep:=serialStep+10;
+	210:
+		//第二和第三位代表ID号;看情况决定是否需要判断节点反馈的节点号
+		IF NOT receive1.DataReceived THEN
+			serialStep:=serialStep+10;
+			Timer1(IN:= FALSE);
+		END_IF
+	220:
+		//数据转换
+		Timer1(IN:= FALSE);
+		serialStep:=1000;
+	
+	1000:
+		Timer1(IN:= NOT timer1.q, PT:=T#1000MS);
+		IF Timer1.Q THEN
+			serialStep:=10;
+			Timer1(IN:= FALSE);
+			serialTimeOut:=TRUE;
+		END_IF
+	;
+	5000://done
+		serialBusy:=FALSE;
+		serialDone:=TRUE;
+		serialError:=FALSE;
+		serialStep:=0;
+	;
+	6000://error
+		serialBusy:=FALSE;
+		serialDone:=FALSE;
+		serialError:=TRUE;
+		serialStep:=0;
+	;
+	
+END_CASE
+
+ ]]></ST>
+    </Implementation>
+    <Method Name="CalASII_Str" Id="{25e60138-b80c-4284-b794-79b601bb4c12}">
+      <Declaration><![CDATA[METHOD CalASII_Str : STRING
+VAR_INPUT
+	date1:UINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF date1=10 THEN
+	CalASII_Str:='A';
+END_IF
+IF date1=11 THEN
+	CalASII_Str:='B';
+END_IF
+IF date1=12 THEN
+	CalASII_Str:='C';
+END_IF
+IF date1=13 THEN
+	CalASII_Str:='D';
+END_IF
+IF date1=14 THEN
+	CalASII_Str:='E';
+END_IF
+IF date1=15 THEN
+	CalASII_Str:='F';
+END_IF
+IF date1<10 THEN
+	CalASII_Str:=UINT_TO_STRING(date1);
+END_IF
+IF date1>15 THEN
+	CalASII_Str:=UINT_TO_STRING(date1);
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="FuncModule_RS232_Byte">
+      <LineId Id="402" Count="38" />
+      <LineId Id="647" Count="1" />
+      <LineId Id="443" Count="22" />
+      <LineId Id="1014" Count="15" />
+      <LineId Id="482" Count="31" />
+      <LineId Id="1012" Count="1" />
+      <LineId Id="516" Count="4" />
+      <LineId Id="525" Count="0" />
+      <LineId Id="886" Count="0" />
+      <LineId Id="526" Count="2" />
+      <LineId Id="885" Count="0" />
+      <LineId Id="529" Count="0" />
+      <LineId Id="878" Count="6" />
+      <LineId Id="877" Count="0" />
+      <LineId Id="530" Count="0" />
+      <LineId Id="551" Count="3" />
+      <LineId Id="870" Count="0" />
+      <LineId Id="556" Count="8" />
+      <LineId Id="600" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_Byte.CalASII_Str">
+      <LineId Id="5" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="13" Count="1" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="16" Count="1" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="19" Count="1" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="22" Count="1" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="25" Count="8" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

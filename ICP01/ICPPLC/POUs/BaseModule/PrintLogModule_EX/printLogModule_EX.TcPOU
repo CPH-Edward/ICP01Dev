@@ -1,0 +1,1056 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="printLogModule_EX" Id="{a2c5492d-0fed-4b21-bb30-e048339091b8}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK printLogModule_EX
+VAR_INPUT
+	sRootDirPath	:T_MaxString:='C:\Log';//根目录
+	sFileName		:T_MaxString:='log.txt';//Log文件名
+	enable			:BOOL:=FALSE;//是否启用Log保存到文件功能
+	enableShowInfo	:BOOL:=TRUE;//是否启用ShowInfo功能---HMI
+	clearShowInfo	:BOOL:=FALSE;//清除HMI显示
+	
+	enableDelete	:BOOL;
+	storageDays		:UINT:=7;
+	sAmsNetId		:STRING;//获取arrAmsNetId
+END_VAR
+VAR_OUTPUT
+	busy			:BOOL:=FALSE;
+	error			:BOOL:=FALSE;
+	errID			:UDINT:=0;
+	errTxt			:STRING(255):='';
+END_VAR
+VAR
+	strData			:ARRAY [cNumBegin..(cNumLength+cNumBegin-1)] OF printLogModule_EX_DataST;
+	length			:DINT:=0;
+	endPoint		:DINT:=cNumBegin;
+	//popup
+	popupStep		:UINT:=0;
+	popupTON		:TON;
+	//Save Log
+	saveStep		:UINT:=0;
+	saveStr			:WSTRING(255);//保存的信息
+	saveStrBuff		:WSTRING(255);//保存的信息-buffer
+	{ attribute 'TcEncoding' := 'UTF-8'}
+	saveStrBuff1	:STRING(255);//保存的信息-buffer
+	saveB			:BOOL:=FALSE;//触发保存
+	sBusy			:BOOL:=FALSE;
+	sDone			:BOOL:=FALSE;
+	//ShowInfo
+	HMIData						:printLogModule_EX_DataHMI;
+	clearShowInfoR1				:R_Trig;
+	iClearTemp					:DINT;
+	enableSaveR_Trig			:R_Trig;
+	enableSaveF_Trig			:F_Trig;
+	enableSaveShowLogR_Trig		:R_Trig;
+	
+//File
+	hFile			: UINT:= 0;(* File handle of the source file *)
+	fbCreateDir		: FB_CreateDir;//Creat File
+	fbFileOpen		: FB_FileOpen;//Creat file.if file didn't exist, then creat it.
+	//fbFileGets	: FB_FileGets;//
+	//fbFilePuts		: FB_FilePuts;//
+	fbFileWrite		: FB_FileWrite;//  
+	fbFileClose		: FB_FileClose;//Close File
+	
+	sChildDirPath1	: T_MaxString:='';//子目录
+	sChildDirName1	: T_MaxString:='';//子文件夹名
+	sFilePathName	: T_MaxString:='';//Log文件路径
+	(* Save show log *)
+	saveShowLogStep			:UINT:=0;
+	saveShowLogStr			:WSTRING(255);// ShowLog 保存的信息
+	saveShowLogStrBuff		:WSTRING(255);// ShowLog 保存的信息-buffer
+	saveShowLogStrBuff1		:STRING(255);// ShowLog 保存的信息-buffer
+	saveShowLogB			:BOOL:=FALSE;// ShowLog 触发保存
+	bShowLogBusy			:BOOL:=FALSE;// ShowLog busy
+	sShowLogDone			:BOOL:=FALSE;// ShowLog done
+	
+	hShowLogFile			: UINT:= 0;(* ShowLog File handle of the source file *)
+	fbShowLogCreateDir		: FB_CreateDir;// ShowLog Creat File
+	fbShowLogFileOpen		: FB_FileOpen;// ShowLog Creat file.if file didn't exist, then creat it.
+	fbShowLogFileWrite		: FB_FileWrite;// ShowLog 
+	fbShowLogFileClose		: FB_FileClose;// ShowLog Close File
+	
+	sShowLogChildDirPath1	: T_MaxString:='';// ShowLog 子目录
+	sShowLogChildDirName1	: T_MaxString:='';// ShowLog 子文件夹名
+	sShowLogFilePathName	: T_MaxString:='';// ShowLog Log文件路径
+	
+	iShowLogTemp			:DINT:=0;
+	showLogStrData			:ARRAY [cNumBegin_showInof..cNumLength_showInof] OF printLogModule_EX_DataST;
+//获取系统时间
+	ntGetTime				: NT_GetTime;
+	systemTimeStruct		: TIMESTRUCT;
+	getSystemTimeStep		: UINT:=0;
+	systemTIMEStr			: STRING:='';//系统时间，格式YYYY-MM-DD hh:mm:ss_zzz
+	sysTIMEStrYY			: STRING:='';//系统时间，年
+	sysTIMEStrMM			: STRING:='';//系统时间，月
+	sysTIMEStrDD			: STRING:='';//系统时间，日
+	sysTIMEStr_HH			: STRING:='';//系统时间，时
+	sysTIMEStr_mm			: STRING:='';//系统时间，分
+	sysTIMEStr_ss			: STRING:='';//系统时间，秒
+	//popup
+	iTempPopup				:DINT;
+	_leng					:DINT;
+	//detele file
+	detele_file_step		:UINT:=0;
+	delete_index			:UINT;
+	delete_index_temp		:UINT;
+	fbFileDelete			:FB_FileDelete;
+	fbRemoveDir				:FB_RemoveDir;
+	delete_done				:BOOL;
+END_VAR
+VAR PERSISTENT
+	//delete file
+	deletePathTemp			:STRING;
+	stDeleteFile			:ARRAY [1..35] OF ST_DeleteFile;
+END_VAR
+VAR
+	bWrtie					: BOOL;//触发断电保持保存
+	//fbUPS					: FB_S_UPS;
+	fbUPS					: FB_S_UPS_CX51x0;
+	fbGetCurTaskIndex		: GetCurTaskIndex;
+	fbWritePersistentData	: FB_WritePersistentData;
+	nTaskNo					: INT;
+	wrtieR_TRIG				: R_TRIG;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(*
+旧版本: V1.0.0.0
+新版本: V1.0.0.1
+更新时间: 2019/07/09 10:30
+更新说明:
+	1. 更新文件保存格式, 时间和内容改为逗号分隔
+	2. 修改每个保存内容后缀为$N
+*)
+getSystemTime(sAmsNetId);
+popup();
+saveLog();
+saveShowLog();
+deleteFile();
+WPersData();//执行断电保持处理
+
+clearShowInfoR1(CLK:=clearShowInfo OR HMIData.clearInformation);
+IF clearShowInfoR1.Q THEN
+	FOR iClearTemp:=cNumBegin_showInof TO cNumLength_showInof BY 1 DO
+		HMIData.logStrData[iClearTemp].sTime:="";
+		HMIData.logStrData[iClearTemp].msg:="";
+	END_FOR
+END_IF
+enableSaveR_Trig(CLK:=HMIData.enableSave);
+IF enableSaveR_Trig.Q THEN
+	enable:=TRUE;
+END_IF
+enableSaveF_Trig(CLK:=HMIData.enableSave);
+IF enableSaveF_Trig.Q THEN
+	enable:=FALSE;
+END_IF
+HMIData.enableSave:=enable;
+
+enableSaveShowLogR_Trig(CLK:=HMIData.enableSaveShowLog AND NOT bShowLogBusy);
+IF enableSaveShowLogR_Trig.Q THEN
+	saveShowLogB:=TRUE;
+END_IF
+]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{ac7a1c56-9949-42f4-911c-b18a40f2d3b9}" />
+    <Folder Name="Public" Id="{d7e814e7-1415-4eb6-a73c-76fa8692ffb5}" />
+    <Method Name="appedFree" Id="{38b57d79-8de8-4629-ad50-7a57ad72dbff}" FolderPath="Public\">
+      <Declaration><![CDATA[METHOD appedFree : BOOL
+VAR_INPUT
+	languageFlag:BOOL;
+	str:STRING;
+	wstr:WSTRING;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF languageFlag THEN
+	append(str);
+ELSE
+	append_EX(wstr);
+END_IF
+appedFree:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="append" Id="{77db9a99-da41-4010-8d7a-aac81dbe221b}" FolderPath="Public\">
+      <Declaration><![CDATA[//只能添加 英文 字符数据
+METHOD append : BOOL
+VAR_INPUT
+	{ attribute 'TcEncoding' := 'UTF-8'}
+	str		:T_MaxString;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[append_EX(TO_WSTRING(str));]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="append_EX" Id="{389dbe5d-4973-44b9-8e92-a2d11045caf9}" FolderPath="Public\">
+      <Declaration><![CDATA[//可添加 中文 字符数据
+METHOD append_EX : BOOL
+VAR_INPUT
+	str		:WSTRING(255);
+END_VAR
+VAR
+	sTime	:WSTRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[busy:=TRUE;
+
+sTime:=TO_WSTRING(systemTIMEStr);
+//str:=CONCAT(STR1:=CONCAT(STR1:=systemTIMEStr,STR2:=': '),STR2:=str);
+IF enableShowInfo THEN
+	showInfo(sTime:=sTime, str:=str);
+END_IF
+str:=WCONCAT(STR1:=str,STR2:="$N");//'$R$N'
+IF endPoint>=(cNumLength-1) THEN
+	busy:=FALSE;
+	RETURN;
+END_IF
+strData[endPoint].sTime:=sTime;
+strData[endPoint].msg:=str;
+endPoint:=endPoint+1;
+length:=endPoint-cNumBegin;
+
+busy:=FALSE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="deleteFile" Id="{fe596198-2fbe-4364-a104-ca837700c2c6}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE deleteFile
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[fbFileDelete(
+	sNetId:= , 
+	sPathName:= , 
+	ePath:= , 
+	bExecute:= , 
+	tTimeout:= , 
+	bBusy=> , 
+	bError=> , 
+	nErrId=> );
+fbRemoveDir(
+	sNetId:= , 
+	sPathName:= , 
+	ePath:= , 
+	bExecute:= , 
+	tTimeout:= , 
+	bBusy=> , 
+	bError=> , 
+	nErrId=> );
+CASE detele_file_step OF
+	0:
+		IF enableDelete AND NOT delete_done THEN
+			detele_file_step:=10;
+		END_IF
+	10:
+		delete_index_temp:=storageDays+1;
+		IF storageDays<=0 THEN
+			delete_index_temp:=1+1;
+		ELSIF storageDays>=30 THEN
+			delete_index_temp:=30+1;
+		END_IF
+		
+		detele_file_step:=detele_file_step+10;
+	20:
+		fbFileDelete(
+			bExecute:= FALSE, );
+		detele_file_step:=detele_file_step+10;
+	30:
+		detele_file_step:=detele_file_step+10;
+	40:
+		fbFileDelete(
+			sPathName:= stDeleteFile[delete_index_temp].sFilePath, 
+			bExecute:= TRUE, );
+		IF fbFileDelete.bBusy THEN
+			detele_file_step:=detele_file_step+10;
+		END_IF
+	50:
+		IF NOT fbFileDelete.bBusy OR fbFileDelete.bError THEN
+			delete_index_temp:=delete_index_temp+1;
+			IF delete_index_temp>35 THEN
+				detele_file_step:=60;
+			ELSE
+				detele_file_step:=20;
+			END_IF
+		END_IF
+	60:
+		fbFileDelete(
+			bExecute:= FALSE, );
+		delete_done:=TRUE;
+		detele_file_step:=0;
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getSystemTime" Id="{d16d2732-8068-41fb-9c42-d6762f6b4ed3}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE getSystemTime : BOOL
+VAR_INPUT
+	systemId		:STRING;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//获取本地系统时间--输出到变量 systemTIMEStr
+CASE getSystemTimeStep OF
+0:
+	ntGetTime(
+		NETID:= systemId , 
+		START:= FALSE, 
+		TMOUT:= , 
+		BUSY=> , 
+		ERR=> , 
+		ERRID=> , 
+		TIMESTR=> systemTimeStruct);
+	IF NOT ntGetTime.BUSY AND NOT ntGetTime.ERR THEN
+		getSystemTimeStep:=getSystemTimeStep+1;
+	END_IF
+1:
+	ntGetTime(
+		NETID:=systemId , 
+		START:= TRUE, 
+		TMOUT:= , 
+		BUSY=> , 
+		ERR=> , 
+		ERRID=> , 
+		TIMESTR=> systemTimeStruct);
+	IF NOT ntGetTime.BUSY AND NOT ntGetTime.ERR THEN
+		systemTIMEStr:=SYSTEMTIME_TO_STRING(systemTimeStruct);//系统时间转成字符串格式
+		
+		sysTIMEStrYY:=WORD_TO_DECSTR(in:=systemTimeStruct.wYear,iPrecision:=4);
+		sysTIMEStrMM:=WORD_TO_DECSTR(in:=systemTimeStruct.wMonth,iPrecision:=2);
+		sysTIMEStrDD:=WORD_TO_DECSTR(in:=systemTimeStruct.wDay,iPrecision:=2);
+		sysTIMEStr_HH:=WORD_TO_DECSTR(in:=systemTimeStruct.wHour,iPrecision:=2);
+		sysTIMEStr_mm:=WORD_TO_DECSTR(in:=systemTimeStruct.wMinute,iPrecision:=2);
+		sysTIMEStr_ss:=WORD_TO_DECSTR(in:=systemTimeStruct.wSecond,iPrecision:=2);
+		sChildDirName1:=CONCAT(STR1:=CONCAT(STR1:=sysTIMEStrYY,STR2:=sysTIMEStrMM),STR2:=sysTIMEStrDD);
+		sShowLogChildDirName1:=CONCAT(STR1:=CONCAT(STR1:=sysTIMEStrYY,STR2:=sysTIMEStrMM),STR2:=sysTIMEStrDD);
+		
+		deletePathTemp:=CONCAT(CONCAT(sRootDirPath,'\'), sChildDirName1);
+		IF deletePathTemp<>stDeleteFile[1].sDirPath THEN
+			FOR delete_index:=35 TO 2 BY -1 DO
+				stDeleteFile[delete_index]:=stDeleteFile[delete_index-1];
+				stDeleteFile[delete_index].nCount:=delete_index;
+			END_FOR
+			stDeleteFile[1].sDirPath:=deletePathTemp;
+			stDeleteFile[1].sFilePath:=CONCAT(CONCAT(deletePathTemp,'\'),sFileName);
+			stDeleteFile[1].nCount:=1;
+			delete_done:=FALSE;
+			bWrtie:=TRUE;
+			WPersData();//执行断电保持处理
+		END_IF
+		
+		getSystemTimeStep:=0;
+	ELSIF ntGetTime.ERR THEN
+		systemTIMEStr:='';
+		getSystemTimeStep:=0;
+	END_IF	
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="popup" Id="{0edd160b-2de0-4270-9be7-3cd5d7fb4145}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE popup : BOOL
+VAR_INPUT
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[CASE popupStep OF
+0:
+	IF length>0 AND NOT busy AND NOT sBusy THEN
+		_leng:=length;
+		//saveStr:=strData[cNumBegin];
+		saveStr:=WCONCAT(WCONCAT(strData[cNumBegin].sTime,","),strData[cNumBegin].msg);
+		FOR iTempPopup:=cNumBegin TO (_leng-1) DO
+			strData[iTempPopup]:=strData[iTempPopup+1];
+		END_FOR
+		endPoint:=endPoint-1;
+		length:=endPoint-cNumBegin;
+		popupStep:=10;
+		saveB:=TRUE;
+	END_IF
+	
+10:
+	IF sBusy OR NOT enable THEN
+		popupStep:=11;
+	END_IF
+11:
+	IF NOT sBusy OR NOT enable THEN
+		popupStep:=12;
+	END_IF
+	popupTON(IN:=FALSE);
+12:
+	popupTON(IN:=NOT popupTON.Q,PT:=T#100MS);
+	IF popupTON.Q THEN
+		popupTON(IN:=FALSE);
+		popupStep:=0;
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="saveLog" Id="{0d5413d2-5b0b-447a-bc14-cca6e80d026c}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE saveLog : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//Log 保存
+CASE saveStep OF
+0:
+	IF ''=sChildDirName1 THEN
+		RETURN;
+	END_IF
+	IF saveB AND NOT sBusy AND enable THEN
+		saveStrBuff:="";
+		saveStrBuff:=saveStr;
+		saveStr:="";
+		
+		saveStrBuff1:=WSTRING_TO_STRING(saveStrBuff);
+		//STRING_TO_UTF8(ADR(saveStrBuff1),ADR(saveStrBuff1),SIZEOF(saveStrBuff1));
+		WSTRING_TO_UTF8(ADR(saveStrBuff1),ADR(saveStrBuff),SIZEOF(saveStrBuff));
+		
+		sBusy:=TRUE;
+		sDone:=FALSE;
+		error:=FALSE;
+		errID:=0;
+		errTxt:='';
+		
+		sChildDirPath1:='';	
+		sFilePathName:='';
+		sChildDirPath1:=CONCAT(STR1:=CONCAT(STR1:=sRootDirPath,STR2:='\'),STR2:=sChildDirName1);
+		sFilePathName:=CONCAT(STR1:=CONCAT(STR1:=sChildDirPath1,STR2:='\'),STR2:=sFileName);
+		fbCreateDir(sNetId:= , bExecute:= FALSE);
+		saveStep:=saveStep+1;
+	END_IF
+	saveB:=FALSE;
+1:
+	fbCreateDir(
+			sNetId:= , 
+			sPathName:= sRootDirPath, 
+			ePath:= PATH_GENERIC, 
+			bExecute:= TRUE, 
+			tTimeout:= , 
+			bBusy=> , 
+			bError=> , 
+			nErrId=> );
+	IF NOT fbCreateDir.bBusy THEN
+		fbCreateDir(
+			sNetId:= , 
+			bExecute:= FALSE);	
+		saveStep:=saveStep+1;
+	END_IF
+2:
+	fbCreateDir(
+			sNetId:= , 
+			sPathName:= sChildDirPath1, 
+			ePath:= PATH_GENERIC, 
+			bExecute:= TRUE, 
+			tTimeout:= , 
+			bBusy=> , 
+			bError=> , 
+			nErrId=> );
+	IF NOT fbCreateDir.bBusy THEN
+		fbCreateDir(
+			sNetId:= , 
+			bExecute:= FALSE);	
+		saveStep:=saveStep+1;
+	END_IF
+3:
+	fbFileOpen(
+		sNetId:= , 
+		sPathName:= sFilePathName, 
+		nMode:= FOPEN_MODEAPPEND OR FOPEN_MODETEXT, 
+		bExecute:= FALSE);
+	saveStep:=saveStep+1;
+4:
+	fbFileOpen(
+		sNetId:= , 
+		sPathName:= sFilePathName, 
+		nMode:= FOPEN_MODEAPPEND OR FOPEN_MODETEXT,
+		ePath:= , 
+		bExecute:= TRUE, 
+		tTimeout:= , 
+		bBusy=> , 
+		bError=> , 
+		nErrId=> , 
+		hFile=> hFile);
+	IF NOT fbFileOpen.bBusy THEN
+		IF NOT fbFileOpen.bError THEN
+			saveStep:=saveStep+1;
+		ELSE
+			saveStep:=50;//Error
+		END_IF
+	END_IF
+5:
+	fbFileWrite(
+		sNetId:= , 
+		hFile:= hFile, 
+		pWriteBuff:= , 
+		cbWriteLen:= , 
+		bExecute:= FALSE, 
+		tTimeout:= , 
+		bBusy=> , 
+		bError=> , 
+		nErrId=> , 
+		cbWrite=> );
+	
+	saveStep:=saveStep+1;
+6:
+	fbFileWrite(
+		sNetId:= , 
+		hFile:= hFile, 
+		pWriteBuff:= ADR(saveStrBuff1), 
+		cbWriteLen:= TO_UDINT(LEN(saveStrBuff1)), 
+		bExecute:= TRUE, 
+		tTimeout:= , 
+		bBusy=> , 
+		bError=> , 
+		nErrId=> , 
+		cbWrite=> );
+	IF NOT fbFileWrite.bBusy AND NOT fbFileWrite.bError THEN
+		saveStep:=30;
+		fbFileClose(
+			sNetId:= , 
+			hFile:= hFile, 
+			bExecute:= FALSE);
+	ELSIF fbFileWrite.bError THEN
+		saveStep:=50;
+		fbFileClose(
+			sNetId:= , 
+			hFile:= hFile, 
+			bExecute:= FALSE);
+	END_IF
+
+30:	//Done
+	fbFileClose(
+		sNetId:= , 
+		hFile:= hFile, 
+		bExecute:= TRUE, 
+		tTimeout:= , 
+		bBusy=> , 
+		bError=> , 
+		nErrId=> );
+	IF NOT fbFileClose.bBusy THEN
+		saveStep:=saveStep+1;
+	END_IF
+31:
+	fbFileClose(
+		sNetId:= , 
+		hFile:= hFile, 
+		bExecute:= FALSE);
+	saveStep:=0;
+	
+	sBusy:=FALSE;
+	sDone:=TRUE;
+	error:=FALSE;
+	errID:=0;
+	errTxt:='';
+	saveB:=FALSE;
+
+50://Error
+	fbFileClose(
+		sNetId:= , 
+		hFile:= hFile, 
+		bExecute:= TRUE, 
+		tTimeout:= , 
+		bBusy=> , 
+		bError=> , 
+		nErrId=> );
+	IF NOT fbFileClose.bBusy THEN
+		saveStep:=saveStep+1;
+	END_IF
+51:
+	fbFileClose(
+		sNetId:= , 
+		hFile:= hFile, 
+		bExecute:= FALSE);
+	saveStep:=0;
+	
+	sBusy:=FALSE;
+	sDone:=FALSE;
+	error:=TRUE;
+	errID:=1;
+	errTxt:='Log writing error!';
+	saveB:=FALSE;
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="saveShowLog" Id="{51e99f5d-6b7b-408b-9376-c2b35dcb2bd4}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE saveShowLog : BOOL
+VAR_INPUT
+END_VAR
+VAR
+	bDataTemp:ARRAY [1..255] OF BYTE;
+	pDstUTF8    : POINTER TO BYTE;;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//ShowLog 保存
+CASE saveShowLogStep OF
+0:
+	IF ''=sShowLogChildDirName1 THEN
+		RETURN;
+	END_IF
+	IF saveShowLogB AND NOT bShowLogBusy THEN
+		showLogStrData:=HMIData.logStrData;
+		
+		bShowLogBusy:=TRUE;
+		
+		sShowLogChildDirPath1:='';	
+		sShowLogFilePathName:='';
+		sShowLogChildDirPath1:=CONCAT(STR1:=CONCAT(STR1:=sRootDirPath,STR2:='\'),STR2:=sShowLogChildDirName1);
+		sShowLogFilePathName:=CONCAT(STR1:=CONCAT(STR1:=sShowLogChildDirPath1,STR2:='\'),
+									 STR2:=CONCAT(STR1:=CONCAT(CONCAT(STR1:=CONCAT(STR1:=sysTIMEStrYY,STR2:=sysTIMEStrMM),STR2:=sysTIMEStrDD),
+												  STR2:=CONCAT(STR1:=CONCAT(STR1:=sysTIMEStr_HH,STR2:=sysTIMEStr_mm),STR2:='')),sFileName));
+		fbShowLogCreateDir(sNetId:= , bExecute:= FALSE);
+		saveShowLogStep:=saveShowLogStep+1;
+	END_IF
+	saveShowLogB:=FALSE;
+1:
+	fbShowLogCreateDir(
+			sNetId:= , 
+			sPathName:= sRootDirPath, 
+			ePath:= PATH_GENERIC, 
+			bExecute:= TRUE, 
+			tTimeout:= , 
+			bBusy=> , 
+			bError=> , 
+			nErrId=> );
+	IF NOT fbShowLogCreateDir.bBusy THEN
+		fbShowLogCreateDir(
+			sNetId:= , 
+			bExecute:= FALSE);	
+		saveShowLogStep:=saveShowLogStep+1;
+	END_IF
+2:
+	fbShowLogCreateDir(
+			sNetId:= , 
+			sPathName:= sShowLogChildDirPath1, 
+			ePath:= PATH_GENERIC, 
+			bExecute:= TRUE, 
+			tTimeout:= , 
+			bBusy=> , 
+			bError=> , 
+			nErrId=> );
+	IF NOT fbShowLogCreateDir.bBusy THEN
+		fbShowLogCreateDir(
+			sNetId:= , 
+			bExecute:= FALSE);	
+		saveShowLogStep:=saveShowLogStep+1;
+	END_IF
+3:
+	fbShowLogFileOpen(
+		sNetId:= , 
+		sPathName:= sShowLogFilePathName, 
+		nMode:= FOPEN_MODEWRITE OR FOPEN_MODETEXT, //FOPEN_MODEAPPEND OR FOPEN_MODETEXT, 
+		bExecute:= FALSE);
+	saveShowLogStep:=saveShowLogStep+1;
+4:
+	fbShowLogFileOpen(
+		sNetId:= , 
+		sPathName:= sShowLogFilePathName, 
+		nMode:= FOPEN_MODEWRITE OR FOPEN_MODETEXT, //FOPEN_MODEAPPEND OR FOPEN_MODETEXT,   FOPEN_MODEBINARY
+		ePath:= , 
+		bExecute:= TRUE, 
+		tTimeout:= , 
+		bBusy=> , 
+		bError=> , 
+		nErrId=> , 
+		hFile=> hShowLogFile);
+	IF NOT fbShowLogFileOpen.bBusy THEN
+		IF NOT fbShowLogFileOpen.bError THEN
+			iShowLogTemp:=cNumBegin_showInof;
+			saveShowLogStep:=50;
+		ELSE
+			saveShowLogStep:=500;//Error
+		END_IF
+	END_IF
+50:
+	IF iShowLogTemp<=cNumLength_showInof AND iShowLogTemp>=cNumBegin_showInof THEN
+		IF ""<>showLogStrData[iShowLogTemp].sTime THEN
+			//saveShowLogStr:=showLogStrData[iShowLogTemp];
+			saveShowLogStr:=WCONCAT(WCONCAT(showLogStrData[iShowLogTemp].sTime,","),showLogStrData[iShowLogTemp].msg);
+			saveShowLogStrBuff:="";
+			saveShowLogStrBuff:=WCONCAT(saveShowLogStr,"$N");
+			saveShowLogStr:="";
+			
+			saveShowLogStrBuff1:=WSTRING_TO_STRING(saveShowLogStrBuff);
+			//STRING_TO_UTF8(ADR(saveShowLogStrBuff1),ADR(saveShowLogStrBuff1),SIZEOF(saveShowLogStrBuff1));
+			//WSTRING_TO_UTF8(ADR(saveShowLogStrBuff),ADR(saveShowLogStrBuff),SIZEOF(saveShowLogStrBuff));
+			saveShowLogStep:=saveShowLogStep+10;
+		ELSE
+			saveShowLogStep:=300;//Done
+		END_IF
+	ELSE
+		saveShowLogStep:=300;//Done
+	END_IF
+	
+60:
+	fbShowLogFileWrite(
+		sNetId:= , 
+		hFile:= hShowLogFile, 
+		pWriteBuff:= , 
+		cbWriteLen:= , 
+		bExecute:= FALSE, 
+		tTimeout:= , 
+		bBusy=> , 
+		bError=> , 
+		nErrId=> , 
+		cbWrite=> );
+		
+	saveShowLogStep:=saveShowLogStep+10;
+70:	
+	fbShowLogFileWrite(
+		sNetId:= , 
+		hFile:= hShowLogFile, 
+		pWriteBuff:= ADR(saveShowLogStrBuff1), 
+		cbWriteLen:= TO_UDINT(LEN(saveShowLogStrBuff1)), 
+		bExecute:= TRUE, 
+		tTimeout:= , 
+		bBusy=> , 
+		bError=> , 
+		nErrId=> , 
+		cbWrite=> );
+	IF NOT fbShowLogFileWrite.bBusy AND NOT fbShowLogFileWrite.bError THEN
+		saveShowLogStep:=50;//返回
+		iShowLogTemp:=iShowLogTemp+1;
+		fbShowLogFileClose(
+			sNetId:= , 
+			hFile:= hShowLogFile, 
+			bExecute:= FALSE);
+	ELSIF fbShowLogFileWrite.bError THEN
+		saveShowLogStep:=500;//Error
+		fbShowLogFileClose(
+			sNetId:= , 
+			hFile:= hShowLogFile, 
+			bExecute:= FALSE);
+	END_IF
+
+300://Done
+	fbShowLogFileClose(
+		sNetId:= , 
+		hFile:= hShowLogFile, 
+		bExecute:= TRUE, 
+		tTimeout:= , 
+		bBusy=> , 
+		bError=> , 
+		nErrId=> );
+	IF NOT fbShowLogFileClose.bBusy THEN
+		saveShowLogStep:=saveShowLogStep+1;
+	END_IF
+301:
+	fbShowLogFileClose(
+		sNetId:= , 
+		hFile:= hShowLogFile, 
+		bExecute:= FALSE);
+	saveShowLogStep:=0;
+	
+	bShowLogBusy:=FALSE;
+	saveShowLogB:=FALSE;
+
+500://Error
+	fbShowLogFileClose(
+		sNetId:= , 
+		hFile:= hShowLogFile, 
+		bExecute:= TRUE, 
+		tTimeout:= , 
+		bBusy=> , 
+		bError=> , 
+		nErrId=> );
+	IF NOT fbShowLogFileClose.bBusy THEN
+		saveShowLogStep:=saveShowLogStep+1;
+	END_IF
+501:
+	fbShowLogFileClose(
+		sNetId:= , 
+		hFile:= hShowLogFile, 
+		bExecute:= FALSE);
+	saveShowLogStep:=0;
+	
+	bShowLogBusy:=FALSE;
+	saveShowLogB:=FALSE;
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="showInfo" Id="{b35967cf-7a3b-40f9-9825-cdb6973430e0}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE showInfo : BOOL
+VAR_INPUT
+	str				:WSTRING(255):="";
+	sTime			:WSTRING(255):="";
+END_VAR
+VAR
+	iTempShowInfo	:DINT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enableShowInfo THEN
+	FOR iTempShowInfo:=cNumLength_showInof TO (cNumBegin_showInof+1) BY -1 DO
+		HMIData.logStrData[iTempShowInfo]:=HMIData.logStrData[iTempShowInfo-1];
+	END_FOR
+	HMIData.logStrData[cNumBegin_showInof].sTime:=sTime;
+	HMIData.logStrData[cNumBegin_showInof].msg:=str;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="VersionLog" Id="{3efd3c20-08d8-4d72-8601-9db6ac5702db}">
+      <Implementation>
+        <ST><![CDATA[(*
+版本: V1.0.0.0
+说明:
+	1. 首个版本
+	2. 可通过append\append_EX函数添加队列log打印显示
+/**************************************************/
+版本: V1.0.0.1
+说明:
+	1. 增加文件自动删除功能
+/**************************************************/
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="WPersData" Id="{af6e3ee1-3d3c-47f0-a857-cc70e40f4028}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[(* 需要在变量改变之后, PLC断电之前触发bWrtie *)
+wrtieR_TRIG(CLK:=bWrtie);
+
+fbGetCurTaskIndex(index=>nTaskNo);
+fbWritePersistentData(
+	NETID:= , 
+	PORT:= 851, 
+	START:= wrtieR_TRIG.Q OR TwinCAT_SystemInfoVarList._TaskInfo[nTaskNo].FirstCycle, 
+	TMOUT:= , 
+	MODE:= , 
+	BUSY=> , 
+	ERR=> , 
+	ERRID=> );
+
+IF wrtieR_TRIG.Q THEN
+	bWrtie:=FALSE;
+END_IF
+
+(* 以下仅用于带1s UPS的CX51x0 PLC *)
+fbUPS(
+	sNetID:= , 
+	iPLCPort:= 851, 
+	iUPSPort:= , 
+	tTimeout:= , 
+	eUpsMode:= , 
+	ePersistentMode:= , 
+	tRecoverTime:= , 
+	bPowerFailDetect=> , 
+	eState=> );]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="printLogModule_EX">
+      <LineId Id="483" Count="0" />
+      <LineId Id="485" Count="1" />
+      <LineId Id="490" Count="0" />
+      <LineId Id="487" Count="2" />
+      <LineId Id="484" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="85" Count="0" />
+      <LineId Id="83" Count="0" />
+      <LineId Id="312" Count="0" />
+      <LineId Id="608" Count="1" />
+      <LineId Id="147" Count="0" />
+      <LineId Id="146" Count="0" />
+      <LineId Id="148" Count="0" />
+      <LineId Id="152" Count="1" />
+      <LineId Id="397" Count="0" />
+      <LineId Id="149" Count="1" />
+      <LineId Id="213" Count="0" />
+      <LineId Id="215" Count="2" />
+      <LineId Id="214" Count="0" />
+      <LineId Id="220" Count="1" />
+      <LineId Id="219" Count="0" />
+      <LineId Id="218" Count="0" />
+      <LineId Id="284" Count="0" />
+      <LineId Id="283" Count="0" />
+      <LineId Id="285" Count="2" />
+      <LineId Id="222" Count="0" />
+    </LineIds>
+    <LineIds Name="printLogModule_EX.appedFree">
+      <LineId Id="5" Count="0" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="12" Count="0" />
+    </LineIds>
+    <LineIds Name="printLogModule_EX.append">
+      <LineId Id="15" Count="0" />
+    </LineIds>
+    <LineIds Name="printLogModule_EX.append_EX">
+      <LineId Id="14" Count="0" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="41" Count="1" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="49" Count="1" />
+      <LineId Id="70" Count="0" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="15" Count="0" />
+    </LineIds>
+    <LineIds Name="printLogModule_EX.deleteFile">
+      <LineId Id="19" Count="7" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="28" Count="7" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="5" Count="1" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="12" Count="2" />
+      <LineId Id="83" Count="0" />
+      <LineId Id="80" Count="1" />
+      <LineId Id="84" Count="1" />
+      <LineId Id="82" Count="0" />
+      <LineId Id="56" Count="0" />
+      <LineId Id="15" Count="1" />
+      <LineId Id="39" Count="0" />
+      <LineId Id="67" Count="0" />
+      <LineId Id="53" Count="1" />
+      <LineId Id="65" Count="1" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="68" Count="5" />
+      <LineId Id="75" Count="1" />
+      <LineId Id="78" Count="1" />
+      <LineId Id="77" Count="0" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="86" Count="2" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="89" Count="0" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="printLogModule_EX.getSystemTime">
+      <LineId Id="3" Count="24" />
+      <LineId Id="29" Count="3" />
+      <LineId Id="45" Count="2" />
+      <LineId Id="34" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="51" Count="2" />
+      <LineId Id="56" Count="1" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="67" Count="2" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="64" Count="1" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="35" Count="5" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="printLogModule_EX.popup">
+      <LineId Id="8" Count="1" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="50" Count="0" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="24" Count="4" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="35" Count="1" />
+      <LineId Id="34" Count="0" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="30" Count="2" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="41" Count="1" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="45" Count="1" />
+      <LineId Id="10" Count="0" />
+    </LineIds>
+    <LineIds Name="printLogModule_EX.saveLog">
+      <LineId Id="3" Count="1" />
+      <LineId Id="224" Count="5" />
+      <LineId Id="292" Count="0" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="285" Count="2" />
+      <LineId Id="291" Count="0" />
+      <LineId Id="232" Count="14" />
+      <LineId Id="33" Count="31" />
+      <LineId Id="66" Count="25" />
+      <LineId Id="97" Count="0" />
+      <LineId Id="251" Count="9" />
+      <LineId Id="250" Count="0" />
+      <LineId Id="197" Count="0" />
+      <LineId Id="101" Count="0" />
+      <LineId Id="124" Count="0" />
+      <LineId Id="262" Count="9" />
+      <LineId Id="261" Count="0" />
+      <LineId Id="273" Count="11" />
+      <LineId Id="272" Count="0" />
+      <LineId Id="125" Count="17" />
+      <LineId Id="145" Count="2" />
+      <LineId Id="149" Count="3" />
+      <LineId Id="184" Count="0" />
+      <LineId Id="153" Count="17" />
+      <LineId Id="173" Count="2" />
+      <LineId Id="177" Count="3" />
+      <LineId Id="185" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="printLogModule_EX.saveShowLog">
+      <LineId Id="6" Count="1" />
+      <LineId Id="9" Count="4" />
+      <LineId Id="16" Count="1" />
+      <LineId Id="22" Count="5" />
+      <LineId Id="32" Count="1" />
+      <LineId Id="28" Count="3" />
+      <LineId Id="34" Count="13" />
+      <LineId Id="50" Count="0" />
+      <LineId Id="49" Count="0" />
+      <LineId Id="51" Count="36" />
+      <LineId Id="180" Count="0" />
+      <LineId Id="88" Count="4" />
+      <LineId Id="181" Count="0" />
+      <LineId Id="185" Count="0" />
+      <LineId Id="254" Count="0" />
+      <LineId Id="184" Count="0" />
+      <LineId Id="194" Count="0" />
+      <LineId Id="259" Count="0" />
+      <LineId Id="183" Count="0" />
+      <LineId Id="252" Count="0" />
+      <LineId Id="260" Count="0" />
+      <LineId Id="253" Count="0" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="268" Count="0" />
+      <LineId Id="190" Count="0" />
+      <LineId Id="256" Count="1" />
+      <LineId Id="255" Count="0" />
+      <LineId Id="187" Count="1" />
+      <LineId Id="186" Count="0" />
+      <LineId Id="179" Count="0" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="199" Count="9" />
+      <LineId Id="198" Count="0" />
+      <LineId Id="226" Count="0" />
+      <LineId Id="102" Count="0" />
+      <LineId Id="251" Count="0" />
+      <LineId Id="210" Count="9" />
+      <LineId Id="112" Count="2" />
+      <LineId Id="189" Count="0" />
+      <LineId Id="115" Count="30" />
+      <LineId Id="150" Count="21" />
+      <LineId Id="176" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="8" Count="0" />
+    </LineIds>
+    <LineIds Name="printLogModule_EX.showInfo">
+      <LineId Id="6" Count="4" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="printLogModule_EX.VersionLog">
+      <LineId Id="2" Count="1" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="42" Count="5" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="printLogModule_EX.WPersData">
+      <LineId Id="2" Count="27" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

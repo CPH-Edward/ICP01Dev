@@ -1,0 +1,327 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="systemTimeModule" Id="{37fd979d-6f43-4dcb-b49f-f625031021aa}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK systemTimeModule (* 该功能块可提供系统时间; 可提供 *)
+VAR_INPUT
+END_VAR
+VAR_OUTPUT
+	systemTime		: TIMESTRUCT;
+	timeInterval	: ARRAY [0..gSystemTimeMaxNum] OF UDINT;//  最大值为 gSystemTimeMaxNum		:UINT:=2000;
+END_VAR
+VAR
+	//获取系统时间
+	ntGetTime		: NT_GetTime;
+	systemTimeTemp	: TIMESTRUCT;
+	systemTimeStep	: UINT:=0;
+
+	timeStartArray		: ARRAY [0..gSystemTimeMaxNum] OF TIME;//  最大值为 gSystemTimeMaxNum		:UINT:=2000;
+	timeEndArray		: ARRAY [0..gSystemTimeMaxNum] OF TIME;//  最大值为 gSystemTimeMaxNum		:UINT:=2000;
+	timeIntervalArray	: ARRAY [0..gSystemTimeMaxNum] OF TIME;//  最大值为 gSystemTimeMaxNum		:UINT:=2000;
+	timeEnable			: ARRAY [0..gSystemTimeMaxNum] OF BOOL;//  最大值为 gSystemTimeMaxNum		:UINT:=2000;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+(* 获取系统时间 *)
+CASE systemTimeStep OF
+0:
+	ntGetTime(
+		NETID:= , 
+		START:= FALSE, 
+		TMOUT:= , 
+		BUSY=> , 
+		ERR=> , 
+		ERRID=> , 
+		TIMESTR=> );
+	IF NOT ntGetTime.BUSY AND NOT ntGetTime.ERR THEN
+		systemTimeStep:=systemTimeStep+1;
+	END_IF
+1:
+	ntGetTime(
+		NETID:= , 
+		START:= TRUE, 
+		TMOUT:= , 
+		BUSY=> , 
+		ERR=> , 
+		ERRID=> , 
+		TIMESTR=> systemTimeTemp);
+	IF NOT ntGetTime.BUSY AND NOT ntGetTime.ERR THEN
+		systemTime:=systemTimeTemp;
+	END_IF
+	IF NOT ntGetTime.BUSY THEN
+		systemTimeStep:=0;
+	END_IF
+END_CASE]]></ST>
+    </Implementation>
+    <Folder Name="TimeInterval" Id="{12e83a76-fa8a-48e2-aead-11195aee78c8}" />
+    <Method Name="calcTimeInterval" Id="{23092bb7-4320-48cb-ad6c-7f371f279c0a}" FolderPath="TimeInterval\">
+      <Declaration><![CDATA[(* 计算时间差 *)
+METHOD calcTimeInterval : LREAL
+VAR_INPUT
+	timeStructBefore: TIMESTRUCT;//起始时间
+	timeStructAfter: TIMESTRUCT;//结束时间
+END_VAR
+VAR
+	timeStructTemp: TIMESTRUCT;
+	timeBefor: DWORD;
+	timeAfter: DWORD;
+	dwordTimeInterval: DWORD;
+	lrealTimeInterval: LREAL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[timeBefor:=(timeStructBefore.wYear*365*24*60*60*1000
+					+timeStructBefore.wMonth*30*24*60*60*1000
+					+timeStructBefore.wDay*24*60*60*1000
+					+timeStructBefore.wHour*60*60*1000
+					+timeStructBefore.wMinute*60*1000
+					+timeStructBefore.wSecond*1000
+					+timeStructBefore.wMilliseconds);
+timeAfter:=(timeStructAfter.wYear*365*24*60*60*1000
+					+timeStructAfter.wMonth*30*24*60*60*1000
+					+timeStructAfter.wDay*24*60*60*1000
+					+timeStructAfter.wHour*60*60*1000
+					+timeStructAfter.wMinute*60*1000
+					+timeStructAfter.wSecond*1000
+					+timeStructAfter.wMilliseconds);
+
+dwordTimeInterval:=ABS(timeAfter - timeBefor);
+//lrealTimeInterval:=DWORD_TO_LREALEX(dwordTimeInterval)/1000;
+lrealTimeInterval:=TO_LREAL(dwordTimeInterval)/1000.0;
+
+calcTimeInterval:=lrealTimeInterval;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="enableTime" Id="{8f497b2f-d4b1-4aba-93a3-bb1015232e0c}" FolderPath="TimeInterval\">
+      <Declaration><![CDATA[(* 启用对应编号的计时器 *)
+METHOD enableTime : BOOL
+VAR_INPUT
+	num		:UINT:=0;//时间计时编号  最大值为 gSystemTimeMaxNum		:UINT:=2000;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF num >=gSystemTimeMaxNum THEN
+	RETURN;
+END_IF
+timeEnable[num]:=TRUE;
+enableTime:=timeEnable[num];]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="endTime" Id="{1f673306-9106-4a0d-ac7f-090a973429fe}" FolderPath="TimeInterval\">
+      <Declaration><![CDATA[(* 停止对应编号的计时器计时, 并返回开始时间到结束时间的时间间隔 *)
+METHOD endTime : TIMESTRUCT
+VAR_INPUT
+	num		:UINT:=0;//时间计时编号  最大值为 gSystemTimeMaxNum		:UINT:=2000; 需要先执行timeEnable[num]:=TRUE;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF num >=gSystemTimeMaxNum THEN
+	RETURN;
+END_IF
+IF NOT timeEnable[num] THEN
+	RETURN;
+END_IF
+
+timeEndArray[num]:=TIME();
+endTime:=systemTime;
+
+timeIntervalArray[num]:=timeEndArray[num]-timeStartArray[num];
+timeInterval[num]:=TO_UDINT(timeIntervalArray[num]);
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getStrSysTime" Id="{bb172ab7-bb8d-4fcc-8037-7fd1e57172a9}">
+      <Declaration><![CDATA[(*系统时间，格式YYYY-MM-DD hh:mm:ss_zzz*)
+METHOD getStrSysTime : STRING
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[getStrSysTime:=SYSTEMTIME_TO_STRING(systemTime);//系统时间转成字符串格式]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getStrSysTimeDD" Id="{eeebf0b4-dc29-4f51-8fb1-6cec56b33f9a}">
+      <Declaration><![CDATA[(* 系统时间-日,格式xx *)
+METHOD getStrSysTimeDD : STRING
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[getStrSysTimeDD:=WORD_TO_DECSTR(in:=systemTime.wDay,iPrecision:=2);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getStrSysTimeMM" Id="{0d3338d5-1327-4c40-8a7d-1b100011a83d}">
+      <Declaration><![CDATA[(* 系统时间-月,格式xx *)
+METHOD getStrSysTimeMM : STRING
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[getStrSysTimeMM:=WORD_TO_DECSTR(in:=systemTime.wMonth,iPrecision:=2);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getStrSysTimeYYYY" Id="{2a749989-5bf4-4c50-ad64-835644e289cb}">
+      <Declaration><![CDATA[(* 系统时间-年,格式xxxx *)
+METHOD getStrSysTimeYYYY : STRING
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[getStrSysTimeYYYY:=WORD_TO_DECSTR(in:=systemTime.wYear,iPrecision:=4);]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getTimeInterval" Id="{a6ba08db-a9f5-49de-a7b9-ff7c42c97c9f}" FolderPath="TimeInterval\">
+      <Declaration><![CDATA[(* 返回计时器编号的计时数值 UDINT类型 ms单位 *)
+METHOD getTimeInterval : UDINT
+VAR_INPUT
+	num		:UINT:=0;//时间计时编号  最大值为 gSystemTimeMaxNum		:UINT:=2000; 需要先执行timeEnable[num]:=TRUE;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF num >=gSystemTimeMaxNum THEN
+	RETURN;
+END_IF
+IF NOT timeEnable[num] THEN
+	RETURN;
+END_IF
+
+getTimeInterval:=timeInterval[num];]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getTimeIntervalStr" Id="{2785e300-950d-4735-8be7-f946df352faf}" FolderPath="TimeInterval\">
+      <Declaration><![CDATA[(* 返回计时器编号的计时数值 STRING 类型 *)
+METHOD getTimeIntervalStr : STRING(255)
+VAR_INPUT
+	num				:UINT:=0;//时间计时编号  最大值为 gSystemTimeMaxNum		:UINT:=2000; 需要先执行timeEnable[num]:=TRUE;
+	prefixStr		:STRING(255):='';//打印时间间隔 添加的前缀字符串
+	suffixStr		:STRING(255):='';//打印时间间隔 添加的后缀字符串
+END_VAR
+VAR
+	sTemp			:STRING(255):='';
+	sTimeTemp		:STRING(255):='';
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF num >=gSystemTimeMaxNum THEN
+	RETURN;
+END_IF
+IF NOT timeEnable[num] THEN
+	RETURN;
+END_IF
+
+sTimeTemp:=TO_STRING(timeIntervalArray[num]);
+sTimeTemp:=DELETE(sTimeTemp,2,1);
+
+sTemp:=prefixStr;
+sTemp:=CONCAT(sTemp,sTimeTemp);
+sTemp:=CONCAT(sTemp,suffixStr);
+
+getTimeIntervalStr:=sTemp;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="startTime" Id="{5aa657d0-d32f-4664-8dbe-05af6c59f05c}" FolderPath="TimeInterval\">
+      <Declaration><![CDATA[(* 启动对应编号的计时器计时, 并返回开始时间到结束时间的时间间隔 *)
+METHOD startTime : TIMESTRUCT
+VAR_INPUT
+	num		:UINT:=0;//时间计时编号  最大值为 gSystemTimeMaxNum		:UINT:=2000; 需要先执行timeEnable[num]:=TRUE;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF num >=gSystemTimeMaxNum THEN
+	RETURN;
+END_IF
+IF NOT timeEnable[num] THEN
+	RETURN;
+END_IF
+
+timeStartArray[num]:=TIME();
+startTime:=systemTime;]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="VersionLog" Id="{01d1ff9a-108c-43fa-968e-b6d282278727}">
+      <Implementation>
+        <ST><![CDATA[(*
+版本: V1.0.0.0
+说明:
+	1. 首个版本
+(**************************************************)
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="systemTimeModule">
+      <LineId Id="14" Count="29" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="systemTimeModule.calcTimeInterval">
+      <LineId Id="23" Count="13" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="41" Count="1" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="systemTimeModule.enableTime">
+      <LineId Id="11" Count="1" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="13" Count="0" />
+    </LineIds>
+    <LineIds Name="systemTimeModule.endTime">
+      <LineId Id="10" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="22" Count="2" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="6" Count="0" />
+    </LineIds>
+    <LineIds Name="systemTimeModule.getStrSysTime">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="systemTimeModule.getStrSysTimeDD">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="systemTimeModule.getStrSysTimeMM">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="systemTimeModule.getStrSysTimeYYYY">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="systemTimeModule.getTimeInterval">
+      <LineId Id="7" Count="4" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="12" Count="0" />
+    </LineIds>
+    <LineIds Name="systemTimeModule.getTimeIntervalStr">
+      <LineId Id="18" Count="4" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="45" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="systemTimeModule.startTime">
+      <LineId Id="12" Count="1" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="15" Count="2" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="systemTimeModule.VersionLog">
+      <LineId Id="2" Count="1" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

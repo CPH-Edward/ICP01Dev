@@ -1,0 +1,34 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="ST_MotorOutput" Id="{cd4df830-3036-4ebd-8d8c-fd05c60acc6b}">
+    <Declaration><![CDATA[{attribute 'pack mode' := 1}
+TYPE ST_MotorOutput :
+STRUCT
+	axisPause						:BOOL;//轴的Pause状态
+	axisBusy						:BOOL;//轴的Busy状态
+	axisDone						:BOOL;//轴的Done状态
+	axisError						:BOOL;//轴的Error状态
+	axisHomeState					:BOOL:=FALSE;//轴的原点状态
+	
+	jogCondition					:BOOL;//轴JOG运动启动条件
+	absCondition					:BOOL;//轴绝对运动启动条件
+	relCondition					:BOOL;//轴相对运动启动条件
+	velCondition					:BOOL;//轴速度模式启动条件
+	homeCondition					:BOOL;//轴go home的启动条件
+	setCondition					:BOOL;//轴当前位置设定启动条件
+	moveModuloCondition				:BOOL;//轴模运动启动条件
+	
+	axisErrId						:UDINT;//轴的Error Id值
+	axisActualPos					:LREAL:=0;//轴的实际位置
+	axisActualVel					:LREAL:=0;//轴的实际速率
+	axisActualtorque				:LREAL:=0;//轴的实际扭力
+	axisErrTxt						:STRING;//轴的报错文本信息
+	axisErrWTxt						:WSTRING;//轴的报错文本信息 中文
+	
+	pAxis	  						:POINTER TO AXIS_REF;
+	pMotionModule					:POINTER TO MotionModule;
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

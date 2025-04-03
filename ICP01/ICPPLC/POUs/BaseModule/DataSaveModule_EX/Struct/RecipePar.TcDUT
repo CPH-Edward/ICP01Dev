@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="RecipePar" Id="{f9add2a7-91db-4a2b-8529-c4f791ef2ab1}">
+    <Declaration><![CDATA[TYPE RecipePar :
+STRUCT
+	NUM:STRING;
+	etchTime:STRING;
+	rfPoint_Source:STRING;
+	pdvPoint:STRING;
+	mfc1:STRING;
+	mfc2:STRING;
+	mfc3:STRING;
+	mfc4:STRING;
+	mfc5:STRING;
+	mfc6:STRING;
+	mfc7:STRING;
+	mfc8:STRING;
+	mfc9:STRING;
+	rfPoint_Power:STRING;
+	par_2:STRING;
+	par_3:STRING;
+	par_4:STRING;
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

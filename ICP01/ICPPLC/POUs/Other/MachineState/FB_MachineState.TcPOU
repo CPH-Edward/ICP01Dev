@@ -1,0 +1,206 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="FB_MachineState" Id="{c0bd0ce8-0316-4a49-b149-bae05351f536}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_MachineState
+VAR_INPUT
+	RunningState			:RunningStatus:=RunningStatus.eManualState;// 整机设备的运行状态
+	HMI_E_Stop				:BOOL:=TRUE;// HMI E-Stop 按钮
+	HMI_Start				:BOOL:=FALSE;// HMI Start 按钮
+	HMI_Stop				:BOOL:=FALSE;// HMI Stop 按钮
+	HMI_Reset				:BOOL:=FALSE;// HMI Reset 按钮
+	HMI_EnableBuzzer		:BOOL:=FALSE;// HMI 启用蜂鸣器
+	HMI_AllStop				:BOOL;
+	HMI_Version				:STRING:='V1.0.0';
+	Actual_E_Stop			:BOOL:=TRUE;// 设备 E-Stop 按钮
+	Actual_Start			:BOOL;// 设备 Start 按钮
+	Actual_Stop				:BOOL;// 设备 Stop 按钮
+	Actual_Reset			:BOOL;// 设备 Reset 按钮
+	iLanguage				:UINT;// 0：英文；1：中文
+END_VAR
+VAR_OUTPUT
+	E_Stop					:BOOL:=TRUE;
+	Reset					:BOOL:=FALSE;
+	Stop					:BOOL:=FALSE;
+	Start					:BOOL:=FALSE;
+	StartLamp				:BOOL:=FALSE;// Start 按钮灯
+	StopLamp				:BOOL:=FALSE;// Stop 按钮灯
+	ResetLamp				:BOOL:=FALSE;// Reset 按钮灯
+	// 三色灯
+	RedLamp					:BOOL:=FALSE;// red 按钮灯
+	GreenLamp				:BOOL:=FALSE;// Green 按钮灯
+	YellowLamp				:BOOL:=FALSE;// Yellow 按钮灯
+	Buzzer					:BOOL:=FALSE;// Buzzer
+	AllStop					:BOOL;// 只保持一个周期TRUE
+	RunStateTxt				:WSTRING:="";// HMI 运行状态文本显示
+	RunStateTxtS			:WSTRING:="";// HMI 运行状态文本显示 单个字母
+END_VAR
+VAR
+	pauseStateTON1			:TON;
+	pauseStateTON2			:TON;
+	stopStateTON1			:TON;
+	stopStateTON2			:TON;
+	errorStateTON1			:TON;
+	errorStateTON2			:TON;
+	homeStateTON1			:TON;
+	homeStateTON2			:TON;
+	allStop_R_TRIG			:R_TRIG;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(* 按钮、三色灯 *)
+	E_Stop:=HMI_E_Stop OR Actual_E_Stop;//后续需要改回AND
+	Start:=HMI_Start OR Actual_Start;
+	Stop:=HMI_Stop OR Actual_Stop;
+	Reset:=HMI_Reset OR Actual_Reset;
+	AllStop:=FALSE;
+	allStop_R_TRIG(CLK:=HMI_AllStop);
+	IF allStop_R_TRIG.Q THEN
+		AllStop:=TRUE;
+	END_IF
+(* 状态监控 *)
+	CASE RunningState OF
+		RunningStatus.eManualState:
+			IF 1=iLanguage THEN // 中文
+				RunStateTxt:="手动运行中";
+			ELSE
+				RunStateTxt:="Manual running";
+			END_IF
+			RunStateTxtS:="M";
+			// StartLamp:=FALSE;
+			StopLamp:=FALSE;
+			// ResetLamp:=FALSE;
+			RedLamp:=FALSE;
+			GreenLamp:=FALSE;
+			// YellowLamp:=FALSE;
+			Buzzer:=FALSE;
+				
+			StartLamp:=TRUE;
+			ResetLamp:=TRUE;
+			YellowLamp:=TRUE;
+		RunningStatus.eAutoState:
+			IF 1=iLanguage THEN // 中文
+				RunStateTxt:="自动运行中";
+			ELSE
+				RunStateTxt:="Auto running";
+			END_IF
+			RunStateTxtS:="A";
+			StartLamp:=FALSE;
+			// StopLamp:=FALSE;
+			ResetLamp:=FALSE;
+			RedLamp:=FALSE;
+			// GreenLamp:=FALSE;
+			YellowLamp:=FALSE;
+			Buzzer:=FALSE;
+			
+			StopLamp:=TRUE;
+			GreenLamp:=TRUE;
+		RunningStatus.ePauseState:
+			IF 1=iLanguage THEN // 中文
+				RunStateTxt:="暂停运行中";
+			ELSE
+				RunStateTxt:="Pause running";
+			END_IF
+			RunStateTxtS:="P";
+			// StartLamp:=FALSE;
+			// StopLamp:=FALSE;
+			ResetLamp:=FALSE;
+			RedLamp:=FALSE;
+			// GreenLamp:=FALSE;
+			YellowLamp:=FALSE;
+			Buzzer:=FALSE;
+				
+			StopLamp:=TRUE;
+			pauseStateTON1(IN:=NOT GreenLamp, PT:=T#0.5S);
+			pauseStateTON2(IN:=GreenLamp, PT:=T#0.5S);
+			IF pauseStateTON1.Q THEN
+				StartLamp:=TRUE;
+				GreenLamp:=TRUE;
+			END_IF
+			IF pauseStateTON2.Q THEN
+				StartLamp:=FALSE;
+				GreenLamp:=FALSE;
+			END_IF
+		RunningStatus.eStopState:
+			IF 1=iLanguage THEN // 中文
+				RunStateTxt:="停止运行中";
+			ELSE
+				RunStateTxt:="Stop running";
+			END_IF
+			RunStateTxtS:="S";
+			StartLamp:=FALSE;
+			StopLamp:=FALSE;
+			ResetLamp:=FALSE;
+			RedLamp:=FALSE;
+			// GreenLamp:=FALSE;
+			// YellowLamp:=FALSE;
+			Buzzer:=FALSE;
+				
+			GreenLamp:=TRUE;
+			stopStateTON1(IN:=NOT YellowLamp, PT:=T#0.5S);
+			stopStateTON2(IN:=YellowLamp, PT:=T#0.5S);
+			IF stopStateTON1.Q THEN
+				YellowLamp:=TRUE;
+			END_IF
+			IF stopStateTON2.Q THEN
+				YellowLamp:=FALSE;
+			END_IF
+		RunningStatus.eErrorState:
+			IF 1=iLanguage THEN // 中文
+				RunStateTxt:="报错运行中";
+			ELSE
+				RunStateTxt:="Error running";
+			END_IF
+			RunStateTxtS:="E";
+			StartLamp:=FALSE;
+			StopLamp:=FALSE;
+			// ResetLamp:=FALSE;
+			// RedLamp:=FALSE;
+			GreenLamp:=FALSE;
+			YellowLamp:=FALSE;
+			// Buzzer:=FALSE;
+				
+			RedLamp:=TRUE;
+			errorStateTON1(IN:=NOT ResetLamp, PT:=T#0.5S);
+			errorStateTON2(IN:=ResetLamp, PT:=T#0.5S);
+			IF errorStateTON1.Q THEN
+				ResetLamp:=TRUE;
+				Buzzer:=TRUE;
+			END_IF
+			IF errorStateTON2.Q THEN
+				ResetLamp:=FALSE;
+				Buzzer:=FALSE;
+			END_IF
+		RunningStatus.eHomeState:
+			IF 1=iLanguage THEN // 中文
+				RunStateTxt:="回原点运行中";
+			ELSE
+				RunStateTxt:="Home running";
+			END_IF
+			RunStateTxtS:="H";
+			StartLamp:=FALSE;
+			StopLamp:=FALSE;
+			ResetLamp:=FALSE;
+			RedLamp:=FALSE;
+			GreenLamp:=FALSE;
+			// YellowLamp:=FALSE;
+			Buzzer:=FALSE;
+			
+			homeStateTON1(IN:=NOT YellowLamp, PT:=T#0.5S);
+			homeStateTON2(IN:=YellowLamp, PT:=T#0.5S);
+			IF homeStateTON1.Q THEN
+				YellowLamp:=TRUE;
+			END_IF
+			IF homeStateTON2.Q THEN
+				YellowLamp:=FALSE;
+			END_IF
+	END_CASE
+IF NOT HMI_EnableBuzzer THEN
+	Buzzer:=FALSE;
+END_IF]]></ST>
+    </Implementation>
+    <LineIds Name="FB_MachineState">
+      <LineId Id="342" Count="148" />
+      <LineId Id="75" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,21 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="ST_DownTimeRecord" Id="{a018e2af-edca-4366-a4b2-9917e3f2b9de}">
+    <Declaration><![CDATA[TYPE ST_DownTimeRecord :
+STRUCT
+	startTime:TIME;
+	endTime:TIME;
+	start2end_time:TIME;
+	start2end_ms:UDINT;// 开始到结束的总时间，ms单位
+	start2end_s:LREAL;// 开始到结束的总时间，s单位
+	record_s:LREAL;// 时间记录，s单位
+	
+	bMonitor:BOOL;// 监控条件
+	
+	rTrig:R_TRIG;
+	fTrig:F_TRIG;
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

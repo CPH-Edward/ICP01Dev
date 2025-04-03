@@ -1,0 +1,478 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="tcpipServerModule_EX" Id="{8b0d5191-4a8f-4d83-878a-eb9ebf38a632}" SpecialFunc="None">
+    <Declaration><![CDATA[//可实现TCPIP Server 数据的收发
+FUNCTION_BLOCK tcpipServerModule_EX
+VAR_INPUT
+	sSrvNetId			:T_AmsNetId:='';
+	sLocalHost			:STRING(20):='';//服务器的IP地址
+	nLocalPort			:UDINT:=5000;//服务器的端口号
+	bStartConnect		:BOOL:=TRUE;//可实现外部控制服务器的重新连接
+//Send
+	tcpipSDataLen		:UDINT;//待发送数据长度--外部传递进来
+	tcpipSData			:POINTER TO BYTE;//待发送数据源----外部以指针的形式传递进来
+	bSend				:BOOL:=FALSE;//数据发送触发信号
+//Receive
+	tcpipRecDataLen		:UDINT;//已接收数据长度--外部传递进来
+	tcpipRecData		:POINTER TO BYTE;//已接收数据源--外部以指针的形式传递进来(ADR函数)
+END_VAR
+
+VAR_OUTPUT
+//Connect
+	bAccepted			:BOOL:=FALSE;//表示客户端连接状态
+//Send
+	bSendBusy			:BOOL:=FALSE;//数据发送中
+//Receive
+	bRecData			:BOOL:=FALSE;//数据接收有效信号,上升沿有效
+END_VAR
+
+VAR
+//Listen
+	createStep			:UINT:=0;
+	socketListenFB		:FB_SocketListen;(*TCP/IP Sever建立Listen功能块*)
+	hListener			:T_HSOCKET;(*TCP/IP的监听句柄*)
+	createDelayTime		:TIME:=T#500MS;
+	createDelayTon		:TON;
+	createCheckTime		:TIME:=T#1000MS;
+	createCheckTon		:TON;
+//Accept
+	socketAcceptFB		:FB_SocketAccept;	(*TCP/IP Accept功能块*)
+	hSocket				:T_HSOCKET;(*TCP/IP的句柄*)
+//Send
+	socketSendFB		:FB_SocketSend;	(*TCP/IP的Send功能块*)
+	sendDataTempLen		:UDINT;//待发送数据缓存 长度
+	sendDataTemp		:POINTER TO BYTE;//待发送数据缓存
+	sendStep			:UINT:=0;
+//Receive
+	recStep				:UINT:=0;
+	socketReceiveFB		:FB_SocketReceive;(*TCP/IP的Receive功能块*)
+	recDelayTime		:TIME:=T#1S;
+	recDelayTon			:TON;
+//Close
+	socketCloseFB		:FB_SocketClose;(*TCP/IP的Close连接的功能块*)	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[create();
+receive();
+send();
+socketCloseFB(
+	sSrvNetId:=sSrvNetId,
+	hSocket:=,
+	bExecute:=FALSE);]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{24840533-e596-4ab0-9f2e-2a9ba97a60b9}" />
+    <Folder Name="Public" Id="{34461f96-52f6-414f-abd3-85879003e165}" />
+    <Method Name="ascii2String" Id="{bb066fb0-75cb-450d-888c-dc0b9ff77b96}" FolderPath="Public\">
+      <Declaration><![CDATA[METHOD ascii2String : STRING(g_nMaxByte_Server)
+VAR_INPUT
+	byteArr:ARRAY [1..g_nMaxByte_Server] OF BYTE;
+END_VAR
+VAR
+	i:UINT;
+	strTemp:STRING(g_nMaxByte_Server);
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[FOR i:=1 TO g_nMaxByte_Server DO
+	strTemp:=concat(strTemp,F_ToCHR(c:=byteArr[i]));
+END_FOR
+ascii2string:=strTemp;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="close" Id="{b292ce22-1d7d-4462-968b-42589ae043d2}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE close : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//关闭hSocket这个端口的连接
+socketCloseFB(
+	sSrvNetId:=sSrvNetId,
+	hSocket:=hSocket, 
+	bExecute:=TRUE, 			//TCP/IP端口关闭的执行位
+	tTimeout:=T#1S,
+	bBusy=>,
+	bError=>,
+	nErrId=>);
+socketCloseFB(
+	sSrvNetId:=sSrvNetId,
+	hSocket:=,
+	bExecute:=FALSE);
+hSocket.handle:=0;
+bAccepted:=FALSE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="closeListen" Id="{3a010167-e710-4a03-a06b-6e70558b1a33}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE closeListen : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[//关闭 监听 hListener 这个端口
+socketCloseFB(
+	sSrvNetId:=sSrvNetId,
+	hSocket:=hListener, 
+	bExecute:=TRUE, 			//TCP/IP端口关闭的执行位
+	tTimeout:=,
+	bBusy=>,
+	bError=>,
+	nErrId=>);
+socketCloseFB(
+	sSrvNetId:=sSrvNetId,
+	hSocket:=,
+	bExecute:=FALSE);
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="create" Id="{0cb5cc3a-d4db-4e18-893f-d9556b4a8434}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE create : BOOL
+VAR_INPUT
+END_VAR
+
+VAR
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE createStep OF
+0:
+	IF socketListenFB.bExecute OR bAccepted THEN
+		RETURN;
+	END_IF
+	socketListenFB(
+	   sSrvNetId:=sSrvNetId,
+	   sLocalHost:=sLocalHost,
+	   nLocalPort:=nLocalPort,
+	   bExecute:=FALSE);
+	socketCloseFB(
+		sSrvNetId:=sSrvNetId,
+		hSocket:=hListener, 
+		bExecute:=TRUE, 			//TCP/IP端口关闭的执行位
+		tTimeout:=T#1S,
+		bBusy=>,
+		bError=>,
+		nErrId=>);
+	createStep:=createStep+1;
+1:
+	createStep:=createStep+1;
+2:
+	createStep:=createStep+1;
+3:
+	socketListenFB(
+		sSrvNetId:=sSrvNetId,
+		sLocalHost:=sLocalHost,
+		nLocalPort:=nLocalPort,
+		bExecute:=TRUE,
+		tTimeout:=T#1S,
+		bBusy=>,
+		bError=>,
+		nErrId=>,
+		hListener=>hListener);
+	IF NOT socketListenFB.bBusy THEN
+		IF socketListenFB.bError (*AND socketListenFB.nErrId<>32771*)THEN
+			createStep:=createStep+1;
+		ELSE
+			//Listen
+			createStep:=50;
+			socketAcceptFB(
+				sSrvNetId:=sSrvNetId,
+				hListener:=hListener,		//TCP/IP的监听句柄
+				bExecute:=FALSE);	
+		END_IF
+	END_IF
+	createDelayTon(IN:=FALSE);
+
+4://delay
+	createDelayTon(IN:=NOT createDelayTon.Q ,PT:=createDelayTime);
+	IF createDelayTon.Q THEN
+		createDelayTon(IN:=FALSE);
+		createStep:=createStep+1;
+		socketListenFB(
+			sSrvNetId:=sSrvNetId,
+			sLocalHost:=sLocalHost,
+			nLocalPort:=nLocalPort,
+			bExecute:=FALSE);
+	END_IF
+5:
+	createStep:=0;
+	close();
+	
+50:	
+	createStep:=51;
+	close();
+51:
+	socketAcceptFB(
+		sSrvNetId:=sSrvNetId, 
+		hListener:=hListener,//TCP/IP的监听句柄
+		bExecute:=TRUE,//TCP/IP接受连接请求的执行位
+		tTimeout:=T#1S, 
+		bAccepted=>bAccepted,
+		bBusy=> , 
+		bError=> , 
+		nErrId=> , 
+		hSocket=>hSocket );//获取的TCP/IP句柄 AND socketAcceptFB.bBusy
+	IF (bAccepted AND hSocket.handle<>0) (*OR NOT bStartConnect*) THEN
+		socketListenFB(
+			sSrvNetId:=sSrvNetId,
+			sLocalHost:=sLocalHost,
+			nLocalPort:=nLocalPort,
+			bExecute:=FALSE);
+		createStep:=100;
+	END_IF
+	IF NOT bStartConnect THEN
+		close();
+		createStep:=100;
+	END_IF
+	socketAcceptFB(
+		sSrvNetId:=sSrvNetId,
+		hListener:=hListener,
+		bExecute:=FALSE);
+	createCheckTon(IN:=FALSE);
+
+100:
+	createCheckTon(IN:=NOT bAccepted OR NOT bStartConnect, PT:=createCheckTime);
+	IF createCheckTon.Q THEN
+		createStep:=50;
+		createCheckTon(IN:=FALSE);
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="receive" Id="{c65d574c-1c57-4b69-a167-89a9ba1b4e55}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE receive : BOOL
+VAR_INPUT
+END_VAR
+VAR
+	recDataClear		:POINTER TO BYTE;//已接收数据源--外部以指针的形式传递进来(ADR函数)
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE recStep OF
+0:
+	IF hSocket.handle>0 AND bAccepted THEN
+		recStep:=10;
+	END_IF
+
+10:
+	bRecData:=FALSE;
+	socketReceiveFB(
+			sSrvNetId:=sSrvNetId,
+			hSocket:=hSocket,
+			cbLen:= tcpipRecDataLen,
+			pDest:= tcpipRecData,
+			bExecute:= TRUE,
+			tTimeout:=T#1S,
+			bBusy=>,
+			bError=>,
+			nErrId=>,
+			nRecBytes=>);
+	
+	IF (NOT socketReceiveFB.bBusy) THEN
+		recStep:=20;
+	END_IF
+20:
+	socketReceiveFB(sSrvNetId:=sSrvNetId,hSocket:=hSocket,bExecute :=FALSE);
+	IF (NOT socketReceiveFB.bBusy) THEN
+		IF (socketReceiveFB.bError) THEN
+			close();//关闭socket
+			recStep:=110;
+		ELSE
+			IF socketReceiveFB.nRecBytes>0 THEN
+				tcpipRecData:=recDataClear;//清空缓存数据
+				bRecData:=TRUE;
+			END_IF
+			recStep:=10;//继续接收通道数据
+		END_IF
+	END_IF
+
+110:
+	recDelayTon(IN:=NOT recDelayTon.Q ,PT:=recDelayTime);
+	IF recDelayTon.Q THEN
+		recDelayTon(IN:=FALSE);
+		recStep:=recStep+10;
+	END_IF
+120:
+	recStep:=0;	
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="send" Id="{ad53707b-87d4-4081-b19d-d554f85ddfa9}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE send : BOOL
+VAR_INPUT
+END_VAR
+
+VAR
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE sendStep OF
+0:
+	IF bAccepted THEN
+		bSendBusy:=FALSE;
+		socketSendFB(hSocket:=hSocket,bExecute :=FALSE);
+		IF bSend THEN
+			sendStep:=10;
+			sendDataTempLen:=tcpipSDataLen;
+			sendDataTemp:=tcpipSData;
+			bSendBusy:=TRUE;
+			bSend:=FALSE;
+		END_IF
+	END_IF
+10:
+	socketSendFB(
+			sSrvNetId:=sSrvNetId, 
+			hSocket:=hSocket , 
+			cbLen:= sendDataTempLen,
+			pSrc:= sendDataTemp, 
+			bExecute:= TRUE,
+			tTimeout:= T#1S, 
+			bBusy=> , 
+			bError=> , 
+			nErrId=> );
+	
+	IF NOT socketSendFB.bBusy THEN
+		sendStep:=sendStep+10;
+	END_IF
+20:
+	sendStep:=sendStep+10;
+30:
+	bSendBusy:=FALSE;
+	bSend:=FALSE;
+	sendStep:=0;
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="string2ASCII" Id="{e786c76e-8883-41db-817c-5eaf516a8431}" FolderPath="Public\">
+      <Declaration><![CDATA[METHOD string2ASCII : ARRAY [1..g_nMaxByte_Server] OF BYTE
+VAR_INPUT
+	str:STRING(g_nMaxByte_Server);
+END_VAR
+VAR
+	i:DINT;
+	byteTemp:ARRAY [1..g_nMaxByte_Server] OF BYTE;
+	strB:STRING(1);
+	strTemp:STRING(g_nMaxByte_Server);
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+strTemp:=str;
+FOR i:=1 TO g_nMaxByte_Server DO
+	strB:=LEFT(strTemp,1);
+	strTemp:=DELETE(strTemp,1,1);
+	byteTemp[i]:=F_ToASC(str:=strB);
+END_FOR
+string2ASCII:=byteTemp;]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="VersionLog" Id="{90eb9bc1-ab28-42f4-b30c-10aa8a18e914}">
+      <Implementation>
+        <ST><![CDATA[(*
+版本: V1.0.0.0
+说明:
+	1. 首个版本
+(**************************************************)
+版本: V1.0.0.1
+说明:
+	1. 更新close函数，关闭连接后清零连接句柄
+(**************************************************)
+版本: V1.0.0.2
+说明:
+	1. 更新cread函数，处理无法接受新连接的bug
+(**************************************************)
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="tcpipServerModule_EX">
+      <LineId Id="50" Count="1" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="105" Count="2" />
+      <LineId Id="104" Count="0" />
+    </LineIds>
+    <LineIds Name="tcpipServerModule_EX.ascii2String">
+      <LineId Id="3" Count="2" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="tcpipServerModule_EX.close">
+      <LineId Id="3" Count="11" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="18" Count="0" />
+    </LineIds>
+    <LineIds Name="tcpipServerModule_EX.closeListen">
+      <LineId Id="3" Count="11" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="18" Count="0" />
+    </LineIds>
+    <LineIds Name="tcpipServerModule_EX.create">
+      <LineId Id="3" Count="5" />
+      <LineId Id="158" Count="3" />
+      <LineId Id="157" Count="0" />
+      <LineId Id="190" Count="6" />
+      <LineId Id="162" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="197" Count="0" />
+      <LineId Id="199" Count="0" />
+      <LineId Id="198" Count="0" />
+      <LineId Id="200" Count="0" />
+      <LineId Id="11" Count="35" />
+      <LineId Id="48" Count="1" />
+      <LineId Id="126" Count="0" />
+      <LineId Id="50" Count="1" />
+      <LineId Id="120" Count="0" />
+      <LineId Id="119" Count="0" />
+      <LineId Id="118" Count="0" />
+      <LineId Id="53" Count="14" />
+      <LineId Id="201" Count="0" />
+      <LineId Id="69" Count="0" />
+      <LineId Id="134" Count="0" />
+      <LineId Id="210" Count="0" />
+      <LineId Id="151" Count="1" />
+      <LineId Id="142" Count="0" />
+      <LineId Id="114" Count="2" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="112" Count="0" />
+      <LineId Id="75" Count="2" />
+      <LineId Id="103" Count="1" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="96" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="tcpipServerModule_EX.receive">
+      <LineId Id="3" Count="8" />
+      <LineId Id="100" Count="9" />
+      <LineId Id="62" Count="0" />
+      <LineId Id="22" Count="3" />
+      <LineId Id="27" Count="6" />
+      <LineId Id="87" Count="0" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="37" Count="11" />
+      <LineId Id="50" Count="1" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="tcpipServerModule_EX.send">
+      <LineId Id="3" Count="6" />
+      <LineId Id="76" Count="1" />
+      <LineId Id="70" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="18" Count="2" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="78" Count="8" />
+      <LineId Id="49" Count="0" />
+      <LineId Id="32" Count="9" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="tcpipServerModule_EX.string2ASCII">
+      <LineId Id="3" Count="6" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="tcpipServerModule_EX.VersionLog">
+      <LineId Id="2" Count="1" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="42" Count="8" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

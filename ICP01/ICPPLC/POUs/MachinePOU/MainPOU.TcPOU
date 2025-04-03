@@ -1,0 +1,250 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="MainPOU" Id="{03967b5c-be32-4f75-9222-e0f419254b0b}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM MainPOU
+VAR_INPUT
+	bInit				:BOOL:=FALSE;// 初始化状态 busy/done/errDone
+	bTrig				:BOOL:=FALSE;// 执行触发 信号
+	bReset				:BOOL:=FALSE;// 报错 复位
+	bPause				:BOOL:=FALSE;// 暂停 运行
+	bStop				:BOOL:=FALSE;// 停止 运行
+	bAbort				:BOOL:=FALSE;// 中止 运行
+	
+	DUTCount			:INT:=1;
+	showmsg				:BOOL;//弹窗确认模式
+	swcomfirmButton		:BOOL;
+END_VAR
+VAR_OUTPUT
+	busy				:BOOL;
+	done				:BOOL;
+	errDone				:BOOL;
+END_VAR
+VAR
+	actStep				:ActStepBase;
+END_VAR
+VAR
+	i: INT;
+	t1:ton;
+	t2:ton;
+	t3:ton;
+	notchoose:BOOL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[busy:=actStep.isBusy();
+done:=actStep.isDone();
+errDone:=actStep.isError();
+actStep.Act_Pause(pause:=bPause);
+
+IF bTrig THEN
+	bTrig:=FALSE;
+	IF NOT busy THEN
+		actStep.Act_ex();
+	END_IF
+END_IF
+
+//状态复位
+IF bInit THEN
+	bInit:=FALSE;
+	Act_init_status();
+	showmsg:=FALSE;
+END_IF
+
+IF bAbort OR bStop THEN
+	bAbort:=FALSE;
+	bStop:=FALSE;
+	Act_init_status();
+	actStep.toZeroStep();
+	showmsg:=FALSE;
+END_IF
+ActionRun(tempActStep:=actStep);]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{85afb3d5-d237-451f-8c4c-f576736ab418}" />
+    <Method Name="Act_Ex" Id="{345a3bdd-688c-4b53-bbeb-5fbfbf4ef737}">
+      <Declaration><![CDATA[(*
+---Trigger action
+*)
+METHOD Act_Ex : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT busy THEN
+	actStep.Act_ex();
+	Act_Ex:=TRUE;
+ELSE
+	Act_Ex:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Init_Status" Id="{03090638-0754-4080-9a54-7465899606ca}">
+      <Declaration><![CDATA[(*
+---功能: 状态复位 busy/done/errDone;
+*)
+METHOD Act_Init_Status
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[actStep.Act_Init();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ActionRun" Id="{103910d6-8cb9-4e1e-9860-b85c6b338c21}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE ActionRun
+VAR_INPUT
+	tempActStep:ITFActStep;
+END_VAR
+VAR
+END_VAR
+VAR_STAT//此处定义静态变量, 保证每次进入该函数时能够在线监控当前值
+	tempStep:DINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[tempStep:=tempActStep.getStep();
+CASE tempStep OF
+0:
+	IF tempActStep.isEx() THEN
+		tempActStep.setBusyFlag();
+		tempActStep.toBeginStep();
+	END_IF
+	t1(IN:= FALSE );
+	t2(IN:= FALSE );
+	t3(IN:= FALSE );
+10:
+	IF gWaferMemoryState=2 THEN
+		tempActStep.toStep(300,FALSE);// UnLoad
+	ELSIF gWaferMemoryState=1 THEN
+		tempActStep.toStep(200,FALSE);// Etching
+	ELSIF gWaferMemoryState=0 THEN	
+		tempActStep.toStep(100,FALSE);// Load
+	END_IF
+100:
+	tempActStep.addStep(10,TRUE);
+110:
+	S_LoadWafer.Act_Init_Status();
+	S_LoadWafer.Act_Ex();
+	tempActStep.addStep(10,FALSE);
+120:
+	IF S_LoadWafer.busy THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+130:
+	IF S_LoadWafer.done THEN
+		tempActStep.addStep(10,FALSE);
+		RETURN;
+	END_IF
+	IF S_LoadWafer.errDone THEN
+		tempActStep.toErrDoneStep();
+		RETURN;
+	END_IF
+140:
+	tempActStep.toStep(10,FALSE);
+	
+200:
+	tempActStep.addStep(10,TRUE);
+210:
+	S_Etching.Act_Init_Status();
+	S_Etching.Act_Ex();
+	tempActStep.addStep(10,FALSE);
+220:
+	IF S_Etching.busy THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+230:
+	IF S_Etching.done THEN
+		tempActStep.addStep(10,FALSE);
+		RETURN;
+	END_IF
+	IF S_Etching.errDone THEN
+		tempActStep.toErrDoneStep();
+		RETURN;
+	END_IF
+240:
+	tempActStep.toStep(10,FALSE);
+	
+300:
+	tempActStep.addStep(10,TRUE);
+310:
+	S_UnLoadWafer.Act_Init_Status();
+	S_UnLoadWafer.Act_Ex();
+	tempActStep.addStep(10,FALSE);
+320:
+	IF S_UnLoadWafer.busy THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+330:
+	IF S_UnLoadWafer.done THEN
+		tempActStep.addStep(10,FALSE);
+		RETURN;
+	END_IF
+	IF S_UnLoadWafer.errDone THEN
+		tempActStep.toErrDoneStep();
+		RETURN;
+	END_IF
+340:
+	tempActStep.toStep(10,FALSE);
+	
+1000:
+	tempActStep.toDoneStep();
+
+60000://Done
+	tempActStep.setDoneFlag();
+	tempActStep.toZeroStep();
+	
+65000://Error
+	tempActStep.setErrDoneFlag();
+	tempActStep.toZeroStep();
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="MainPOU">
+      <LineId Id="49" Count="0" />
+      <LineId Id="385" Count="2" />
+      <LineId Id="406" Count="11" />
+      <LineId Id="560" Count="0" />
+      <LineId Id="418" Count="0" />
+      <LineId Id="422" Count="0" />
+      <LineId Id="530" Count="1" />
+      <LineId Id="489" Count="0" />
+      <LineId Id="510" Count="0" />
+      <LineId Id="509" Count="0" />
+      <LineId Id="561" Count="0" />
+      <LineId Id="395" Count="0" />
+      <LineId Id="446" Count="0" />
+    </LineIds>
+    <LineIds Name="MainPOU.Act_Ex">
+      <LineId Id="14" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="17" Count="0" />
+    </LineIds>
+    <LineIds Name="MainPOU.Act_Init_Status">
+      <LineId Id="15" Count="0" />
+    </LineIds>
+    <LineIds Name="MainPOU.ActionRun">
+      <LineId Id="1302" Count="10" />
+      <LineId Id="1867" Count="0" />
+      <LineId Id="1870" Count="1" />
+      <LineId Id="1874" Count="1" />
+      <LineId Id="1878" Count="0" />
+      <LineId Id="1844" Count="0" />
+      <LineId Id="1667" Count="0" />
+      <LineId Id="1879" Count="9" />
+      <LineId Id="1890" Count="2" />
+      <LineId Id="1889" Count="0" />
+      <LineId Id="1894" Count="2" />
+      <LineId Id="1893" Count="0" />
+      <LineId Id="1897" Count="2" />
+      <LineId Id="1901" Count="19" />
+      <LineId Id="1900" Count="0" />
+      <LineId Id="1923" Count="0" />
+      <LineId Id="1925" Count="19" />
+      <LineId Id="1924" Count="0" />
+      <LineId Id="1921" Count="0" />
+      <LineId Id="1668" Count="9" />
+      <LineId Id="1092" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

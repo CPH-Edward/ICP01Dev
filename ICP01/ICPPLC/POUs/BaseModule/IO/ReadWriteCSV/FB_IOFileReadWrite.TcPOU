@@ -1,0 +1,380 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="FB_IOFileReadWrite" Id="{3e1929ed-bbf4-486e-b54a-b4385b8322cb}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_IOFileReadWrite
+VAR_IN_OUT
+	readBuff:ARRAY [*] OF ST_DataFmtBase;
+END_VAR
+VAR_INPUT
+	sFileName:T_MaxString:='C:\CsvFilePath\csvfile.csv';//'Hard Disk\CsvFilePath\csvfile.csv'
+	bRead:BOOL;
+	sTxtHead:STRING:='GROUP,NUM,ENG,CHN,NO USE';
+END_VAR
+VAR_OUTPUT
+	bBusy:BOOL;
+	bDone:BOOL;
+	bError:BOOL;
+	nErrid:UDINT;
+END_VAR
+VAR
+	fbFileOpen:FB_FileOpen;
+	fbFileClose:FB_FileClose;
+	fbFileGets:FB_FileGets;
+	fbReader:FB_CSVMemBufferReader;
+	hFile:UINT:= 0;
+	
+	sReadLine:STRING(255);
+	bReadEOF:BOOL;
+	nReadCount:DINT;
+	
+	nStepRead:UINT;
+	nReadBuffMin:DINT;
+	nReadBuffMax:DINT;
+	nReadBuffLen:DINT;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+nReadBuffMin:=LOWER_BOUND(readBuff,1);//获取不定长数组的最小下标
+nReadBuffMax:=UPPER_BOUND(readBuff,1);//获取不定长数组的最大下标
+nReadBuffLen:=nReadBuffMax-nReadBuffMin+1;//获取数组有效长度
+
+readCSV();
+
+//]]></ST>
+    </Implementation>
+    <Method Name="createDir" Id="{1c77f885-8046-4544-99dd-9f2e6296f85d}">
+      <Declaration><![CDATA[METHOD PRIVATE createDir : BOOL
+VAR
+	sPathNameTemp	: T_MaxString := 'C:\TwinCAT\Data.txt';
+	sDriveTemp		: STRING(3);
+	sDirTemp		: T_MaxString;
+	sFileNameTemp	: T_MaxString;
+	sExtTemp		: T_MaxString;
+	bSuccess		: BOOL;
+	fbCreateDir		: FB_CreateDir;
+	sFileDirTemp	: T_MaxString;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sPathNameTemp:=sFileName;
+bSuccess := F_SplitPathName(sPathName:= sPathNameTemp,
+						sDrive:= sDriveTemp,
+						sDir:= sDirTemp,
+						sFileName:= sFileNameTemp,
+						sExt:= sExtTemp );
+IF bSuccess THEN
+	bSuccess:=FALSE;
+	IF LEFT(sDirTemp,LEN(sDirTemp)-1)<>'' THEN
+		sFileDirTemp:=CONCAT(STR1:=sDriveTemp,STR2:=LEFT(sDirTemp,LEN(sDirTemp)-1));
+		fbCreateDir(
+			sNetId:= , 
+			sPathName:= sFileDirTemp, 
+			ePath:= PATH_GENERIC, 
+			bExecute:= TRUE, 
+			tTimeout:= , 
+			bBusy=> , 
+			bError=> , 
+			nErrId=> );
+	END_IF
+END_IF
+fbCreateDir(
+	sNetId:= , 
+	sPathName:= , 
+	ePath:= , 
+	bExecute:= FALSE, 
+	tTimeout:= , 
+	bBusy=> , 
+	bError=> , 
+	nErrId=> );]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="readCSV" Id="{b1f516e6-3969-4acc-8792-2ca7d928adb9}">
+      <Declaration><![CDATA[METHOD PRIVATE readCSV : BOOL
+VAR_INPUT
+END_VAR
+VAR
+	nTemp_readCSV:INT;
+	sGetValue_temp:STRING(255);
+	bRtn:BOOL;
+	nTemp1:INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[DEFAULT_CSV_FIELD_SEP:= 16#2C;  //配置CSV文件的分割符，16#2C表明各个参数之间是用逗号分隔的。
+
+CASE nStepRead OF
+	0:
+		IF bRead THEN
+			bRead:=FALSE;
+			bBusy:=TRUE;
+			bDone:=FALSE;
+			bError:=FALSE;
+			nErrid:=0;
+			
+			nReadCount:=nReadBuffMin;			
+			MEMSET(readBuff,0,TO_UDINT(SIZEOF(readBuff[nReadCount])*nReadBuffLen));//清空内存
+			nStepRead:=100;
+		END_IF
+	100:
+		fbFileOpen(bExecute:=FALSE);
+		nStepRead:=nStepRead+10;
+	110:
+		fbFileOpen(
+			sNetId:= , 
+			sPathName:= sFileName, 
+			nMode:= FOPEN_MODEREAD OR FOPEN_MODETEXT, 
+			ePath:= PATH_GENERIC, 
+			bExecute:= TRUE, 
+			tTimeout:= , 
+			bBusy=> , 
+			bError=> , 
+			nErrId=> , 
+			hFile=> hFile);
+		IF NOT fbFileOpen.bBusy THEN
+			IF NOT fbFileOpen.bError THEN
+				nStepRead:=nStepRead+10;
+			ELSE
+				nErrid:=fbFileOpen.nErrId;
+				nStepRead:=60000;//Error
+			END_IF
+		END_IF
+	120:
+		fbFileGets(bExecute:=FALSE);
+		IF nReadCount>nReadBuffMax THEN
+			nStepRead:=150;
+		ELSE
+			nStepRead:=nStepRead+10;
+		END_IF
+	130:
+		fbFileGets(
+			sNetId:= , 
+			hFile:= hFile, 
+			bExecute:= TRUE, 
+			tTimeout:= , 
+			bBusy=> , 
+			bError=> , 
+			nErrId=> , 
+			sLine=> sReadLine, 
+			bEOF=> bReadEOF);
+		IF NOT fbFileGets.bBusy THEN
+			IF NOT fbFileGets.bError THEN
+				sReadLine:=CONCAT(STR1:=sReadLine,STR2:='$R$L');
+				nStepRead:=nStepRead+10;
+			ELSE
+				nErrid:=fbFileGets.nErrId;
+				nStepRead:=60000;//Error
+			END_IF
+		END_IF
+	140:
+		IF ''<>sTxtHead AND FIND(sReadLine,sTxtHead)>0 THEN
+			nStepRead:=120;
+			RETURN;
+		END_IF
+		nTemp1:=0;
+		fbReader.eCmd:=eEnumCmd_First;(* Read first field value *)
+		FOR nTemp_readCSV:=0 TO 3 DO
+			fbReader(
+				eCmd:= , 
+				pBuffer:= ADR(sReadLine), 
+				cbBuffer:= SIZEOF(sReadLine), 
+				bOk=> , 
+				getValue=> sGetValue_temp, 
+				pValue=> , 
+				cbValue=> , 
+				bCRLF=> , 
+				cbRead=> );
+			IF fbReader.bOk THEN
+				fbReader.eCmd:=eEnumCmd_Next;
+				CASE nTemp_readCSV OF 
+					0:
+						readBuff[nReadCount].nGroup:=TO_DINT(sGetValue_temp);
+					1:
+						readBuff[nReadCount].nNumber:=TO_DINT(sGetValue_temp);
+					2:
+						readBuff[nReadCount].sTxt_ENG:=sGetValue_temp;
+					3:
+						bRtn:=UTF8_TO_WSTRING(ADR(readBuff[nReadCount].sTxt_CHN),ADR(sGetValue_temp),SIZEOF(sGetValue_temp));
+						IF NOT bRtn OR ""=readBuff[nReadCount].sTxt_CHN THEN
+							readBuff[nReadCount].sTxt_CHN:=TO_WSTRING(readBuff[nReadCount].sTxt_ENG);
+						END_IF
+				END_CASE
+				nTemp1:=nTemp_readCSV;
+			END_IF
+		END_FOR
+		IF NOT bReadEOF THEN
+			nReadCount:=nReadCount+1;
+			nStepRead:=120;
+		ELSE
+			nStepRead:=nStepRead+10;
+		END_IF
+	150:
+		nStepRead:=50000;//Done
+
+ //Done
+	50000:
+		fbFileOpen(bExecute:=FALSE);
+		fbFileGets(bExecute:=FALSE);
+		fbFileClose(bExecute:=FALSE);
+		nStepRead:=nStepRead+10;
+	50010:
+		fbFileClose(
+			sNetId:= , 
+			hFile:= hFile, 
+			bExecute:= TRUE, 
+			tTimeout:= , 
+			bBusy=> , 
+			bError=> , 
+			nErrId=> );
+		IF NOT fbFileClose.bBusy THEN
+			nStepRead:=nStepRead+10;
+		END_IF
+	50020:
+		fbFileClose(bExecute:=FALSE);
+		bBusy:=FALSE;
+		bDone:=TRUE;
+		bError:=FALSE;
+		nStepRead:=0;
+ //Error
+	60000:
+		fbFileOpen(bExecute:=FALSE);
+		fbFileGets(bExecute:=FALSE);
+		fbFileClose(bExecute:=FALSE);
+		nStepRead:=nStepRead+10;
+	60010:
+		fbFileClose(
+			sNetId:= , 
+			hFile:= hFile, 
+			bExecute:= TRUE, 
+			tTimeout:= , 
+			bBusy=> , 
+			bError=> , 
+			nErrId=> );
+		IF NOT fbFileClose.bBusy THEN
+			nStepRead:=nStepRead+10;
+		END_IF
+	60020:
+		fbFileClose(bExecute:=FALSE);
+		bBusy:=FALSE;
+		bDone:=FALSE;
+		bError:=TRUE;
+		nStepRead:=0;
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="FB_IOFileReadWrite">
+      <LineId Id="72" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="73" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="41" Count="0" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="27" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_IOFileReadWrite.createDir">
+      <LineId Id="56" Count="0" />
+      <LineId Id="58" Count="3" />
+      <LineId Id="22" Count="2" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="47" Count="8" />
+      <LineId Id="45" Count="1" />
+      <LineId Id="35" Count="8" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_IOFileReadWrite.readCSV">
+      <LineId Id="6" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="9" Count="1" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="19" Count="1" />
+      <LineId Id="131" Count="1" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="13" Count="1" />
+      <LineId Id="35" Count="1" />
+      <LineId Id="38" Count="9" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="48" Count="0" />
+      <LineId Id="52" Count="1" />
+      <LineId Id="55" Count="2" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="50" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="72" Count="0" />
+      <LineId Id="156" Count="1" />
+      <LineId Id="159" Count="1" />
+      <LineId Id="158" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="76" Count="8" />
+      <LineId Id="75" Count="0" />
+      <LineId Id="87" Count="0" />
+      <LineId Id="95" Count="0" />
+      <LineId Id="169" Count="0" />
+      <LineId Id="102" Count="0" />
+      <LineId Id="97" Count="1" />
+      <LineId Id="103" Count="0" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="89" Count="0" />
+      <LineId Id="104" Count="0" />
+      <LineId Id="170" Count="0" />
+      <LineId Id="173" Count="0" />
+      <LineId Id="171" Count="1" />
+      <LineId Id="241" Count="0" />
+      <LineId Id="105" Count="0" />
+      <LineId Id="109" Count="0" />
+      <LineId Id="113" Count="8" />
+      <LineId Id="112" Count="0" />
+      <LineId Id="123" Count="1" />
+      <LineId Id="126" Count="0" />
+      <LineId Id="243" Count="1" />
+      <LineId Id="127" Count="0" />
+      <LineId Id="133" Count="0" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="134" Count="0" />
+      <LineId Id="130" Count="0" />
+      <LineId Id="137" Count="0" />
+      <LineId Id="135" Count="0" />
+      <LineId Id="138" Count="0" />
+      <LineId Id="141" Count="0" />
+      <LineId Id="128" Count="0" />
+      <LineId Id="242" Count="0" />
+      <LineId Id="143" Count="0" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="231" Count="4" />
+      <LineId Id="230" Count="0" />
+      <LineId Id="175" Count="0" />
+      <LineId Id="154" Count="0" />
+      <LineId Id="245" Count="0" />
+      <LineId Id="22" Count="1" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="85" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="217" Count="0" />
+      <LineId Id="205" Count="7" />
+      <LineId Id="200" Count="0" />
+      <LineId Id="214" Count="2" />
+      <LineId Id="213" Count="0" />
+      <LineId Id="201" Count="3" />
+      <LineId Id="239" Count="0" />
+      <LineId Id="199" Count="0" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="86" Count="0" />
+      <LineId Id="177" Count="0" />
+      <LineId Id="218" Count="0" />
+      <LineId Id="188" Count="0" />
+      <LineId Id="219" Count="9" />
+      <LineId Id="189" Count="0" />
+      <LineId Id="229" Count="0" />
+      <LineId Id="197" Count="0" />
+      <LineId Id="31" Count="2" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="8" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

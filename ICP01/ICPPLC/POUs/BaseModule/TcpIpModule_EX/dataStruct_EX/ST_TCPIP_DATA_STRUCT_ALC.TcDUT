@@ -1,0 +1,25 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="ST_TCPIP_DATA_STRUCT_ALC" Id="{d945a6a6-eec1-40e5-9c77-d05b9aa66d54}">
+    <Declaration><![CDATA[TYPE ST_TCPIP_DATA_STRUCT_ALC :
+STRUCT
+	channel		:DINT;
+	msgType		:DINT;
+	funCode		:DINT;
+	value1		:REAL;
+	value2		:REAL;
+	value3		:REAL;
+	value4		:REAL;
+	value5		:REAL;
+	errID		:LINT;
+	str			:ARRAY[1..g_nMaxByte_Client] OF BYTE;
+END_STRUCT
+END_TYPE
+(*
+结构体的数据结构需要按照与上位机制定的格式设定
+*)
+
+
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

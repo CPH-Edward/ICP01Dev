@@ -1,0 +1,103 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="EcCoeSdo_ForTest" Id="{51969d04-44b6-491b-b3cf-a2fbaac5e960}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM EcCoeSdo_ForTest
+VAR_INPUT
+	bWrite:BOOL;
+	bRead:BOOL;
+	nEncoderResolution_Write:DINT:=525;//编码器分辨率
+	bWrite2:BOOL;
+	bRead2:BOOL;
+	nEncoderResolution_Write2:DINT:=1100;//编码器分辨率
+END_VAR
+VAR_OUTPUT
+	nEncoderResolution_Read:DINT;//编码器分辨率
+	nEncoderResolution_Read2:DINT;//编码器分辨率
+END_VAR
+VAR
+	fbECCOE_READ_WRITE:FB_ECCOE_READ_WRITE;
+	fbECCOE_READ_WRITE2:FB_ECCOE_READ_WRITE;
+	tInit:TON;
+	t1:TON;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[tInit(IN:= TRUE, PT:= T#10S, Q=> , ET=> );
+IF NOT tInit.Q THEN
+	RETURN;
+END_IF
+
+IF bWrite THEN
+	bWrite:=FALSE;
+	fbECCOE_READ_WRITE.Act_Write();
+END_IF
+IF bRead THEN
+	bRead:=FALSE;
+	fbECCOE_READ_WRITE.Act_Read();
+END_IF
+fbECCOE_READ_WRITE(
+	sNetId:= '5.57.12.34.3.1', 
+	nSlaveAddr:= 1009, 
+	nIndex:= 16#20E4, 
+	nSubIndex:= 0, 
+	pReadBuff:= ADR(nEncoderResolution_Read), 
+	cbReadBuffLen:= SIZEOF(nEncoderResolution_Read), 
+	pWriteBuff:= ADR(nEncoderResolution_Write), 
+	cbWriteBuffLen:= SIZEOF(nEncoderResolution_Write), 
+	bBusy=> , 
+	bDone=> , 
+	bError=> , 
+	nErrId=> );
+	
+//
+IF bWrite2 THEN
+	bWrite2:=FALSE;
+	fbECCOE_READ_WRITE2.Act_Write();
+END_IF
+IF bRead2 THEN
+	bRead2:=FALSE;
+	fbECCOE_READ_WRITE2.Act_Read();
+END_IF
+fbECCOE_READ_WRITE2(
+	sNetId:= '5.57.12.34.3.1', 
+	nSlaveAddr:= 1010, 
+	nIndex:= 16#20E4, 
+	nSubIndex:= 0, 
+	pReadBuff:= ADR(nEncoderResolution_Read2), 
+	cbReadBuffLen:= SIZEOF(nEncoderResolution_Read2), 
+	pWriteBuff:= ADR(nEncoderResolution_Write2), 
+	cbWriteBuffLen:= SIZEOF(nEncoderResolution_Write2), 
+	bBusy=> , 
+	bDone=> , 
+	bError=> , 
+	nErrId=> );
+	
+t1(IN:= NOT t1.Q AND NOT fbECCOE_READ_WRITE.bBusy, PT:= T#500MS, Q=> , ET=> );
+IF t1.Q THEN
+	fbECCOE_READ_WRITE.Act_Read();
+	fbECCOE_READ_WRITE2.Act_Read();
+END_IF
+]]></ST>
+    </Implementation>
+    <LineIds Name="EcCoeSdo_ForTest">
+      <LineId Id="38" Count="4" />
+      <LineId Id="28" Count="1" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="30" Count="0" />
+      <LineId Id="33" Count="2" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="7" Count="11" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="63" Count="0" />
+      <LineId Id="88" Count="0" />
+      <LineId Id="91" Count="19" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="89" Count="0" />
+      <LineId Id="64" Count="0" />
+      <LineId Id="66" Count="1" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="68" Count="0" />
+      <LineId Id="65" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,1088 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="MFCModule" Id="{b84dba2e-dfd5-42c5-b4c6-6aae2a5c9dcd}" SpecialFunc="None">
+    <Declaration><![CDATA[(*
+--报错编号0: 无报错
+--报错编号1: openend Error
+--报错编号2: closeract Error
+*)
+FUNCTION_BLOCK MFCModule
+VAR_IN_OUT
+	WarmHMI					:WARMStruct;
+	operatorLog				:printLogModule_EX;
+END_VAR
+VAR_INPUT
+	MFCType						:MFCType:=MFCType_Default;// 设置MFC的类型
+	MFCHMItif					:MFCStruct;
+	set							:BOOL:=FALSE;// 设置触发信号
+	setCondition				:BOOL:=TRUE;// 设置触发条件
+	clear						:BOOL:=FALSE;// 清零触发信号
+	clearCondition				:BOOL:=TRUE;// 清零条件
+	reset						:BOOL:=FALSE;// 复位信号
+	stop						:BOOL:=FALSE;// 停止信号
+	power						:BOOL:=TRUE;// TRUE--保持得电,FALSE--断开得电
+	enable						:BOOL:=TRUE;// MFC禁用条件
+	//ctrlMode					:ControlMode:=ControlMode.eManualCtrMode;//eManualCtrMode or eAutoCtrMode
+	hmiEN						:BOOL:=TRUE;//HMI 启用条件
+	
+	errorDelayTime				:TIME:=T#2S;// MFC设置参数超时
+	
+	ACCMaxtime					:TIME:=T#2S;// MFC加速最大时间
+	DCCMaxtime					:TIME:=T#2S;// MFC减速最大时间
+	
+	doneDelayTimeShortset		:TIME:=T#10MS;// MFC设置值到达延时_设置
+	doneDelayTimeShortclear		:TIME:=T#10MS;// MFC设置值到达延时_清零
+	errorID						:UDINT:=0;// MFC错误报警分配的起始ID
+	nameTXT						:STRING(255):='';// MFC名字
+	
+	AlmAprSw					:BOOL:=FALSE;// 分子泵报警感应器信号,需要链接到实际的IO点
+	
+	temperatureMax				:REAL;// MFC温度报警设置值
+	setFlow						:UDINT;// MFC流量设定
+	maxSetValue					:REAL;// MFC流量设定上限
+	minSetValue					:REAL;// MFC流量设定下限
+	serialSlaveID				:UINT;// MFC ID
+	serialError					:BOOL;// MFC通讯错误
+	noteWTXT_set				:WSTRING(255):="";// MFC设置动作NoteTXT 中文
+	noteWTXT_clear				:WSTRING(255):="";// MFC清零动作NoteTXT 中文
+	
+	serialExcute				:BOOL;// 通讯数据发送
+	connected					:BOOL;
+	connectedCount				:UDINT;
+	flow					:UDINT;// 设定反馈流量值
+	
+	actflow					:UDINT;// 实际反馈流量值
+	actflowFloat			:REAL;// 实际反馈流量值
+END_VAR
+VAR_OUTPUT
+	note_set				:BOOL;// 设置条件不满足提示
+	note_clear				:BOOL;// 清零条件不满足提示
+	
+	sendBusy				:BOOL;// 串口发送数据繁忙
+	
+	busy					:BOOL;// MFC动作Busy状态
+	setbusy					:BOOL;// MFC设置动作Busy状态
+	clearbusy				:BOOL;// MFC清零动作Busy状态
+	done					:BOOL;// MFCdone状态
+	setdone					:BOOL;// MFC设置完成
+	cleardone				:BOOL;// MFC清零完成
+	error					:BOOL;//  MFC error状态
+	errID					:UDINT;// MFC errID
+	errTXT					:STRING(255):='';//  MFC errTXT
+	errWTXT					:WSTRING(255):="";//  MFC errTXT 中文
+END_VAR
+	
+VAR	
+	setErrorDelayTon		:Ton;
+	setDoneDelayTon			:Ton;
+	clearErrorDelayTon		:Ton;
+	clearDoneDelayTon		:Ton;
+	
+	setTrigRAlc			    :R_Trig;//上升沿触发
+	
+	clearTrigRAlc			:R_Trig;//上升沿触发
+	
+	setTrigR1			:R_Trig;//上升沿触发
+	setTrigR1_Aiko		:R_Trig;//上升沿触发
+	clearRactTrigR1			:R_Trig;//上升沿触发
+	resetTrigR1				:R_Trig;//上升沿触发
+	stopTrigR1				:R_Trig;//上升沿触发
+	powerTrigR1				:R_Trig;//上升沿触发
+	
+	setStep					:UINT:=0;
+	clearStep				:UINT:=0;
+	errorStep				:UINT:=0;
+	
+	resetRelayTON			:TON;
+	resetRelayTONTime		:TIME:=T#2S;
+	
+	AccFTrig:F_TRIG;//检测加速信号下降延
+	DccFTrig:F_TRIG;// 检测减速信号下降延
+	noteTON_P:tON;            // 操作提示标志位延时继电器
+	noteTON_N:tON;            // 操作提示标志位延时继电器
+	noteRTrig_P:R_TRIG;          // 操作提示
+	noteRTrig_N:R_TRIG;          // 操作提示
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[Init_ACT();
+Error_ACT();
+Set_ACT();
+Clear_ACT();
+Reset_ACT();
+Error_ACT();
+]]></ST>
+    </Implementation>
+    <Folder Name="Error" Id="{5da1e154-2126-43da-ada3-209eff6eaa3a}" />
+    <Folder Name="Private" Id="{588d8152-aeea-4a3f-8869-c07f16492789}" />
+    <Method Name="Act_Clear" Id="{882ba459-a59a-408c-a2e4-3ee5cf6e3fbf}">
+      <Declaration><![CDATA[(*
+触发缩回动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Clear : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND clearCondition THEN// AND NOT busy
+	Act_Clear:=clear:=TRUE;
+ELSE
+	Act_Clear:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Reset" Id="{67b5c228-3b68-46ef-b237-8797f45b6eaa}">
+      <Declaration><![CDATA[(*
+触发复位报警动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Reset : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Reset:=reset:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_SerialSend" Id="{b079b726-39dd-4cf1-9715-b8f31e870381}">
+      <Declaration><![CDATA[(*
+触发发送动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_SerialSend : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF TRUE THEN
+	Act_SerialSend:=serialExcute:=TRUE;
+ELSE
+	Act_SerialSend:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Set" Id="{7c7db399-199e-4bc6-8ece-2d6de3b0052d}">
+      <Declaration><![CDATA[(*
+触发伸出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Set : BOOL
+VAR_INPUT
+	_setpoint:UDINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND setCondition THEN// AND NOT busy
+	setFlow:=_setpoint;
+	Act_Set:=set:=TRUE;
+ELSE
+	Act_Set:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Stop" Id="{b2707cc9-33d5-452e-a6f9-dfe1213df716}">
+      <Declaration><![CDATA[(*
+触发停止输出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Stop : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Stop:=stop:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Clear_ACT" Id="{4bb9c453-968b-43a6-8252-1dc5b468227f}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//MFC--clear 触发
+IF clear AND NOT clearCondition THEN
+	note_set:=FALSE;
+	note_clear:=TRUE;
+END_IF
+IF clear AND enable AND NOT error AND clearCondition AND NOT clearbusy AND NOT gMFCStopLoopRead THEN// AND NOT busy
+	note_set:=FALSE;
+	note_clear:=FALSE;
+	busy:=TRUE;
+	clearbusy:=TRUE;
+	setbusy:=FALSE;
+	set:=FALSE;
+	setdone:=FALSE;
+	cleardone:=FALSE;
+	setStep:=0;
+	clearStep:=10;
+	gMFCStopLoopRead:=TRUE;
+	operatorLog.append(CONCAT(nameTXT,' Clear'));
+	//errorStep:=0;
+END_IF
+clear:=FALSE;
+
+CASE clearStep OF
+0:
+	//ready
+	
+10:
+	IF FuncModule_RS485_MFC.loopReadStep<10 OR FuncModule_RS485_MFC.loopReadStep>270 THEN
+		clearErrorDelayTon(IN:=FALSE);
+		clearDoneDelayTon(IN:=FALSE);
+		clearStep:=20;
+		setFlow:=0;
+		FuncModule_RS485_MFC.Interface_Set(serialSlaveID,setFlow);
+	END_IF
+	
+20:
+	clearErrorDelayTon(IN:=(NOT FuncModule_RS485_MFC.setDone ),PT:=errorDelayTime);
+	IF clearErrorDelayTon.Q THEN
+		//done:=FALSE;
+		setdone:=FALSE;
+		cleardone:=FALSE;
+		errorStep:=2;
+		clearStep:=60;
+		clearbusy:=FALSE;
+		setbusy:=FALSE;
+		RETURN;
+	END_IF
+	clearDoneDelayTon(IN:=FuncModule_RS485_MFC.setDone,PT:=doneDelayTimeShortclear);
+	IF clearDoneDelayTon.Q THEN
+		clearErrorDelayTon(IN:=FALSE);
+		clearDoneDelayTon(IN:=FALSE);
+		setFlow:=0;
+		// send Set point
+		clearStep:=30;
+	END_IF
+30:
+	IF NOT error THEN
+		busy:=FALSE;
+		clearbusy:=FALSE;
+		setbusy:=FALSE;
+		//done:=TRUE;
+		setdone:=FALSE;
+		cleardone:=TRUE;
+		errorStep:=0;
+		clearStep:=50;
+		gMFCStopLoopRead:=FALSE;
+	ELSE
+		busy:=FALSE;
+		clearbusy:=FALSE;
+		setbusy:=FALSE;
+		//done:=TRUE;
+		setdone:=FALSE;
+		cleardone:=FALSE;
+		errorStep:=3;
+		clearStep:=60;
+		gMFCStopLoopRead:=FALSE;
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Error_ACT" Id="{f216cb17-e9f0-419d-b79f-fec08e94dfb5}" FolderPath="Error\">
+      <Implementation>
+        <ST><![CDATA[CASE errorStep OF
+	0:
+		error:=FALSE;
+		errID:=0;
+		errTXT:='';
+ (*
+	1:
+		error:=TRUE;
+		errID:=errorID+errorStep;
+		errTXT:=CONCAT(STR1:=nameTXT,STR2:=' Extend Error!');
+		errWTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 伸出(打开)错误");
+	2:
+		error:=TRUE;
+		errID:=errorID+errorStep;
+		errTXT:=CONCAT(STR1:=nameTXT,STR2:=' Retract Error!');
+		errWTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 缩回(关闭)错误");
+		*)
+	1..5:
+		error:=TRUE;
+		errID:=getErrID(errorStep);
+		errTXT:=getErrTXT(errorStep);
+		errWTXT:=getErrWTXT(errorStep);
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="Get_Done_Clear" Id="{d42b1037-74c1-4e3f-8a37-ec2aeae19903}">
+      <Declaration><![CDATA[METHOD Get_Done_Clear : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_Clear:=cleardone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_Done_Set" Id="{6ea7b300-5a25-48cc-9c22-bffea72edd85}">
+      <Declaration><![CDATA[METHOD Get_Done_Set : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_Set:=setdone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrID" Id="{15d57b93-4f8f-4fe1-a21c-660da2d7b58a}">
+      <Declaration><![CDATA[METHOD getErrID : UDINT
+VAR_INPUT
+	errID					:UDINT;//取值范围1~2
+END_VAR
+VAR
+	nErrID					:UDINT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[nErrID:=errorID+errID;
+
+getErrID:=nErrID;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrTXT" Id="{f92480f2-2850-4975-9926-d01361c9c81e}">
+      <Declaration><![CDATA[METHOD getErrTXT : STRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~2
+END_VAR
+VAR
+	sErrTXT					:STRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Set Error!');
+	2:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Clear Error!');
+	3:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' NormalRun Error!');
+	4:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' SetValue Error!');
+	5:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' IO Fault!');
+ELSE
+	sErrTXT:=CONCAT(STR1:=nameTXT,STR2:='');
+END_CASE
+getErrTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrWTXT" Id="{5cd5dc0c-66dc-4067-b622-779890a52302}">
+      <Declaration><![CDATA[METHOD getErrWTXT : WSTRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~16
+END_VAR
+VAR
+	sErrTXT					:WSTRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:="  设置 错误");
+	2:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:="  清零 错误");
+	3:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:="  正常运行出现异常情况");
+	4:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:="  参数设置出错");
+	5:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:="  IO报错");
+ELSE
+	sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:="");
+END_CASE
+getErrWTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Init_ACT" Id="{79d7cdf0-39b5-4224-b662-16ad89b57235}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[done:=(cleardone OR setdone);
+IF AlmAprSw THEN
+	errorStep:=5;
+END_IF
+error:=error OR serialError OR AlmAprSw;
+manualCtrl_ACT();
+IF (error OR AlmAprSw OR serialError) AND flow>0.1 THEN
+	stop:=TRUE;
+	busy:=FALSE;
+END_IF
+
+noteTON_P(IN:=note_set,PT:=T#0.1S);
+noteRTrig_P(CLK:=noteTON_P.Q);
+IF noteRTrig_P.Q THEN
+	//gLog_Note.append_EX(noteWTXT_Open);
+	;
+END_IF
+noteTON_N(IN:=note_clear,PT:=T#0.1S);
+noteRTrig_N(CLK:=noteTON_N.Q);
+IF noteRTrig_N.Q THEN
+	//gLog_Note.append_EX(noteWTXT_close);
+	;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ManualCtrl_ACT" Id="{d64d2857-6c72-4464-b7b6-764c2d372a14}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[////HMI手动控制
+////IF ctrlMode=eManualCtrMode THEN
+IF hmiEN THEN
+	setTrigR1(CLK:=MFCHMItif.set);
+	IF setTrigR1.Q THEN
+		MFCHMItif.set:=FALSE;
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,' to Set it?');
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Set')>0 THEN
+		set:=TRUE;
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Set')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		MFCHMItif.set:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	clearTrigRAlc(CLK:=MFCHMItif.clear);
+	IF clearTrigRAlc.Q THEN
+		MFCHMItif.clear:=FALSE;
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want to Clear the ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,' `Par?');
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Clear')>0 THEN
+		clear:=TRUE;
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Clear')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		MFCHMItif.clear:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Reset_ACT" Id="{acc7fd02-8282-4600-96b6-508b97e8ea14}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[IF reset THEN
+	note_set:=FALSE;
+	note_clear:=FALSE;
+	setStep:=0;
+	clearStep:=0;
+	errorStep:=0;
+	reset:=FALSE;
+END_IF
+//resetRelayTON(IN:=resetRelay , PT:=resetRelayTONTime);
+//IF resetRelayTON.Q THEN
+//	openStep:=0;
+//	closeStep:=0;
+//	errorStep:=0;
+//	busy:=FALSE;
+//	resetRelay:=FALSE;
+//END_IF
+
+//IF stop THEN
+//	note_open:=FALSE;
+//	note_close:=FALSE;
+//	stop:=FALSE;
+//	openRelay:=FALSE;
+//	closeRelay:=FALSE;
+//	//无自锁检测说法，直接停
+//	openStep:=0;
+//	closeStep:=0;
+//END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Serial_Act" Id="{910a0794-ece2-4050-84b7-e0f45f138426}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//(*
+// *功能块的作用，把 TxBuffer 缓存区的数据经过 Process Data 的 ComOut 发送出去，
+// *而把 ComIn 中的数据接收到 RxBuffer。引用这个功能块的程序执行周期越短，
+// *数据交换的效率就越高，所以这段程序应该放在快速任务中作为 Backgroud 代码无条件执行。
+//*)
+//COMportControl(
+//	Mode:= SERIALLINEMODE_KL6_22B_STANDARD, 
+//	pComIn:= ADR(COMin), 
+//	pComOut:= ADR(COMout), 
+//	SizeComIn:= SIZEOF(COMin), 
+//	Error=> , 
+//	ErrorID=> , 
+//	TxBuffer:= TxBuffer_TMP, 
+//	RxBuffer:= RxBuffer_TMP );
+//IF receive1.Error <> COMERROR_NOERROR THEN
+//	serialRecError:=TRUE;
+//END_IF
+//receive1(
+//	pPrefix:= , 
+//	LenPrefix:= , 
+//	pSuffix:= , 
+//	LenSuffix:= , 
+//	pReceiveData:= ADR(arr_RcvData), 
+//	SizeReceiveData:= 100, 
+//	Timeout:= T#100MS, //临时设置成10S调试用
+//	Reset:= , 
+//	DataReceived=> , 
+//	busy=> , 
+//	Error=> , 
+//	RxTimeout=> , 
+//	LenReceiveData=> , 
+//	RXbuffer:= RxBuffer_TMP);
+////testReal:=BYTE_TO_REAL(arr_RcvData_Temp);
+//CASE serialStep OF
+//	0:
+//	IF enableSerial AND serialExcute THEN
+//		serialExcute:=FALSE;
+//		IF NOT serialBusy THEN
+//			serialStep:=10;
+//			serialBusy:=TRUE;
+//			serialDone:=FALSE;
+//			serialError:=FALSE;
+//			serialTimeOut:=FALSE;
+//			serialRecError:=FALSE;
+//			receive1(//复位
+//				pPrefix:= , 
+//				LenPrefix:= , 
+//				pSuffix:= , 
+//				LenSuffix:= , 
+//				pReceiveData:= , 
+//				SizeReceiveData:=, 
+//				Timeout:= T#300MS, 
+//				Reset:= , 
+//				DataReceived=> , 
+//				busy=> , 
+//				Error=> , 
+//				RxTimeout=> , 
+//				LenReceiveData=> , 
+//				RXbuffer:= RxBuffer_TMP);
+//		END_IF
+//	END_IF
+//	Timer1(IN:= FALSE);
+//	;
+//	10:
+//		//第二和第三位代表ID号
+//		arr_SendData[1]	:=16#40;
+//		IF serialSlaveID>9 THEN
+//			arr_SendData[2]	:=F_ToASC(str:='0');
+//			arr_SendData[3]	:=F_ToASC(str:=(UINT_TO_STRING(serialSlaveID)));
+//		ELSE
+//			arr_SendData[2]	:=F_ToASC(str:=(UINT_TO_STRING(serialSlaveID/10)));
+//			arr_SendData[3]	:=F_ToASC(str:=(UINT_TO_STRING(serialSlaveID MOD 10)));
+//		END_IF
+//		arr_SendData[4]:=16#02;
+//		arr_SendData[5]:=16#30;
+//		arr_SendData[6]:=16#30;
+//		arr_SendData[7]:=16#31;
+//		arr_SendData[8]:=16#3F;
+//		arr_SendData[9]:=16#5B;
+//		arr_SendData[10]:=16#03;
+//		arr_SendData[11]:=16#AB;
+//		serialStep:=100;
+//	100:
+//		send1(
+//			pSendData:= ADR(arr_SendData), 
+//			Length:= nSendByteLength, 
+//			Busy=> , 
+//			Error=> , 
+//			TXbuffer:= TxBuffer_TMP);
+//		serialStep:=serialStep+20;
+//	110:
+//		Timer1(IN:= NOT timer1.q, PT:=T#00MS);
+//		IF Timer1.Q THEN
+//			serialStep:=serialStep+10;
+//			Timer1(IN:= FALSE);
+//		END_IF
+//	120:
+//		Timer1(IN:= NOT timer1.q, PT:=T#3000MS);
+//		IF Timer1.Q THEN
+//			serialStep:=6000;
+//			Timer1(IN:= FALSE);
+//			serialTimeOut:=TRUE;
+//			RETURN;
+//		END_IF
+//		IF receive1.DataReceived THEN
+//			Timer1(IN:= FALSE);
+//			serialTimeOut:=FALSE;
+//			serialStep:=200;
+//		END_IF
+//		IF receive1.Error <> COMERROR_NOERROR THEN
+//			serialRecError:=TRUE;
+//		END_IF
+//	200://数据处理
+//		arr_RcvData_Temp:=arr_RcvData;
+//		arr_RcvData:=arr_RcvData_Clear;
+//		serialStep:=serialStep+10;
+//	210:
+//		//第二和第三位代表ID号;看情况决定是否需要判断节点反馈的节点号
+//		IF arr_RcvData_Temp[12]=arr_SendData[9] AND arr_RcvData_Temp[2]=arr_SendData[2] AND arr_RcvData_Temp[3]=arr_SendData[3] THEN
+//			serialStep:=serialStep+10;
+//			serialRecError:=FALSE;
+//		ELSE//数据接线错误
+//			serialStep:=6000;
+//			serialRecError:=TRUE;
+//		END_IF
+//	220:
+//		//数据转换
+//		serialStep:=300;
+//	;
+//	300:
+//		strTemp:='';
+//		strTemp:=CONCAT(strTemp,F_TOCHR(arr_RcvData_Temp[47]));
+//		strTemp:=CONCAT(strTemp,F_TOCHR(arr_RcvData_Temp[48]));
+//		strTemp:=CONCAT(strTemp,F_TOCHR(arr_RcvData_Temp[49]));
+//		strTemp:=CONCAT(strTemp,F_TOCHR(arr_RcvData_Temp[50]));
+//		temperature:=STRING_TO_UINT(strTemp)*1.0;
+//		strTemp:='';
+//		strTemp:=CONCAT(strTemp,F_TOCHR(arr_RcvData_Temp[53]));
+//		strTemp:=CONCAT(strTemp,F_TOCHR(arr_RcvData_Temp[54]));
+//		currentTemp:=STRING_TO_INT(strTemp);
+//		current:=INT_TO_REAL(currentTemp)/10.0;// 1位小数
+//		strTemp:='';
+//		strTemp:=CONCAT(strTemp,F_TOCHR(arr_RcvData_Temp[61]));
+//		strTemp:=CONCAT(strTemp,F_TOCHR(arr_RcvData_Temp[62]));
+//		strTemp:=CONCAT(strTemp,F_TOCHR(arr_RcvData_Temp[63]));
+//		strTemp:=CONCAT(strTemp,F_TOCHR(arr_RcvData_Temp[64]));
+//		speed:=STRING_TO_UINT(strTemp)*1.0;
+//		serialStep:=5000;
+//	;
+//	5000://done
+//		serialBusy:=FALSE;
+//		serialDone:=TRUE;
+//		serialError:=FALSE;
+//		serialStep:=0;
+//	;
+//	6000://error
+//		serialBusy:=FALSE;
+//		serialDone:=FALSE;
+//		serialError:=TRUE;
+//		serialStep:=0;
+//	;
+	
+//END_CASE
+////arr_Temp[1]:=arr_RcvData_Temp[48];
+////arr_Temp[2]:=arr_RcvData_Temp[47];
+////MEMMOVE(ADR(temperatureTemp),ADR(arr_Temp[1]),2);// 2个字节
+////temperature:=DINT_TO_REAL(temperatureTemp);
+////MEMMOVE(ADR(currentTemp),ADR(arr_RcvData_Temp[53]),1);// 1个字节
+////current:=INT_TO_REAL(currentTemp)/1.0;// 1位小数
+////arr_Temp1[1]:=arr_RcvData_Temp[62];
+////arr_Temp1[2]:=arr_RcvData_Temp[61];
+////MEMMOVE(ADR(speedTemp),ADR(arr_Temp1[1]),2);// 2个字节
+////speed:=DINT_TO_REAL(speedTemp);
+////speed:=speed*60.0;
+////IF enableSerial THEN//启用
+////	;
+////	 //字符串方式
+////	 (*//3000ms发送一次
+////	Timer1(IN:= NOT timer1.q, PT:=T#3000MS , Q=> , ET=> );
+////	IF timer1.Q THEN
+////		SEND1(
+////			SendString:=_sendString ,
+////			TXbuffer:=TxBuffer_TMP ,
+////			Busy=> ,
+////			Error=> );
+////	END_IF
+	 
+////	//接收
+////	Receive1(
+////		Timeout:= t#100ms,
+////		ReceivedString:=_receive1string ,
+////		RXbuffer:=RxBuffer_TMP , );
+	 
+////	//保存上一个周期接收的字符
+////	IF Receive1.Busy THEN
+////		_recvLast:=_receive1string;
+////	END_IF*)
+////END_IF 
+
+ ]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Set_ACT" Id="{c6df1d36-5b0d-4093-ac0a-181f047cc7c7}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//MFC--set 触发
+IF set AND NOT setCondition THEN
+	note_clear:=FALSE;
+	note_set:=TRUE;
+END_IF
+IF set AND enable AND NOT error AND setCondition AND NOT setbusy AND NOT gMFCStopLoopRead THEN// AND NOT busy
+	note_set:=FALSE;
+	note_clear:=FALSE;
+	busy:=TRUE;
+	setbusy:=TRUE;
+	clearbusy:=FALSE;
+	set:=FALSE;
+	setdone:=FALSE;
+	cleardone:=FALSE;
+	setStep:=10;
+	clearStep:=0;
+	gMFCStopLoopRead:=TRUE;
+	operatorLog.append(CONCAT(CONCAT(nameTXT,' Set '),UDINT_TO_STRING(setFlow)));
+	//errorStep:=0;
+END_IF
+set:=FALSE;
+
+CASE setStep OF
+0:
+	//ready
+
+10:
+ 	IF FuncModule_RS485_MFC.loopReadStep<10 OR FuncModule_RS485_MFC.loopReadStep>270 THEN
+		setErrorDelayTon(IN:=FALSE);
+		setDoneDelayTon(IN:=FALSE);
+		IF (UDINT_TO_REAL(setFlow)<=maxSetValue AND UDINT_TO_REAL(setFlow)>=minSetValue) THEN
+			setStep:=20;
+			FuncModule_RS485_MFC.Interface_Set(serialSlaveID,setFlow);
+		ELSE
+			setdone:=FALSE;
+			cleardone:=FALSE;
+			setStep:=60;
+			gMFCStopLoopRead:=FALSE;
+			errorStep:=4;
+			setFlow:=flow;
+			clearbusy:=FALSE;
+			setbusy:=FALSE;
+			setDoneDelayTon(IN:=FALSE);
+			setErrorDelayTon(IN:=FALSE);
+		END_IF
+	END_IF
+20:
+	setErrorDelayTon(IN:=(NOT FuncModule_RS485_MFC.setDone ),PT:=errorDelayTime);
+	IF setErrorDelayTon.Q THEN
+		//done:=FALSE;
+		setdone:=FALSE;
+		cleardone:=FALSE;
+		errorStep:=1;
+		setStep:=60;
+		gMFCStopLoopRead:=FALSE;
+		clearbusy:=FALSE;
+		setbusy:=FALSE;
+		RETURN;
+	END_IF
+	setDoneDelayTon(IN:=FuncModule_RS485_MFC.setDone,PT:=doneDelayTimeShortset);
+	IF setDoneDelayTon.Q THEN
+		setErrorDelayTon(IN:=FALSE);
+		setDoneDelayTon(IN:=FALSE);
+		setStep:=30;
+	END_IF
+30:
+	IF NOT error THEN
+		busy:=FALSE;
+		clearbusy:=FALSE;
+		setbusy:=FALSE;
+		//done:=TRUE;
+		cleardone:=FALSE;
+		setdone:=TRUE;
+		errorStep:=0;
+		setStep:=50;
+		gMFCStopLoopRead:=FALSE;
+	ELSE
+		busy:=FALSE;
+		clearbusy:=FALSE;
+		setbusy:=FALSE;
+		//done:=TRUE;
+		setdone:=FALSE;
+		cleardone:=FALSE;
+		errorStep:=3;
+		setFlow:=flow;
+		setStep:=60;
+		gMFCStopLoopRead:=FALSE;
+	END_IF
+
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="VersionLog" Id="{21b67494-c9b5-4739-bd31-a7ffe7222174}">
+      <Implementation>
+        <ST><![CDATA[(*
+版本: V1.0.0.0
+说明:
+	1. 首个版本
+	2. 含普通分子泵\泵组类型的控制
+	3. 可配置是否有到位信号, 以及到位稳定时间
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="MFCModule">
+      <LineId Id="969" Count="5" />
+      <LineId Id="576" Count="0" />
+    </LineIds>
+    <LineIds Name="MFCModule.Act_Clear">
+      <LineId Id="38" Count="3" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="MFCModule.Act_Reset">
+      <LineId Id="5" Count="1" />
+    </LineIds>
+    <LineIds Name="MFCModule.Act_SerialSend">
+      <LineId Id="22" Count="3" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="MFCModule.Act_Set">
+      <LineId Id="38" Count="0" />
+      <LineId Id="49" Count="0" />
+      <LineId Id="39" Count="2" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="MFCModule.Act_Stop">
+      <LineId Id="6" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="MFCModule.Clear_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="148" Count="2" />
+      <LineId Id="147" Count="0" />
+      <LineId Id="3" Count="0" />
+      <LineId Id="151" Count="1" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="135" Count="1" />
+      <LineId Id="5" Count="4" />
+      <LineId Id="193" Count="1" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="10" Count="7" />
+      <LineId Id="182" Count="0" />
+      <LineId Id="185" Count="3" />
+      <LineId Id="183" Count="1" />
+      <LineId Id="161" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="25" Count="4" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="181" Count="0" />
+      <LineId Id="141" Count="1" />
+      <LineId Id="33" Count="1" />
+      <LineId Id="91" Count="3" />
+      <LineId Id="156" Count="0" />
+      <LineId Id="154" Count="0" />
+      <LineId Id="95" Count="0" />
+      <LineId Id="79" Count="1" />
+      <LineId Id="163" Count="8" />
+      <LineId Id="191" Count="0" />
+      <LineId Id="172" Count="8" />
+      <LineId Id="190" Count="0" />
+      <LineId Id="56" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="MFCModule.Error_ACT">
+      <LineId Id="1" Count="0" />
+      <LineId Id="15" Count="2" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="12" Count="2" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="18" Count="2" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="27" Count="4" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="3" Count="0" />
+    </LineIds>
+    <LineIds Name="MFCModule.Get_Done_Clear">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="MFCModule.Get_Done_Set">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="MFCModule.getErrID">
+      <LineId Id="22" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="MFCModule.getErrTXT">
+      <LineId Id="22" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="66" Count="1" />
+      <LineId Id="74" Count="1" />
+      <LineId Id="82" Count="1" />
+      <LineId Id="40" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="MFCModule.getErrWTXT">
+      <LineId Id="21" Count="2" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="81" Count="1" />
+      <LineId Id="89" Count="1" />
+      <LineId Id="97" Count="1" />
+      <LineId Id="55" Count="3" />
+      <LineId Id="14" Count="0" />
+    </LineIds>
+    <LineIds Name="MFCModule.Init_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="23" Count="2" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="4" Count="1" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="11" Count="1" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="13" Count="1" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="15" Count="1" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="17" Count="1" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="10" Count="0" />
+    </LineIds>
+    <LineIds Name="MFCModule.ManualCtrl_ACT">
+      <LineId Id="2" Count="1" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="70" Count="0" />
+      <LineId Id="82" Count="1" />
+      <LineId Id="115" Count="3" />
+      <LineId Id="114" Count="0" />
+      <LineId Id="84" Count="0" />
+      <LineId Id="138" Count="7" />
+      <LineId Id="147" Count="0" />
+      <LineId Id="128" Count="0" />
+      <LineId Id="86" Count="2" />
+      <LineId Id="120" Count="3" />
+      <LineId Id="119" Count="0" />
+      <LineId Id="85" Count="0" />
+      <LineId Id="148" Count="8" />
+      <LineId Id="81" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="MFCModule.Reset_ACT">
+      <LineId Id="6" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="56" Count="1" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="45" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="23" Count="1" />
+      <LineId Id="53" Count="2" />
+      <LineId Id="46" Count="0" />
+      <LineId Id="25" Count="1" />
+      <LineId Id="17" Count="1" />
+      <LineId Id="30" Count="1" />
+      <LineId Id="19" Count="2" />
+      <LineId Id="29" Count="0" />
+      <LineId Id="27" Count="1" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="MFCModule.Serial_Act">
+      <LineId Id="2" Count="12" />
+      <LineId Id="290" Count="0" />
+      <LineId Id="392" Count="2" />
+      <LineId Id="421" Count="13" />
+      <LineId Id="420" Count="0" />
+      <LineId Id="317" Count="0" />
+      <LineId Id="159" Count="0" />
+      <LineId Id="162" Count="0" />
+      <LineId Id="170" Count="1" />
+      <LineId Id="173" Count="1" />
+      <LineId Id="221" Count="2" />
+      <LineId Id="288" Count="1" />
+      <LineId Id="249" Count="13" />
+      <LineId Id="248" Count="0" />
+      <LineId Id="175" Count="0" />
+      <LineId Id="172" Count="0" />
+      <LineId Id="199" Count="0" />
+      <LineId Id="163" Count="1" />
+      <LineId Id="305" Count="0" />
+      <LineId Id="178" Count="0" />
+      <LineId Id="322" Count="1" />
+      <LineId Id="325" Count="3" />
+      <LineId Id="436" Count="0" />
+      <LineId Id="309" Count="6" />
+      <LineId Id="308" Count="0" />
+      <LineId Id="184" Count="1" />
+      <LineId Id="187" Count="4" />
+      <LineId Id="186" Count="0" />
+      <LineId Id="194" Count="0" />
+      <LineId Id="192" Count="1" />
+      <LineId Id="195" Count="1" />
+      <LineId Id="198" Count="0" />
+      <LineId Id="197" Count="0" />
+      <LineId Id="200" Count="0" />
+      <LineId Id="237" Count="2" />
+      <LineId Id="241" Count="0" />
+      <LineId Id="284" Count="0" />
+      <LineId Id="263" Count="0" />
+      <LineId Id="240" Count="0" />
+      <LineId Id="413" Count="2" />
+      <LineId Id="419" Count="0" />
+      <LineId Id="416" Count="2" />
+      <LineId Id="243" Count="0" />
+      <LineId Id="219" Count="0" />
+      <LineId Id="264" Count="0" />
+      <LineId Id="267" Count="0" />
+      <LineId Id="269" Count="0" />
+      <LineId Id="234" Count="0" />
+      <LineId Id="307" Count="0" />
+      <LineId Id="272" Count="1" />
+      <LineId Id="286" Count="0" />
+      <LineId Id="277" Count="1" />
+      <LineId Id="285" Count="0" />
+      <LineId Id="274" Count="0" />
+      <LineId Id="279" Count="0" />
+      <LineId Id="281" Count="0" />
+      <LineId Id="280" Count="0" />
+      <LineId Id="271" Count="0" />
+      <LineId Id="232" Count="0" />
+      <LineId Id="442" Count="0" />
+      <LineId Id="437" Count="4" />
+      <LineId Id="444" Count="1" />
+      <LineId Id="448" Count="0" />
+      <LineId Id="357" Count="1" />
+      <LineId Id="450" Count="4" />
+      <LineId Id="449" Count="0" />
+      <LineId Id="220" Count="0" />
+      <LineId Id="165" Count="1" />
+      <LineId Id="225" Count="1" />
+      <LineId Id="224" Count="0" />
+      <LineId Id="227" Count="0" />
+      <LineId Id="167" Count="1" />
+      <LineId Id="229" Count="2" />
+      <LineId Id="228" Count="0" />
+      <LineId Id="169" Count="0" />
+      <LineId Id="160" Count="1" />
+      <LineId Id="362" Count="2" />
+      <LineId Id="370" Count="0" />
+      <LineId Id="365" Count="3" />
+      <LineId Id="361" Count="0" />
+      <LineId Id="371" Count="0" />
+      <LineId Id="369" Count="0" />
+      <LineId Id="137" Count="0" />
+      <LineId Id="282" Count="0" />
+      <LineId Id="138" Count="19" />
+      <LineId Id="99" Count="1" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="19" Count="0" />
+    </LineIds>
+    <LineIds Name="MFCModule.Set_ACT">
+      <LineId Id="257" Count="15" />
+      <LineId Id="391" Count="0" />
+      <LineId Id="420" Count="0" />
+      <LineId Id="273" Count="6" />
+      <LineId Id="388" Count="0" />
+      <LineId Id="281" Count="0" />
+      <LineId Id="401" Count="0" />
+      <LineId Id="404" Count="15" />
+      <LineId Id="402" Count="1" />
+      <LineId Id="285" Count="6" />
+      <LineId Id="385" Count="0" />
+      <LineId Id="398" Count="0" />
+      <LineId Id="292" Count="6" />
+      <LineId Id="301" Count="3" />
+      <LineId Id="362" Count="8" />
+      <LineId Id="399" Count="0" />
+      <LineId Id="371" Count="9" />
+      <LineId Id="400" Count="0" />
+      <LineId Id="344" Count="0" />
+      <LineId Id="396" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="MFCModule.VersionLog">
+      <LineId Id="49" Count="5" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

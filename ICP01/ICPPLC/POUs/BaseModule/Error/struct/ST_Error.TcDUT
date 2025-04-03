@@ -1,0 +1,15 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="ST_Error" Id="{79c79850-5b12-4083-8200-d79876e814d3}">
+    <Declaration><![CDATA[TYPE ST_Error :
+STRUCT
+	bError				:BOOL;
+	uErrID				:LINT;//Error ID
+	sErrTXT				:STRING(255);//Error TXT //g_nMaxByte_Client
+	sErrWTXT			:WSTRING(255);//Error TXT //g_nMaxByte_Client
+	eErrLevel			:Error_Level:=Error_Level.Error_Level_3;//Error Level
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

@@ -1,0 +1,69 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="VPEHMIStruts" Id="{858bb0aa-dea5-4404-aec7-257a6198478a}">
+    <Declaration><![CDATA[{attribute 'pack_mode' := 1}
+TYPE VPEHMIStruts :
+STRUCT
+//control signal or data
+	extendAndretract: BOOL:=FALSE;//单控件触发信号
+	runTimeClear	: BOOL:=FALSE;//清空计时时间
+	singleControl				: BOOL:=FALSE;//单一信号控制
+	singleControltemp			: BOOL:=FALSE;//单一信号控制
+	open			: BOOL:=FALSE;//启动触发信号
+	close			: BOOL:=FALSE;//停止触发信号
+	reset			: BOOL:=FALSE;//复位信号
+	stop			: BOOL:=FALSE;//停止信号
+	power			: BOOL:=TRUE;//no power, two relay will lost power
+
+//monitor
+	
+	openRelay		: BOOL:=FALSE;//HW: cylinder extent action relay
+	
+	DryPumpAlarm1	: UINT:=0;// 螺杆泵报警1
+	DryPumpAlarm2	: UINT:=0;// 螺杆泵报警1
+	DryPumpSpeed	: REAL:=0;// 螺杆泵速度
+	DryPumpTemperature	: REAL:=0;// 螺杆泵温度
+	DryPumpCurrent	: REAL:=0;// 螺杆泵电流
+	DryPumpPower	: REAL:=0;// 螺杆泵功率
+	DryPumpStart	: BOOL:=FALSE;// 螺杆泵启动
+	DryPumpError	: BOOL:=FALSE;// 螺杆泵报错
+	
+	BoosterAlarm1	: UINT:=0;// 罗茨泵报警1
+	BoosterAlarm2	: UINT:=0;// 罗茨泵报警1
+	BoosterSpeed	: REAL:=0;// 罗茨泵速度
+	BoosterTemperature	: REAL:=0;// 罗茨泵温度
+	BoosterCurrent	: REAL:=0;// 罗茨泵电流
+	BoosterPower	: REAL:=0;// 罗茨泵功率
+	BoosterStart	: BOOL:=FALSE;// 罗茨泵启动
+	BoosterError	: BOOL:=FALSE;// 罗茨泵报错
+	
+	Accing			: BOOL:=FALSE;// 泵组加速中
+	Dccing			: BOOL:=FALSE;// 泵组减速中
+	Normal			: BOOL:=FALSE;// 泵组全速中
+
+	enableOpen		: BOOL:=TRUE;//for outside control instance
+	enableClose		: BOOL:=TRUE;//for outside control instance
+	
+	runTime			: LINT;
+	tailrowPre		: REAL;// 尾排压力
+	AccAprSw		: BOOL;// 预热，加速
+	AlmAprSw		: BOOL;// 报警
+//state
+	HMIEnable		: BOOL:=TRUE;
+	enable			: BOOL;
+	busy			: BOOL;
+	done			: BOOL;
+	error			: BOOL;
+	errID			: DINT;
+	nameTXT			: STRING;//泵组名称
+	errTXT			: STRING;
+	opencondition	: BOOL;// 开条件
+	closecondition	: BOOL;// 关条件
+END_STRUCT
+END_TYPE
+(*
+按照字节对齐规则，将变量按字节大小按顺序定义，用于ADS读取
+*)
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

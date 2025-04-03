@@ -1,0 +1,641 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="FuncModule_RS232_SRF" Id="{5fcb5b20-eda8-4b25-96ea-968a921cfb3e}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM FuncModule_RS232_SRF
+VAR_INPUT
+	serialExcute				:BOOL;// RS232开始一次参数读取
+	serialSlaveID				:UINT;// 232从站节点号
+	sendstr						:STRING;
+	prefix						:STRING:='S';// 字符串头
+	suffix						:STRING:= '$R';// 字符串尾
+	timeout						:TIME:=T#100MS;// 超时时间
+	goPosLoad					:LREAL;
+	goPosPhase					:LREAL;
+	setPresetExt				:BOOL;
+END_VAR
+VAR_OUTPUT
+	serialBusy						:BOOL;
+	setPresetBusy					:BOOL;
+	serialDone						:BOOL;
+	setPresetDone						:BOOL;
+	serialError						:BOOL;
+	setPresetError						:BOOL;
+	serialConnected					:BOOL;
+	load							:REAL;// Load电容
+	phase							:REAL;// Phase电容
+	rec_ManulOrAuto					:BOOL;// Manul OR Auto
+	rec_MAStr						:STRING:='Auto';
+	loadRunErr						:BOOL;
+	phashRunErr						:BOOL;
+END_VAR
+VAR
+	//Byte方式
+	send1:							SendData;
+	receive1:						ReceiveString;
+ 
+	Timer1:							TON;
+	TimerSetPreset:							TON;
+	t1:								TON;
+	ITemp:INT;
+	arr_SendData:					STRING;(*READ*)//发送数据
+	arr_RcvDataString:				STRING;// 接收数据
+	arr_RcvDataStringTemp:				STRING;// 接收数据
+	arr_RcvDataStringClear:			STRING;// 清除接收数据
+	RcvDataFlag:			BOOL;// 接收数据标志位
+	serialStep						:UINT;				//处理步数
+	serialErrorID					:UINT;
+	setPresetStep					:UINT;				//处理步数
+	serialTimeOut:BOOL;//接收数据超时
+	serialRecError:BOOL;//接收数据错误
+	reciveFtrig:F_TRIG;
+	recTon:TON;
+	againSendS3:TON;
+	//字符串方式
+	(*send1:							SendString;
+	receive1:						ReceiveString;
+	
+	Timer1:							TON;
+	
+	_sendString:					STRING:='4567';
+	_receive1string:				STRING;
+	_recvLast:						STRING;				//保存上一个周期接收的字符*)
+	R00_LDMIN:INT:=398;
+	R01_LDMAX:INT:=2523;
+	R02_PHMIN:INT:=182;
+	R03_PHMAX:INT:=3050;
+	AD_CH6:INT;
+	AD_CH7:INT;
+	
+	decimalvalue:INT;
+	decimalvalueP:INT;
+	hexString:STRING(8);
+	hexStringP:STRING(8);
+	i:INT;
+	hexChars:ARRAY [0..15] OF STRING[1]:=['0','1','2','3','4','5','6','7','8','9','A','B','C','D','E','F'];
+	index:INT;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[(*
+ *功能块的作用，把 TxBuffer 缓存区的数据经过 Process Data 的 ComOut 发送出去，
+ *而把 ComIn 中的数据接收到 RxBuffer。引用这个功能块的程序执行周期越短，
+ *数据交换的效率就越高，所以这段程序应该放在快速任务中作为 Backgroud 代码无条件执行。
+*)
+IF receive1.Error <> COMERROR_NOERROR THEN
+	serialRecError:=TRUE;
+END_IF
+receive1(
+	Prefix:= prefix, 
+	Suffix:= suffix, 
+	Timeout:=timeout , 
+	Reset:= , 
+	StringReceived=> , 
+	Busy=> , 
+	Error=> , 
+	RxTimeout=> , 
+	ReceivedString:= arr_RcvDataStringTemp, 
+	RXbuffer:=gRxBuffer_SRF );
+
+//testReal:=BYTE_TO_REAL(arr_RcvData_Temp);
+//数据接收处理
+reciveFtrig(CLK:=receive1.busy);
+IF reciveFtrig.Q THEN
+	arr_RcvDataString:=arr_RcvDataStringTemp;
+	arr_RcvDataStringTemp:=arr_RcvDataStringClear;
+	RcvDataFlag:=TRUE;
+	serialConnected:=TRUE;
+END_IF
+recTon(IN:=RcvDataFlag, PT:=T#20MS);
+IF recTon.Q THEN
+	RcvDataFlag:=FALSE;
+END_IF
+againSendS3(IN:=NOT RcvDataFlag,PT:=T#5S);
+IF againSendS3.Q THEN
+	sendstr:='S3$R';
+	serialExcute:=TRUE;
+	serialConnected:=FALSE;
+	againSendS3(IN:=FALSE);
+END_IF
+IF TRUE THEN
+	IF BYTE_TO_INT(arr_RcvDataString[4]-48)>0 THEN
+		rec_ManulOrAuto:=TRUE;
+		rec_MAStr:='Manul';
+	ELSE
+		rec_ManulOrAuto:=FALSE;
+		rec_MAStr:='Auto';
+	END_IF
+	// 公式：(AD_CH6-LD_MIN)*(100/(LD_MAX-LD_MIN))
+	AD_CH6:=CalMeth(arr_RcvDataString[28])*16*16+CalMeth(arr_RcvDataString[29])*16+CalMeth(arr_RcvDataString[30]);
+	load:=(INT_TO_REAL(AD_CH6)-INT_TO_REAL(R00_LDMIN))*(100.0/(INT_TO_REAL(R01_LDMAX)-INT_TO_REAL(R00_LDMIN)));
+	IF load>100.0 THEN
+		load:=100.0;
+		loadRunErr:=TRUE;
+	END_IF
+	IF load<0.0 THEN
+		load:=0.0;
+		loadRunErr:=TRUE;
+	END_IF
+	IF load<100.0 AND load>=0.0 THEN
+		loadRunErr:=FALSE;
+	END_IF
+	// 公式：(AD_CH7-PH_MIN)*(100/(PH_MAX-PH_MIN))
+	AD_CH7:=CalMeth(arr_RcvDataString[31])*16*16+CalMeth(arr_RcvDataString[32])*16+CalMeth(arr_RcvDataString[33]);	
+	phase:=(INT_TO_REAL(AD_CH7)-INT_TO_REAL(R02_PHMIN))*(100.0/(INT_TO_REAL(R03_PHMAX)-INT_TO_REAL(R02_PHMIN)));
+	IF phase>100.0 THEN
+		phase:=100.0;
+		phashRunErr:=TRUE;
+	END_IF
+	IF phase<0.0 THEN
+		phase:=0.0;
+		phashRunErr:=TRUE;
+	END_IF
+	IF phase<100.0 AND phase>=0.0 THEN
+		phashRunErr:=FALSE;
+	END_IF
+END_IF
+ACT_Send();
+ACT_SetPreset();
+
+ ]]></ST>
+    </Implementation>
+    <Action Name="ACT_Send" Id="{2429ee3c-9e4a-48d6-9d9a-51e1afd58130}">
+      <Implementation>
+        <ST><![CDATA[
+CASE serialStep OF
+	0:
+	IF serialExcute THEN
+		serialExcute:=FALSE;
+		IF NOT serialBusy THEN
+			serialStep:=90;
+			serialBusy:=TRUE;
+			serialDone:=FALSE;
+			serialError:=FALSE;
+			serialTimeOut:=FALSE;
+			serialRecError:=FALSE;
+		END_IF
+	END_IF
+	Timer1(IN:= FALSE);
+	;
+	10:
+		arr_SendData:='SPL$R';
+		send1(
+			pSendData:= ADR(arr_SendData), 
+			Length:=INT_TO_UDINT(LEN(arr_SendData)), 
+			Busy=> , 
+			Error=> , 
+			TXbuffer:= gTxBuffer_SRF);
+		serialStep:=serialStep+1;
+	11:
+		Timer1(IN:= NOT timer1.q, PT:=T#10MS);
+		IF Timer1.Q THEN
+			serialStep:=serialStep+1;
+			Timer1(IN:= FALSE);
+		END_IF
+	12:
+		Timer1(IN:= NOT timer1.q, PT:=T#500MS);
+		IF Timer1.Q THEN
+			serialStep:=6000;
+			Timer1(IN:= FALSE);
+			serialTimeOut:=TRUE;
+			RETURN;
+		END_IF
+		IF NOT send1.busy AND NOT RcvDataFlag THEN
+			Timer1(IN:= FALSE);
+			serialTimeOut:=FALSE;
+			serialStep:=serialStep+1;
+		END_IF
+		IF send1.Error <> COMERROR_NOERROR THEN
+			serialRecError:=TRUE;
+		END_IF
+	13:
+		Timer1(IN:= NOT timer1.q, PT:=T#50MS);
+		IF Timer1.Q THEN
+			serialStep:=90;
+			Timer1(IN:= FALSE);
+		END_IF
+	90:
+		arr_SendData:=sendstr;
+		serialStep:=100;
+	100:
+		send1(
+			pSendData:= ADR(arr_SendData), 
+			Length:= INT_TO_UDINT(LEN(arr_SendData)), 
+			Busy=> , 
+			Error=> , 
+			TXbuffer:= gTxBuffer_SRF);
+		serialStep:=serialStep+10;
+	110:
+		Timer1(IN:= NOT timer1.q, PT:=T#10MS);
+		IF Timer1.Q THEN
+			serialStep:=serialStep+10;
+			Timer1(IN:= FALSE);
+		END_IF
+	120:
+		Timer1(IN:= NOT timer1.q, PT:=T#500MS);
+		IF Timer1.Q THEN
+			serialStep:=6000;
+			Timer1(IN:= FALSE);
+			serialTimeOut:=TRUE;
+			RETURN;
+		END_IF
+		IF NOT send1.busy  THEN
+			Timer1(IN:= FALSE);
+			serialTimeOut:=FALSE;
+			serialStep:=200;
+		END_IF
+		IF send1.Error <> COMERROR_NOERROR THEN
+			serialRecError:=TRUE;
+		END_IF
+	200://数据处理
+		serialStep:=serialStep+10;
+	210:
+		Timer1(IN:= NOT timer1.q, PT:=T#10MS);
+		IF Timer1.Q THEN
+			serialStep:=serialStep+10;
+			Timer1(IN:= FALSE);
+		END_IF
+	220:
+		//数据转换
+		Timer1(IN:= FALSE);
+		serialStep:=1000;
+	
+	1000:
+		Timer1(IN:= NOT timer1.q, PT:=T#50MS);
+		IF Timer1.Q THEN
+			serialStep:=5000;
+			Timer1(IN:= FALSE);
+			// sendstr:='';
+			serialTimeOut:=FALSE;
+		END_IF
+	;
+	5000://done
+		serialBusy:=FALSE;
+		serialDone:=TRUE;
+		serialError:=FALSE;
+		serialStep:=0;
+	;
+	6000://error
+		serialBusy:=FALSE;
+		serialDone:=FALSE;
+		serialError:=TRUE;
+		serialStep:=0;
+	;
+	
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ACT_SetPreset" Id="{bf9563f3-dc9e-491d-acbe-df19d6734f14}">
+      <Implementation>
+        <ST><![CDATA[CASE setPresetStep OF
+	0:
+	IF setPresetExt THEN
+		setPresetExt:=FALSE;
+		IF NOT setPresetBusy THEN
+			setPresetStep:=100;
+			setPresetBusy:=TRUE;
+			setPresetDone:=FALSE;
+			setPresetError:=FALSE;
+		END_IF
+	END_IF
+	TimerSetPreset(IN:= FALSE);
+	;
+	100:
+		decimalvalue:=LREAL_TO_INT(goPosLoad*10);
+		decimalvalueP:=LREAL_TO_INT(goPosPhase*10);
+		hexString:='';
+		hexStringP:='';
+		sendstr:='';
+		IF goPosLoad>100 OR goPosLoad<0 OR goPosPhase>100 OR goPosPhase<0 THEN
+			;
+		ELSE
+			IF goPosLoad=0 THEN
+				hexString:='000';
+			ELSE
+				index:=(decimalvalue/256);
+				hexString:=CONCAT(hexString,hexChars[index]);
+				index:=((decimalvalue-index*256)/16);
+				hexString:=CONCAT(hexString,hexChars[index]);
+				index:=(decimalvalue MOD 16);
+				hexString:=CONCAT(hexString,hexChars[index]);
+			END_IF
+			IF goPosPhase=0 THEN
+				hexStringP:='000';
+			ELSE
+				index:=(decimalvalueP/256);
+				hexStringP:=CONCAT(hexStringP,hexChars[index]);
+				index:=((decimalvalueP-index*256)/16);
+				hexStringP:=CONCAT(hexStringP,hexChars[index]);
+				index:=(decimalvalueP MOD 16);
+				hexStringP:=CONCAT(hexStringP,hexChars[index]);
+			END_IF
+			sendstr:=CONCAT(sendstr,'$$APGR');
+			sendstr:=CONCAT(sendstr,hexString);
+			sendstr:=CONCAT(sendstr,hexStringP);
+			sendstr:=CONCAT(sendstr,'$R');
+			serialExcute:=TRUE;
+		END_IF
+		setPresetStep:=setPresetStep+10;
+	110:
+		TimerSetPreset(IN:= TRUE,PT:=T#0.1S);
+		IF TimerSetPreset.Q THEN
+			TimerSetPreset(IN:= FALSE);
+			setPresetStep:=setPresetStep+10;
+		END_IF
+	120:
+		IF serialDone AND NOT serialBusy AND 
+		ABS(load-goPosLoad)<0.5 AND ABS(phase-goPosPhase)<0.5 THEN
+			setPresetStep:=setPresetStep+10;
+		END_IF
+		IF serialError THEN
+			setPresetStep:=6000;
+			RETURN;
+		END_IF
+	130:
+		sendstr:='';
+		sendstr:='P0$R';
+		serialExcute:=TRUE;
+		setPresetStep:=setPresetStep+10;
+	140:
+		TimerSetPreset(IN:= TRUE,PT:=T#0.03S);
+		IF TimerSetPreset.Q THEN
+			TimerSetPreset(IN:= FALSE);
+			setPresetStep:=setPresetStep+10;
+		END_IF
+	150:
+		IF serialDone THEN
+			setPresetStep:=5000;
+		END_IF
+	
+	5000://done
+		setPresetBusy:=FALSE;
+		setPresetDone:=TRUE;
+		setPresetError:=FALSE;
+		DataSave.fbDataSaveModule_EX_1.setLrealValue(FuncModule_RS232_SRF.goPosLoad,1);
+		DataSave.fbDataSaveModule_EX_1.setLrealValue(FuncModule_RS232_SRF.goPosPhase,2);
+		DataSave.fbDataSaveModule_EX_1.saveB:=TRUE;
+		ups_CX51X0.Act_Wrtie();
+		setPresetStep:=0;
+	;
+	6000://error
+		setPresetBusy:=FALSE;
+		setPresetDone:=FALSE;
+		setPresetError:=TRUE;
+		setPresetStep:=0;
+	;
+	
+END_CASE
+
+
+
+
+
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="CalASII_Str" Id="{e382dde8-9672-4e48-8d04-c47c713c8409}">
+      <Declaration><![CDATA[METHOD CalASII_Str : STRING
+VAR_INPUT
+	date1:UINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF date1=10 THEN
+	CalASII_Str:='A';
+END_IF
+IF date1=11 THEN
+	CalASII_Str:='B';
+END_IF
+IF date1=12 THEN
+	CalASII_Str:='C';
+END_IF
+IF date1=13 THEN
+	CalASII_Str:='D';
+END_IF
+IF date1=14 THEN
+	CalASII_Str:='E';
+END_IF
+IF date1=15 THEN
+	CalASII_Str:='F';
+END_IF
+IF date1<10 THEN
+	CalASII_Str:=UINT_TO_STRING(date1);
+END_IF
+IF date1>15 THEN
+	CalASII_Str:=UINT_TO_STRING(date1);
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="CalMeth" Id="{511abed5-9271-49f0-b080-84ec1820ca75}">
+      <Declaration><![CDATA[METHOD CalMeth : INT
+VAR_INPUT
+	byteIn:BYTE;
+END_VAR
+VAR_OUTPUT
+	outInt:INT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF byteIn>=48 AND byteIn<=57 THEN
+	outInt:=byteIn-48;
+ELSE
+	outInt:=byteIn-65+10;
+END_IF
+CalMeth:=outInt;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="LoadAndPhaseGo" Id="{9e10f36d-41ef-45d7-b4ce-ed5c2f2ce36c}">
+      <Declaration><![CDATA[METHOD LoadAndPhaseGo : BOOL
+VAR_INPUT
+	
+END_VAR
+VAR_OUTPUT
+	
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[setPresetExt:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="LoadDEC" Id="{0d1e1378-13ee-4f57-8b01-bcfd5bca724d}">
+      <Declaration><![CDATA[METHOD LoadDEC : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendstr:='J84$R';
+serialExcute:=true;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="LoadINC" Id="{457323ea-2f5a-490f-ae1d-03f3cee7cd8d}">
+      <Declaration><![CDATA[METHOD LoadINC : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendstr:='J85$R';
+serialExcute:=true;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ManulORAuto" Id="{2dde8107-f90f-4b15-abe7-625719ec011b}">
+      <Declaration><![CDATA[METHOD ManulORAuto : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT rec_ManulOrAuto THEN
+	sendstr:='M$R';
+	serialExcute:=TRUE;
+ELSE
+	sendstr:='L$R';
+	serialExcute:=TRUE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="PhaseDEC" Id="{a41a475c-bf40-428f-8ef4-4dc0a476aa0a}">
+      <Declaration><![CDATA[METHOD PhaseDEC : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendstr:='J48$R';
+serialExcute:=true;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="PhaseINC" Id="{b7d8902e-39d2-4b52-a555-1e4a73a9647d}">
+      <Declaration><![CDATA[METHOD PhaseINC : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[sendstr:='J58$R';
+serialExcute:=true;]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="FuncModule_RS232_SRF">
+      <LineId Id="402" Count="4" />
+      <LineId Id="416" Count="2" />
+      <LineId Id="939" Count="9" />
+      <LineId Id="938" Count="0" />
+      <LineId Id="433" Count="0" />
+      <LineId Id="891" Count="0" />
+      <LineId Id="893" Count="0" />
+      <LineId Id="914" Count="0" />
+      <LineId Id="916" Count="1" />
+      <LineId Id="920" Count="0" />
+      <LineId Id="922" Count="0" />
+      <LineId Id="1426" Count="0" />
+      <LineId Id="918" Count="0" />
+      <LineId Id="1119" Count="3" />
+      <LineId Id="1190" Count="1" />
+      <LineId Id="1194" Count="1" />
+      <LineId Id="1425" Count="0" />
+      <LineId Id="1192" Count="1" />
+      <LineId Id="1033" Count="0" />
+      <LineId Id="1036" Count="0" />
+      <LineId Id="1040" Count="0" />
+      <LineId Id="1050" Count="0" />
+      <LineId Id="1041" Count="1" />
+      <LineId Id="1052" Count="0" />
+      <LineId Id="1038" Count="0" />
+      <LineId Id="1187" Count="0" />
+      <LineId Id="1044" Count="1" />
+      <LineId Id="1296" Count="9" />
+      <LineId Id="1295" Count="0" />
+      <LineId Id="1264" Count="0" />
+      <LineId Id="1053" Count="0" />
+      <LineId Id="1268" Count="0" />
+      <LineId Id="1270" Count="1" />
+      <LineId Id="1275" Count="0" />
+      <LineId Id="1272" Count="0" />
+      <LineId Id="1277" Count="2" />
+      <LineId Id="1276" Count="0" />
+      <LineId Id="1280" Count="2" />
+      <LineId Id="1035" Count="0" />
+      <LineId Id="564" Count="0" />
+      <LineId Id="1424" Count="0" />
+      <LineId Id="600" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_SRF.ACT_Send">
+      <LineId Id="2" Count="101" />
+      <LineId Id="105" Count="18" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_SRF.ACT_SetPreset">
+      <LineId Id="43" Count="7" />
+      <LineId Id="53" Count="4" />
+      <LineId Id="164" Count="0" />
+      <LineId Id="166" Count="32" />
+      <LineId Id="165" Count="0" />
+      <LineId Id="200" Count="3" />
+      <LineId Id="206" Count="0" />
+      <LineId Id="204" Count="1" />
+      <LineId Id="207" Count="1" />
+      <LineId Id="233" Count="0" />
+      <LineId Id="209" Count="1" />
+      <LineId Id="229" Count="1" />
+      <LineId Id="232" Count="0" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="215" Count="0" />
+      <LineId Id="217" Count="0" />
+      <LineId Id="216" Count="0" />
+      <LineId Id="212" Count="0" />
+      <LineId Id="224" Count="0" />
+      <LineId Id="219" Count="4" />
+      <LineId Id="218" Count="0" />
+      <LineId Id="225" Count="0" />
+      <LineId Id="227" Count="1" />
+      <LineId Id="226" Count="0" />
+      <LineId Id="150" Count="4" />
+      <LineId Id="236" Count="1" />
+      <LineId Id="234" Count="1" />
+      <LineId Id="155" Count="8" />
+      <LineId Id="36" Count="6" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_SRF.CalASII_Str">
+      <LineId Id="5" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="13" Count="1" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="16" Count="1" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="19" Count="1" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="22" Count="1" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="25" Count="8" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_SRF.CalMeth">
+      <LineId Id="5" Count="0" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="12" Count="1" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="14" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_SRF.LoadAndPhaseGo">
+      <LineId Id="16" Count="0" />
+      <LineId Id="6" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_SRF.LoadDEC">
+      <LineId Id="5" Count="1" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_SRF.LoadINC">
+      <LineId Id="5" Count="1" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_SRF.ManulORAuto">
+      <LineId Id="5" Count="1" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="8" Count="1" />
+      <LineId Id="11" Count="0" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_SRF.PhaseDEC">
+      <LineId Id="5" Count="1" />
+    </LineIds>
+    <LineIds Name="FuncModule_RS232_SRF.PhaseINC">
+      <LineId Id="5" Count="1" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <GVL Name="GVL_Error" Id="{f2f32dbd-0788-4c02-bdd8-981c25e73f11}">
+    <Declaration><![CDATA[//{attribute 'qualified_only'}
+VAR_GLOBAL CONSTANT
+	g_d_ErrorBegin		:DINT:=0;
+	g_d_ErrorEnd		:DINT:=8000;
+	g_Max_Data_Elements :UDINT:=100;(* Max. number of elements in the list *)
+END_VAR
+VAR_GLOBAL
+	gErrorARRAY	:ARRAY [g_d_ErrorBegin..g_d_ErrorEnd] OF ST_Error;
+	
+	gError_fbTable:FB_HashTableCtrl;(* basic hash table control function block *)
+    gError_hTable:T_HHASHTABLE;(* hash table handle *)
+    gError_table:ARRAY[0..g_Max_Data_Elements] OF T_HashTableEntry;
+END_VAR]]></Declaration>
+  </GVL>
+</TcPlcObject>

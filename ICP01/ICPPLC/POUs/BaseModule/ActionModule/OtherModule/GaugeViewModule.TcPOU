@@ -1,0 +1,204 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="GaugeViewModule" Id="{f49247df-8c76-40ca-9608-e1f2b0e87cf2}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK GaugeViewModule
+VAR_INPUT
+	inputValue:DINT;// 输入值
+	gaugeType:INT;// 类型，1：AIM；2：PSG
+	calValueH:REAL;// 计算值上限
+	calValueL:REAL;// 计算值下限
+	moduleValueH:REAL;// 模块上限
+	moduleValueL:REAL;// 模块下限
+	alrmmaxValue:REAL;// 警告上限
+	alrmminValue:REAL;// 警告下限
+	condition:BOOL;// 显示条件
+	initString:STRING:='-----';// 初始显示字符串：*****
+END_VAR
+VAR_OUTPUT
+	outputValue:REAL;
+	outputValue_String:STRING;
+	error:BOOL;
+END_VAR
+VAR
+	factor:REAL;// 转换因子
+	temp:REAL;
+	test:REAL;
+	tT:TON;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[IF ((moduleValueH-moduleValueL)>0.0) THEN
+	factor:=(calValueH-calValueL)/(moduleValueH-moduleValueL);
+	temp:=factor*DINT_TO_REAL(inputValue);
+	IF gaugeType=1 THEN
+		test:=(7.0*temp/8.0-10.75);
+		outputValue:=LREAL_TO_REAL(EXPT(10,test));
+//		outputValue_String:=REAL_TO_STRING(outputValue);
+		Real_e(inputReal:=outputValue,outputString=>outputValue_String);
+	ELSE
+		test:=(temp-2.448)/1.286;
+		outputValue:=LREAL_TO_REAL(EXPT(10,test));
+		outputValue_String:=Real_2f(realStr:=REAL_TO_STRING(outputValue));
+	END_IF
+	tT(IN:=NOT (( outputValue>alrmminValue) AND inputValue>10),PT:=T#2S);
+	IF tT.Q THEN
+		error:=TRUE;
+	ELSE
+		error:=FALSE;
+	END_IF
+	
+	IF condition THEN
+		;
+	ELSE
+		outputValue_String:=initString;
+	END_IF
+END_IF
+]]></ST>
+    </Implementation>
+    <Method Name="Real_2f" Id="{44c36762-c7b1-45d8-8bd9-70487e498961}">
+      <Declaration><![CDATA[METHOD Real_2f : STRING
+VAR_INPUT
+	realStr:STRING;
+END_VAR
+VAR
+	decimalPlaces:INT:=1;
+	dotPos : INT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[dotPos := FIND(realStr, '.');
+
+IF dotPos > 0 THEN
+    // 截取小数点后指定位数
+    realStr := LEFT(realStr, dotPos + decimalPlaces);
+END_IF
+Real_2f:=realStr;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Real_e" Id="{19429c93-4d8b-4f4a-89df-64a89f637b9b}">
+      <Declaration><![CDATA[METHOD Real_e : BOOL
+VAR_INPUT
+	inputReal : REAL; // 输入：REAL 类型数据
+END_VAR
+VAR_OUTPUT
+	outputString : STRING(50);    // 输出：科学计数法表示的 STRING 数据
+END_VAR
+VAR
+	tempString : STRING(50);       // 临时字符串变量
+    mantissaPart : STRING(20);     // 尾数部分
+    exponentValue : INT;           // 指数值
+    decimalPointPos : INT;         // 小数点位置
+	posP:INT;// 整数部分
+    isNegative : BOOL := FALSE;    // 是否为负数
+	i:INT;
+	endFlag:BOOL;
+	maxPos:INT:=20;
+	tempReal:REAL;
+	tempReal1:REAL;
+	temstr:STRING;
+	decimalPlaces:INT:=1;
+	dotPos : INT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[ // Step 1: 处理负数
+ endFlag:=FALSE;
+IF inputReal>1.0 THEN
+	outputString:=REAL_TO_STRING(inputReal);
+	RETURN;
+END_IF
+IF inputReal < 0 THEN
+    isNegative := TRUE;
+    inputReal := ABS(inputReal); // 取绝对值
+END_IF
+
+tempReal:=inputReal;
+FOR i:=1 TO maxPos DO
+	tempReal:=tempReal*10.0;
+	posP:=REAL_TO_INT(tempReal)/10;
+	tempReal1:=REAL_TO_INT(tempReal*10.0)/100.0;
+	IF posP<>0 THEN
+		exponentValue:=i;
+		endFlag:=TRUE;
+		i:=20;
+	END_IF
+END_FOR
+
+//// Step 5: 提取尾数部分
+//IF decimalPointPos > 0 THEN
+//	mantissaPart :=CONCAT(mantissaPart,LEFT(tempString, 1));
+//	mantissaPart :=CONCAT(mantissaPart,'.');
+//	mantissaPart :=CONCAT(mantissaPart,MID(tempString, 2, LEN(tempString) - 1));
+//ELSE
+//    mantissaPart := tempString; // 如果没有小数点，直接使用原字符串
+//END_IF
+
+// Step 6: 构建底数为 10 的表达式
+temstr:=REAL_TO_STRING(tempReal1);
+dotPos := FIND(temstr, '.');
+
+IF dotPos > 0 THEN
+    // 截取小数点后指定位数
+    temstr := LEFT(temstr, dotPos + decimalPlaces);
+END_IF
+
+IF isNegative THEN
+	outputString :=CONCAT(outputString,'-');
+	outputString :=CONCAT(outputString,temstr);
+	outputString :=CONCAT(outputString,' * 10^');
+	outputString :=CONCAT(outputString,INT_TO_STRING(exponentValue));
+ELSE
+	outputString :=CONCAT(outputString,temstr);
+	outputString :=CONCAT(outputString,' * 10^-');
+	outputString :=CONCAT(outputString,INT_TO_STRING(exponentValue-1));
+END_IF
+
+// 输出结果
+// outputString 现在包含底数为 10 的表达式]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="GaugeViewModule">
+      <LineId Id="102" Count="0" />
+      <LineId Id="105" Count="1" />
+      <LineId Id="256" Count="8" />
+      <LineId Id="167" Count="0" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="107" Count="4" />
+      <LineId Id="138" Count="0" />
+      <LineId Id="112" Count="3" />
+      <LineId Id="103" Count="1" />
+      <LineId Id="45" Count="0" />
+    </LineIds>
+    <LineIds Name="GaugeViewModule.Real_2f">
+      <LineId Id="15" Count="5" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="21" Count="0" />
+    </LineIds>
+    <LineIds Name="GaugeViewModule.Real_e">
+      <LineId Id="55" Count="0" />
+      <LineId Id="127" Count="0" />
+      <LineId Id="154" Count="1" />
+      <LineId Id="157" Count="0" />
+      <LineId Id="156" Count="0" />
+      <LineId Id="56" Count="3" />
+      <LineId Id="187" Count="0" />
+      <LineId Id="99" Count="0" />
+      <LineId Id="112" Count="0" />
+      <LineId Id="128" Count="6" />
+      <LineId Id="126" Count="0" />
+      <LineId Id="34" Count="1" />
+      <LineId Id="70" Count="1" />
+      <LineId Id="85" Count="2" />
+      <LineId Id="73" Count="4" />
+      <LineId Id="190" Count="5" />
+      <LineId Id="189" Count="0" />
+      <LineId Id="188" Count="0" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="90" Count="1" />
+      <LineId Id="88" Count="1" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="93" Count="2" />
+      <LineId Id="82" Count="2" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

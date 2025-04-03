@@ -1,0 +1,11 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="TMPType" Id="{d485b005-34b4-4b1c-8391-35857a1245dc}">
+    <Declaration><![CDATA[TYPE TMPType :
+(
+	TMPType_Default := 0 //常规分子泵
+)UINT;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

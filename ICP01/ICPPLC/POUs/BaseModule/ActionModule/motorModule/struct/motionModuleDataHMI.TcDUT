@@ -1,0 +1,99 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="motionModuleDataHMI" Id="{9b74c03c-8916-417b-9537-c634d840e017}">
+    <Declaration><![CDATA[{attribute 'pack_mode' := 1}
+TYPE motionModuleDataHMI :
+STRUCT
+//************************* control *************************	
+ //button
+ 	// Aiko
+	manJogN					: BOOL:=FALSE;
+	manJogP					: BOOL:=FALSE;
+	manVelN					: BOOL:=FALSE;
+	manVelP					: BOOL:=FALSE;
+	GoToOpen				: BOOL:=FALSE;// 去开门位
+	GoToClose				: BOOL:=FALSE;// 去关门位
+	// normal 
+	manJogGo				: BOOL:=FALSE;
+	manRelGo				: BOOL:=FALSE;
+	manVelGo				: BOOL:=FALSE;
+	manABSGo				: BOOL:=FALSE;
+	reset					: BOOL;
+	stop					: BOOL;
+	choiceOfDirection		: BOOL:=TRUE;
+	setZero					: BOOL:=FALSE;
+	power					: BOOL:=TRUE;
+	goHomeGo				: BOOL:=FALSE;
+	pauseB					: BOOL;
+	loopRelGo				: BOOL:=FALSE;//loop 相对运动启动
+	loopAbsGo				: BOOL:=FALSE;//loop 绝对运动启动
+	loopHomeToPosGo			: BOOL:=FALSE;//loop 循环回原到指定点位打表
+	
+ //monitor status
+	forwardLimitSwitch		: BOOL;//正限位感应 状态
+	backwardsLimitSwitch	: BOOL;//负限位感应 状态
+	dogPointSwitch			: BOOL;//原点感应 状态
+	forwardEnable			: BOOL;//正限位启用/禁用 状态
+	backwardsEnable			: BOOL;//负限位启用/禁用 状态
+	busy					: BOOL;//busy 状态
+	done					: BOOL;//done 状态
+	error					: BOOL;//error 状态
+	oPause					: BOOL;//pause 状态
+	powerEnable				: BOOL;//使能启用/禁用 
+	enable					: BOOL;//enable 状态
+	goHomeDone				: BOOL;//Home 完成状态
+	running					: BOOL;// 运行状态
+	jogNrunning				: BOOL;// Jog反向运行状态
+	jogPrunning				: BOOL;// Jog反向运行状态
+	velNrunning				: BOOL;// vel反向运行状态
+	velPrunning				: BOOL;// vel反向运行状态
+	
+ //
+	ctrlModeCondition		: BOOL;// 手动控制条件
+	jogCondition			: BOOL;// JOG 可触发条件
+	velCondition			: BOOL;// 速度模式定位 可触发条件
+	relCondition			: BOOL;// 相对定位 可触发条件
+	absCondition			: BOOL;// 绝对定位 可触发条件
+	homeCondition			: BOOL;// Home 可触发条件
+	setCondition			: BOOL;// 目标位置设定 可触发条件
+	loopRelCondition		: BOOL;// loop相对定位 可触发条件
+	loopAbsCondition		: BOOL;// loop绝对定位 可触发条件
+	loopHomeToAbsCondition	: BOOL;// loop绝对定位 回原 可触发条件
+	
+//************************* para *************************
+	loopCycle				: UINT:=0;//loop 循环次数 一次往复才算一次
+	loopWatingTime			: UINT:=1000;//loop 停留时间（单位ms）
+	errID					: DINT;//errorID
+	PTPErrID				: UDINT;//PTPErrID
+
+	manABSPos				: LREAL:=0;	//ABS target position
+	manRelDis				: LREAL:=0;	//REL target distance
+	manVel					: LREAL:=3;//abs, rel use the same one value
+	manJogVel				: LREAL:=1;	//jog, vel use the same one value
+	actualPos				: LREAL;//actual pos
+	actualVel				: LREAL;//actual vel
+	goHomeVel				: LREAL:=10;
+	goHomeVelSlow			: LREAL:=5;
+	softPLimitPos			: LREAL:=99999999999;
+	softNLimitPos			: LREAL:=-99999999999;
+	loopFirstPoint			: LREAL:=0;//loop 第1个点
+	loopSecondPoint			: LREAL:=0;//loop 第2个点
+	loopGoVel				: LREAL:=10;//loop 运动速率
+	
+	nameTXT					: STRING;//电机名字
+	errTxt					: STRING;
+	errWTxt					: WSTRING;
+	
+	GoToOpenDone			: BOOL:=FALSE;// 去开门位
+	GoToCloseDone			: BOOL:=FALSE;// 去关门位
+//Velo Limit
+	manSoftLimitVel			:LREAL:=5.0;// 速度限制
+END_STRUCT
+END_TYPE
+(*
+按照字节对齐规则，将变量按字节大小按顺序定义，用于ADS读取
+*)
+
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

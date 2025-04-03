@@ -1,0 +1,275 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <Itf Name="ITFActStep" Id="{2409bad4-0858-4e2f-a90a-2d5aa90a24df}">
+    <Declaration><![CDATA[(*
+---Control step base interface
+*)
+INTERFACE ITFActStep
+]]></Declaration>
+    <Folder Name="Get" Id="{64c24edf-e8f0-49cb-ae64-55279b8941ee}" />
+    <Folder Name="Is" Id="{d5df44dd-08e1-4e0e-91a0-1dda80163476}" />
+    <Folder Name="Set" Id="{4550be0c-bae5-4265-a193-930ffd936254}" />
+    <Folder Name="Step" Id="{4c2f1f20-7462-494e-8e52-ea749a59807c}" />
+    <Method Name="Act_Continue" Id="{be052625-c214-47b7-b0e9-06d25c9063b1}">
+      <Declaration><![CDATA[(*
+---Continue action
+*)
+METHOD Act_Continue : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="Act_Ex" Id="{fbe5419d-a0e3-4b3b-a11f-192a7df85040}">
+      <Declaration><![CDATA[(*
+---Trigger action
+*)
+METHOD Act_Ex : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="Act_Init" Id="{f676773b-7b8b-4453-a169-fb33d702e0e3}">
+      <Declaration><![CDATA[(*
+---Init all status
+*)
+METHOD Act_Init : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="Act_Pause" Id="{c398a48c-19c0-43ef-ae9f-d0d78c01096f}">
+      <Declaration><![CDATA[(*
+---Pause action
+*)
+METHOD Act_Pause : BOOL
+VAR_INPUT
+	pause:BOOL;
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="addStep" Id="{e0494bb8-dc44-4b2d-8cd7-63ec16a559f7}" FolderPath="Step\">
+      <Declaration><![CDATA[(*
+---: add step;
+---:
+	nextStep: step 增量值;
+	checkPause: 是否检测当前 pause; 如果 checkPause:=TRUE, 且暂停被触发后, 当前 step 暂停递增;
+*)
+METHOD addStep : DINT
+VAR_INPUT
+	nextStep			:DINT:=0;
+	checkPause			:BOOL:=FALSE;// 检查是否暂停，暂停则不递增step
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="getActState" Id="{fd1127a7-cc10-43fd-8346-a0a198ae52c2}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get action state
+*)
+METHOD getActState : ST_ActStep_State
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="getErrID" Id="{287fcbbc-0d8d-4ef7-9b80-b39fedacc901}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get error id
+*)
+METHOD getErrID : DINT
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="getErrMsg" Id="{0e55ef77-9497-40b1-b55c-e931a920ff04}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get error message
+*)
+METHOD getErrMsg : STRING(255)
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="getErrStep" Id="{8a6860df-dc8f-49fd-87a2-c94ade867730}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get error step
+*)
+METHOD getErrStep : DINT
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="getStep" Id="{84d7d384-5676-4ebd-8651-99cd38b13acf}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get step
+*)
+METHOD getStep : DINT
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="isBusy" Id="{23a6b2f9-3cc5-4343-83ce-3ed8064939ac}" FolderPath="Is\">
+      <Declaration><![CDATA[(*
+---Check busy state
+*)
+METHOD isBusy : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="isDone" Id="{a624703f-220a-4ab6-a5ba-872de7be70d0}" FolderPath="Is\">
+      <Declaration><![CDATA[(*
+---Check done state
+*)
+METHOD isDone : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="isError" Id="{8ea5b2d6-6617-437c-b8b4-42e33fe2008e}" FolderPath="Is\">
+      <Declaration><![CDATA[(*
+---Check error state
+*)
+METHOD isError : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="isEx" Id="{5215e1b5-99bb-4ef0-9d0b-1e97d3735ea5}" FolderPath="Is\">
+      <Declaration><![CDATA[(*
+---Check trigger state
+*)
+METHOD isEx : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="isPause" Id="{c31d37e0-2044-4d8e-80be-4db36e1448b7}" FolderPath="Is\">
+      <Declaration><![CDATA[(*
+---Check pause state
+*)
+METHOD isPause : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="setBusyFlag" Id="{49278d94-0004-43f9-af58-1909121c42f8}" FolderPath="Set\">
+      <Declaration><![CDATA[(*
+---Set busy flag
+*)
+METHOD setBusyFlag
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="setDoneFlag" Id="{ce67c8fb-9eda-4f5b-aed1-f5a3bcbd1116}" FolderPath="Set\">
+      <Declaration><![CDATA[(*
+---Set done flag
+*)
+METHOD setDoneFlag
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="setErrDoneFlag" Id="{b7c87e98-f762-4be9-915b-99fc381649a5}" FolderPath="Set\">
+      <Declaration><![CDATA[(*
+---Set error done flag
+*)
+METHOD setErrDoneFlag
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="setErrID" Id="{49fe4e2b-9edc-4613-9f09-966cdf9c667c}" FolderPath="Set\">
+      <Declaration><![CDATA[(*
+---Set error id
+*)
+METHOD setErrID
+VAR_INPUT
+	errID:DINT;
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="setErrMsg" Id="{3a096563-5f1f-4c5f-9680-f1ca0291e05e}" FolderPath="Set\">
+      <Declaration><![CDATA[(*
+---Set error message
+*)
+METHOD setErrMsg
+VAR_INPUT
+	errMsg:STRING(255);
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="setError" Id="{2a90fb16-fda8-43a4-b40d-5600e0a3398b}" FolderPath="Set\">
+      <Declaration><![CDATA[(*
+---Set error id and error message
+*)
+METHOD setError
+VAR_INPUT
+	errID:DINT;
+	errMsg:STRING(255);
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="toBeginStep" Id="{36a882a8-4a1e-4b48-871c-6a006ed97eec}" FolderPath="Step\">
+      <Declaration><![CDATA[(*
+---Go to step:=BEGIN_STEP, BEGIN_STEP is 10;
+*)
+METHOD toBeginStep : DINT
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="toDoneStep" Id="{557f60c3-fb43-4b05-98a9-9f94b0ce80e0}" FolderPath="Step\">
+      <Declaration><![CDATA[(*
+---Go to step:=DONE_STEP, DONE_STEP is 60000;
+*)
+METHOD toDoneStep : DINT
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="toErrDoneStep" Id="{ca62a348-c4cb-4c7b-9e72-e84998e6d40b}" FolderPath="Step\">
+      <Declaration><![CDATA[(*
+---Go to step:=ERR_DONE_STEP, ERR_DONE_STEP is 65000;
+*)
+METHOD toErrDoneStep : DINT
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="toPauseStep" Id="{7ce85155-d95c-49fa-bfad-3c3eca816e65}" FolderPath="Step\">
+      <Declaration><![CDATA[(*
+---Go to pause step:=PAUSE_STEP, PAUSE_STEP is 65500; 
+---: nextStep: 从暂停解除之后的下一个step值; 
+*)
+METHOD toPauseStep : DINT
+VAR_INPUT
+	{attribute 'initialize_on_call'}
+	nextStep			:DINT:=0;
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="toStep" Id="{f530ee07-48e1-425b-a2ef-180da21fb709}" FolderPath="Step\">
+      <Declaration><![CDATA[(*
+---: Go to target step;
+---:
+	nextStep: step 目标值;
+	checkPause: 是否检测当前 pause; 如果 checkPause:=TRUE, 且暂停被触发后, 当前 step 暂停递增;
+*)
+METHOD toStep : DINT
+VAR_INPUT
+	nextStep			:DINT:=0;// 跳转到目标step
+	checkPause			:BOOL:=FALSE;// 检查是否暂停，暂停则不递增step
+END_VAR
+]]></Declaration>
+    </Method>
+    <Method Name="toZeroStep" Id="{414c864e-7e4f-4250-a874-b7ccf60d926b}" FolderPath="Step\">
+      <Declaration><![CDATA[(*
+---Go to step:=0;
+*)
+METHOD toZeroStep : DINT
+VAR_INPUT
+END_VAR
+]]></Declaration>
+    </Method>
+  </Itf>
+</TcPlcObject>

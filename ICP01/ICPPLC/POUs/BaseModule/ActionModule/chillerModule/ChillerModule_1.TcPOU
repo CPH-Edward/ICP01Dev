@@ -1,0 +1,1318 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="ChillerModule_1" Id="{f16eaa22-b46e-4a36-80d2-57808d38ce3b}" SpecialFunc="None">
+    <Declaration><![CDATA[(*
+--报错编号0: 无报错
+--报错编号1: Extend Error
+--报错编号2: Retract Error
+*)
+FUNCTION_BLOCK ChillerModule_1
+VAR_IN_OUT
+	WarmHMI					:WARMStruct;
+	NoteHMI					:NoteStruct;
+	operatorLog				:printLogModule_EX;
+END_VAR
+VAR_INPUT
+	HMIItf						:ChillerModuleHMI;//每个Chiller对象都关联了一个HMI
+	ChillerType				:ChillerType:=ChillerType_Default;//设置Chiller的类型, 可通过该变量修改为真空发生器
+	
+	real_TimeMonitor			:BOOL:=TRUE;//实时状态检测
+	
+	extend						:BOOL:=FALSE;//伸出触发信号
+	extCondition				:BOOL:=TRUE;//伸出启停条件
+	retract						:BOOL:=FALSE;//收回触发信号
+	retCondition				:BOOL:=TRUE;//收回启停条件
+	setPoint					:BOOL:=FALSE;//设置触发信号
+	setCondition				:BOOL:=TRUE;//设置启停条件
+	readPoint					:BOOL:=FALSE;// 设置读取信号
+	readCondition				:BOOL:=TRUE;// 设置读取条件
+	reset						:BOOL:=FALSE;//复位信号
+	stop						:BOOL:=FALSE;//停止信号
+	power						:BOOL:=TRUE;//Chiller动作后是否关闭继电器得电状态, TRUE--保持得电,FALSE--断开得电
+	enable						:BOOL:=TRUE;//Chiller禁用条件
+	//ctrlMode					:ControlMode:=ControlMode.eManualCtrMode;//eManualCtrMode or eAutoCtrMode
+	hmiEN						:BOOL:=TRUE;//HMI 启用条件
+	
+	errorDelayTime				:TIME:=T#3000MS;//Chiller感应器感应超时
+	//doneDelayTimeShort		:TIME:=T#100MS;//Chiller感应到位延时---取消使用
+	//doneDelayTimeLong			:TIME:=T#500MS;//无Chiller感应到位延时---取消使用
+	doneDelayTimeShortExtend	:TIME:=T#100MS;//Chiller感应到位延时_伸出
+	doneDelayTimeShortRetract	:TIME:=T#100MS;//Chiller感应到位延时_收回
+	doneDelayTimeLongExtend		:TIME:=T#500MS;//无Chiller感应到位延时_伸出
+	doneDelayTimeLongRetract	:TIME:=T#500MS;//无Chiller感应到位延时_收回
+	doneDelayTimeLongSET		:TIME:=T#500MS;//无Chiller感应到位延时_SET
+	errorID						:UDINT:=0;//Chiller错误报警分配的起始ID
+	nameTXT						:STRING(255):='';//Chiller名字
+	
+	extAprSw					:BOOL:=FALSE;//Chiller伸出感应器信号,需要链接到实际的IO点
+	retAprSw					:BOOL:=FALSE;//Chiller收回感应器信号,需要链接到实际的IO点
+	enableExtAprSw				:BOOL:=TRUE;//启用伸出感应器,针对只有一个传感器的Chiller
+	enableRetAprSw				:BOOL:=TRUE;//启用收回感应器,针对只有一个传感器的Chiller
+	
+	noteWTXT_Ext				:WSTRING(255):="";//Chiller伸出动作NoteTXT 中文
+	noteWTXT_Ret				:WSTRING(255):="";//Chiller缩回动作NoteTXT 中文
+	pumon:BOOL;		
+	uinton:BOOL;
+	fault:BOOL;
+	unitstoping:BOOL;
+	alarmTemperatureH			:REAL:=30;
+	alarmTemperatureL			:REAL:=10;
+	RTD1:REAL;
+	RTD2:REAL;
+	setpointVal					:REAL;
+END_VAR
+VAR_OUTPUT
+	extRelay				:BOOL:=FALSE;//Chiller伸出执行继电器,需要链接到实际的IO点
+	retRelay				:BOOL:=FALSE;//Chiller收回执行继电器,需要链接到实际的IO点
+	note_Ext				:BOOL:=FALSE;// 操作提示：true 伸出、打开执行无法下发
+	note_Ret				:BOOL:=FALSE;// 操作提示：true 缩回、关闭执行无法下发
+	note_Set				:BOOL:=FALSE;// 操作提示：true 设置参数执行无法下发
+	busy					:BOOL;//Chiller动作Busy状态
+	readbusy				:BOOL;
+	readerror				:BOOL;
+	done					:BOOL;//Chiller动作Done状态
+	extdone					:BOOL;//Chiller动作伸出完成
+	retdone					:BOOL;//Chiller动作收回完成
+	setdone					:BOOL;//Chiller动作收回完成
+	readdone				:BOOL;//Chiller动作收回完成
+	error					:BOOL;//Chiller动作error状态
+	errID					:UDINT;//Chiller动作errID
+	errTXT					:STRING(255):='';//Chiller动作errTXT
+	errWTXT					:WSTRING(255):="";//Chiller动作errTXT 中文
+	sensorShow				:STRING;
+END_VAR
+	
+VAR
+	readAndWriteLock:BOOL;
+	firstPower:BOOL:=TRUE;
+	extErrorDelayTon		:Ton;
+	extDoneDelayTon			:Ton;
+	retErrorDelayTon		:Ton;
+	retDoneDelayTon			:Ton;
+	setErrorDelayTon		:Ton;
+	setDoneDelayTon			:Ton;
+	readConditionTon		:TON;
+	readTon1				:TON;
+	readTon2				:TON;
+	
+	extendTrigRAlc			:R_Trig;//上升沿触发
+	
+	singleControlR			:R_Trig;//上升沿触发
+	singleControlF			:F_Trig;//上升沿触发
+	
+	setR					:R_Trig;//上升沿触发
+	
+	extendTrigR1			:R_Trig;//上升沿触发
+	retractTrigR1			:R_Trig;//上升沿触发
+	resetTrigR1				:R_Trig;//上升沿触发
+	stopTrigR1				:R_Trig;//上升沿触发
+	powerTrigR1				:R_Trig;//上升沿触发
+	
+	extStep					:UINT:=0;
+	retStep					:UINT:=0;
+	setStep					:UINT:=0;
+	readStep				:UINT:=0;
+	errorStep				:UINT:=0;
+	
+	notBusyMonitorDelayTon:TON;//动作不切换时，延迟检测
+	notBusyMonitorDelayTime:TIME:=T#2S;//动作不切换延迟检测时间
+	noteTON_P:tON;            // 操作提示标志位延时继电器
+	noteTON_N:tON;            // 操作提示标志位延时继电器
+	noteRTrig_P:R_TRIG;          // 操作提示
+	noteRTrig_N:R_TRIG;          // 操作提示
+	extRealayRtrig:R_TRIG;
+	retRealayRtrig:R_TRIG;
+END_VAR]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[// 实时读取设置的流量值以及实际反馈浏览值
+// ****************************
+Init_ACT();
+Error_ACT();
+Extend_ACT();
+Retract_ACT();
+Reset_ACT();
+Set_ACT();
+Read_ACT();
+Error_ACT();
+SafeMonitor_ACT();
+]]></ST>
+    </Implementation>
+    <Folder Name="Error" Id="{6e6f7c83-3f43-495d-a7cd-8ae5cb548d04}" />
+    <Folder Name="Private" Id="{819b29a3-d039-4629-8167-d8cbc0900cb3}" />
+    <Method Name="Act_Extend" Id="{3eed00dd-e4df-4414-8674-b7433dc28642}">
+      <Declaration><![CDATA[(*
+触发伸出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Extend : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND extCondition THEN// AND NOT busy
+	Act_Extend:=extend:=TRUE;
+ELSE
+	Act_Extend:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Reset" Id="{70d8fd4c-3a31-4797-b8da-e42d6380d6ca}">
+      <Declaration><![CDATA[(*
+触发复位报警动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Reset : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Reset:=reset:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Retract" Id="{0a45994f-60b3-4ec1-96c6-ee0351187e87}">
+      <Declaration><![CDATA[(*
+触发缩回动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Retract : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF enable AND retCondition THEN// AND NOT busy
+	Act_Retract:=retract:=TRUE;
+ELSE
+	Act_Retract:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Stop" Id="{e6d8a6bb-292d-401c-8884-c34c888ee6c2}">
+      <Declaration><![CDATA[(*
+触发停止输出动作，成功触发返回TRUE，触发失败返回FALSE
+*)
+METHOD Act_Stop : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Stop:=stop:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Error_ACT" Id="{5f851e38-f338-43ee-8184-a339952e784f}" FolderPath="Error\">
+      <Implementation>
+        <ST><![CDATA[CASE errorStep OF
+	0:
+		error:=FALSE;
+		errID:=0;
+		errTXT:='';
+ (*
+	1:
+		error:=TRUE;
+		errID:=errorID+errorStep;
+		errTXT:=CONCAT(STR1:=nameTXT,STR2:=' Extend Error!');
+		errWTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 伸出(打开)错误");
+	2:
+		error:=TRUE;
+		errID:=errorID+errorStep;
+		errTXT:=CONCAT(STR1:=nameTXT,STR2:=' Retract Error!');
+		errWTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 缩回(关闭)错误");
+		*)
+	1..4:
+		error:=TRUE;
+		errID:=getErrID(errorStep);
+		errTXT:=getErrTXT(errorStep);
+		errWTXT:=getErrWTXT(errorStep);
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Extend_ACT" Id="{d6b9207e-8a47-4a7e-bdc4-0c2690e1f6d2}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[// Chiller伸出--extend 触发
+IF extend AND NOT extCondition THEN
+	note_Ext:=TRUE;
+	note_Ret:=FALSE;
+	note_Set:=FALSE;
+	NoteHMI.showFlag:=TRUE;
+	NoteHMI.showText:='';
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,nameTXT);
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,' Open Condition Not Satisfied!');
+	HMIItf.singleControl:=FALSE;
+END_IF
+IF extend AND enable AND extCondition THEN// AND NOT busy
+	busy:=TRUE;
+	retract:=FALSE;
+	setPoint:=FALSE;
+	setPoint:=FALSE;
+	extdone:=FALSE;
+	retdone:=FALSE;
+	setdone:=FALSE;
+	extStep:=10;
+	retStep:=0;
+	setStep:=0;
+	note_Ext:=FALSE;
+	note_Ret:=FALSE;
+	note_Set:=FALSE;
+	readAndWriteLock:=TRUE;
+	//errorStep:=0;
+END_IF
+extend:=FALSE;
+CASE extStep OF
+0:
+	//ready
+	extErrorDelayTon(IN:=FALSE);
+10:
+	firstPower:=FALSE;
+	extErrorDelayTon(IN:=FALSE);
+	extDoneDelayTon(IN:=FALSE);
+	extStep:=20;
+	PLC_Chiller.readStartFlag:=FALSE;
+	PLC_Chiller.WriteStart();
+	extRelay:=TRUE;
+	retRelay:=FALSE;
+20:
+	extErrorDelayTon(IN:=(NOT PLC_Chiller.readStartFlag),PT:=errorDelayTime);
+	IF extErrorDelayTon.Q THEN
+		//done:=FALSE;
+		extdone:=FALSE;
+		retdone:=FALSE;
+		setdone:=FALSE;
+		errorStep:=1;
+		busy:=FALSE;
+		readAndWriteLock:=FALSE;
+		extStep:=40;
+		extErrorDelayTon(IN:=FALSE);
+		RETURN;
+	END_IF
+//	IF PLC_Chiller.readStartFlag THEN
+//		extDoneDelayTon(IN:=PLC_Chiller.readStartFlag,PT:=doneDelayTimeShortExtend);
+//	ELSE
+//		extDoneDelayTon(IN:=NOT enableExtAprSw,PT:=doneDelayTimeLongExtend);
+//	END_IF
+	
+	IF PLC_Chiller.readStartFlag THEN
+		PLC_Chiller.readStartFlag:=FALSE;
+		busy:=FALSE;
+		//done:=TRUE;
+		extdone:=TRUE;
+		readAndWriteLock:=FALSE;
+		retdone:=FALSE;
+		errorStep:=0;
+		IF NOT power THEN
+			extRelay:=FALSE;
+			retRelay:=FALSE;
+		END_IF
+		extStep:=30;
+		extErrorDelayTon(IN:=FALSE);
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="Get_Done_Ext" Id="{cd30ffd5-936b-48fe-b20d-5c70aedb07c5}">
+      <Declaration><![CDATA[METHOD Get_Done_Ext : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_Ext:=extdone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_Done_Ret" Id="{bc7e803c-d303-49fa-bd53-3701e16734e6}">
+      <Declaration><![CDATA[METHOD Get_Done_Ret : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_Ret:=retdone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrID" Id="{85394081-46c2-4511-aeff-df3f5719cc62}">
+      <Declaration><![CDATA[METHOD getErrID : UDINT
+VAR_INPUT
+	errID					:UDINT;//取值范围1~2
+END_VAR
+VAR
+	nErrID					:UDINT;
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[nErrID:=errorID+errID;
+
+getErrID:=nErrID;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrTXT" Id="{e3e810c4-b221-4bec-96da-33ce1028a6b5}">
+      <Declaration><![CDATA[METHOD getErrTXT : STRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~2
+END_VAR
+VAR
+	sErrTXT					:STRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Extend Error!');
+	2:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' Retract Error!');
+	3:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' ParSet Error!');
+	4:
+		sErrTXT:=CONCAT(STR1:=nameTXT,STR2:=' State Error!');
+ELSE
+	sErrTXT:=CONCAT(STR1:=nameTXT,STR2:='');
+END_CASE
+getErrTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="getErrWTXT" Id="{5c6a056d-b2b1-42cf-9aaf-4ed2e7a17438}">
+      <Declaration><![CDATA[METHOD getErrWTXT : WSTRING(255)
+VAR_INPUT
+	errID					:UDINT;//取值范围1~16
+END_VAR
+VAR
+	sErrTXT					:WSTRING(255);
+END_VAR]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+CASE errID OF
+	1:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 伸出(打开)错误");
+	2:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 缩回(关闭)错误");
+	3:
+		sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:=" 参数设置错误");
+ELSE
+	sErrTXT:=WCONCAT(STR1:=TO_WSTRING(nameTXT),STR2:="");
+END_CASE
+getErrWTXT:=sErrTXT;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Init_ACT" Id="{1e8312a9-ac1b-4426-a64e-dd6c003d25e7}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[done:=(extdone OR retdone);
+InitHMI_ACT();
+manualCtrl_ACT();
+IF RTD1>alarmTemperatureH OR RTD1<alarmTemperatureL OR 
+   RTD2>alarmTemperatureH OR RTD2<alarmTemperatureL THEN
+   errorID:=4;
+END_IF
+noteTON_P(IN:=note_Ext,PT:=T#0.1S);
+noteRTrig_P(CLK:=noteTON_P.Q);
+IF noteRTrig_P.Q THEN
+//	gLog_Note.append_EX(noteWTXT_Ext);
+END_IF
+noteTON_N(IN:=note_Ret,PT:=T#0.1S);
+noteRTrig_N(CLK:=noteTON_N.Q);
+IF noteRTrig_N.Q THEN
+//	gLog_Note.append_EX(noteWTXT_Ret);
+END_IF
+extRealayRtrig(CLK:=extRelay);
+IF extRealayRtrig.Q THEN
+	HMIItf.singleControl:=TRUE;
+END_IF
+retRealayRtrig(CLK:=NOT extRelay);
+IF retRealayRtrig.Q THEN
+	HMIItf.singleControl:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="InitHMI_ACT" Id="{df4ac2c4-9546-407c-8d09-ecc1763fa37d}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[HMIItf.extAprSw:=extAprSw;
+HMIItf.retAprSw:=retAprSw;
+HMIItf.enableExt:=enableExtAprSw;
+HMIItf.enableRet:=enableRetAprSw;
+HMIItf.HMIEnable:=hmiEN;
+HMIItf.enable:=enable;
+HMIItf.done:=done;
+HMIItf.busy:=busy;
+HMIItf.error:=error;
+HMIItf.errID:=UDINT_TO_DINT(errID);
+HMIItf.errTXT:=errTXT;
+HMIItf.extRelay:=extRelay;
+HMIItf.retRelay:=retRelay;
+HMIItf.power:=power;
+HMIItf.nameTXT:=nameTXT;
+HMIItf.extenderror:=error AND errorID=1;
+HMIItf.retracterror:=error AND errorID=2;
+HMIItf.extcondition:=extCondition;
+HMIItf.retcondition:=retCondition;
+HMIItf.sensorShow:=sensorShow;]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="ManualCtrl_ACT" Id="{439abae5-8211-464b-a231-4e31557010b8}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//HMI手动控制
+//IF ctrlMode=eManualCtrMode THEN
+IF hmiEN THEN
+	IF extAprSw AND extRelay THEN
+		sensorShow:='UP';
+	ELSIF retAprSw AND retRelay THEN
+		sensorShow:='DOWN';
+	ELSE
+		sensorShow:='<->';
+	END_IF
+	extendTrigRAlc(CLK:=HMIItf.extendAndretract);
+	IF extendTrigRAlc.Q THEN// AND NOT busy
+		IF extRelay THEN//如果伸出继电器或伸出传感器亮，则认为已经伸出过
+			retract:=TRUE;
+		END_IF
+		IF retRelay THEN
+			extend:=TRUE;
+		END_IF
+		IF NOT extRelay AND NOT retRelay THEN
+			IF extAprSw THEN
+				retract:=TRUE;
+			END_IF
+			IF retAprSw THEN
+				extend:=TRUE;
+			END_IF
+		END_IF
+	END_IF
+	singleControlR(CLK:=HMIItf.singleControltemp);
+	singleControlF(CLK:=HMIItf.singleControl);
+	
+	extendTrigR1(CLK:=HMIItf.extend );
+	IF extendTrigR1.Q OR (singleControlR.Q AND NOT HMIItf.singleControl) THEN// AND NOT busy
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want to Extend the ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,' ?');
+	END_IF
+	IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Extend')>0 THEN
+		IF HMIItf.singleControl THEN
+			;
+		ELSE
+			extend:=TRUE;
+			operatorLog.append(CONCAT(nameTXT,' Extend'));
+		END_IF
+		HMIItf.singleControl:= NOT HMIItf.singleControl;
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Extend')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		HMIItf.extend:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	
+	retractTrigR1(CLK:=HMIItf.retract);
+	IF retractTrigR1.Q OR (singleControlR.Q AND HMIItf.singleControl) THEN// AND NOT busy
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want to Retract the ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,' ?');
+	END_IF
+		IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Retract')>0 THEN
+		IF HMIItf.singleControl THEN
+			retract:=TRUE;
+			operatorLog.append(CONCAT(nameTXT,' Retract'));
+		ELSE
+			;
+		END_IF
+		HMIItf.singleControl:= NOT HMIItf.singleControl;
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Retract')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		HMIItf.singleControl:=FALSE;
+		HMIItf.retract:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	
+	setR(CLK:=HMIItf.set);
+	IF setR.Q THEN
+		WarmHMI.showText:='';
+		WarmHMI.showFlag:=TRUE;
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,'Are you sure you want ');
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,nameTXT);
+		WarmHMI.showText:=CONCAT(WarmHMI.showText,' to Set it?');
+		HMIItf.set:=FALSE;
+	END_IF
+		IF WarmHMI.bOK AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Set')>0 THEN
+		setPoint:=TRUE;
+		operatorLog.append(CONCAT(nameTXT,' Set'));
+		WarmHMI.bOK:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	IF WarmHMI.bNO AND NOT WarmHMI.showFlag AND FIND(WarmHMI.showText,nameTXT)>0 AND FIND(WarmHMI.showText,'Set')>0 THEN
+		WarmHMI.bNO:=FALSE;
+		HMIItf.singleControl:=FALSE;
+		WarmHMI.showText:='';
+	END_IF
+	
+	resetTrigR1(CLK:=HMIItf.reset);
+	IF resetTrigR1.Q THEN// AND NOT busy
+		reset:=TRUE;
+	END_IF
+	
+	stopTrigR1(CLK:=HMIItf.stop);
+	IF stopTrigR1.Q THEN// AND NOT busy
+		stop:=TRUE;
+	END_IF
+	
+	powerTrigR1(CLK:=HMIItf.power);
+	IF powerTrigR1.Q THEN// AND NOT busy
+		IF power THEN
+			power:=FALSE;
+		ELSE
+			power:=TRUE;
+		END_IF
+	END_IF
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Read_ACT" Id="{a89ef878-3a63-4b41-84a0-5ebb42232dc8}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//气缸收回--read 触发
+IF NOT readAndWriteLock AND NOT busy AND NOT readbusy AND readStep=0 AND readCondition THEN// AND NOT busy
+	retdone:=FALSE;
+	retStep:=0;
+	extStep:=0;
+	setStep:=0;
+	readStep:=10;
+	setStep:=0;
+	readbusy:=TRUE;
+	readerror:=FALSE;
+END_IF
+CASE readStep OF
+0:
+	//ready
+	readTon1(IN:=FALSE);
+	readTon2(IN:=FALSE);
+10:// State
+	IF readAndWriteLock THEN
+		readStep:=5000;
+	ELSE
+		PLC_Chiller.readStateFlag:=FALSE;
+		PLC_Chiller.ReadState();
+		readStep:=readStep+10;
+	END_IF
+20:
+	IF readAndWriteLock THEN
+		readStep:=5000;
+	ELSE
+		IF PLC_Chiller.readStateFlag THEN
+			PLC_Chiller.readStateFlag:=FALSE;
+			// 数据处理
+			readTon1(IN:=FALSE);
+			readStep:=100;
+			RETURN;
+		END_IF
+		readTon1(IN:=TRUE,PT:=T#500MS);// 超时
+		IF readTon1.Q THEN
+			readStep:=6000;
+			readTon1(IN:=FALSE);
+			readTon2(IN:=FALSE);
+			RETURN;
+		END_IF
+		;
+	END_IF
+100:// Internal RTD1
+	IF readAndWriteLock THEN
+		readStep:=5000;
+	ELSE
+		PLC_Chiller.readRTD1Flag:=FALSE;
+		PLC_Chiller.ReadRTD1();
+		readStep:=readStep+10;
+	END_IF	
+110:
+	IF readAndWriteLock THEN
+		readStep:=5000;
+	ELSE
+		IF PLC_Chiller.readRTD1Flag THEN
+			PLC_Chiller.readRTD1Flag:=FALSE;
+			// 数据处理
+			readTon1(IN:=FALSE);
+			readStep:=200;
+			RETURN;
+		END_IF
+		readTon1(IN:=TRUE,PT:=T#500MS);// 超时
+		IF readTon1.Q THEN
+			readStep:=6000;
+			readTon1(IN:=FALSE);
+			readTon2(IN:=FALSE);
+			RETURN;
+		END_IF
+		;
+	END_IF
+	
+200:// External RTD2
+	IF readAndWriteLock THEN
+		readStep:=5000;
+	ELSE
+		PLC_Chiller.readRTD2Flag:=FALSE;
+		PLC_Chiller.ReadRTD2();
+		readStep:=readStep+10;
+	END_IF
+210:
+	IF readAndWriteLock THEN
+		readStep:=5000;
+	ELSE
+		IF PLC_Chiller.readRTD2Flag THEN
+			PLC_Chiller.readRTD2Flag:=FALSE;
+			// 数据处理
+			readTon1(IN:=FALSE);
+			readStep:=5000;
+			RETURN;
+		END_IF
+		readTon1(IN:=TRUE,PT:=T#500MS);// 超时
+		IF readTon1.Q THEN
+			readStep:=6000;
+			readTon1(IN:=FALSE);
+			readTon2(IN:=FALSE);
+			RETURN;
+		END_IF
+		;
+	END_IF
+5000:
+	readbusy:=FALSE;
+	readdone:=TRUE;
+	readStep:=0;
+	readerror:=FALSE;
+6000:
+	readbusy:=FALSE;
+	readdone:=TRUE;
+	readStep:=0;
+	readerror:=TRUE;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Reset_ACT" Id="{ab03a0cb-9766-469b-a726-760bbb53c528}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[IF reset THEN
+	IF NOT power THEN
+		extRelay:=FALSE;
+		retRelay:=FALSE;
+	END_IF
+	busy:=FALSE;
+	//done:=FALSE;
+	//extdone:=FALSE;
+	//retdone:=FALSE;
+	errorStep:=0;
+	note_Ext:=FALSE;
+	note_Ret:=FALSE;
+	note_Set:=FALSE;
+	reset:=FALSE;
+END_IF
+
+IF stop THEN
+	stop:=FALSE;
+	extRelay:=FALSE;
+	retRelay:=FALSE;
+	note_Ext:=FALSE;
+	note_Ret:=FALSE;
+	//无自锁检测说法，直接停
+//	extStep:=0;
+//	retStep:=0;
+END_IF]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Retract_ACT" Id="{c2f4d8d9-26f5-4af2-bbb5-85bc43e30f2d}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//Chiller收回--retract 触发
+IF retract AND NOT retCondition THEN
+	note_Ret:=TRUE;
+	note_Ext:=FALSE;
+	note_Set:=FALSE;
+	NoteHMI.showFlag:=TRUE;
+	NoteHMI.showText:='';
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,nameTXT);
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,' Close Condition Not Satisfied!');
+END_IF
+IF retract AND enable AND retCondition THEN// AND NOT busy
+	busy:=TRUE;
+	extend:=FALSE;
+	setPoint:=FALSE;
+	setPoint:=FALSE;
+	extdone:=FALSE;
+	retdone:=FALSE;
+	setdone:=FALSE;
+	retStep:=10;
+	extStep:=0;
+	setStep:=0;
+	note_Ext:=FALSE;
+	note_Ret:=FALSE;
+	note_Set:=FALSE;
+	readAndWriteLock:=TRUE;
+END_IF
+retract:=FALSE;
+CASE retStep OF
+0:
+	//ready
+	retErrorDelayTon(IN:=FALSE);
+10:
+	firstPower:=FALSE;
+	retErrorDelayTon(IN:=FALSE);
+	retDoneDelayTon(IN:=FALSE);
+	retStep:=20;
+	PLC_Chiller.readStopFlag:=FALSE;
+	PLC_Chiller.WriteStop();
+	extRelay:=FALSE;
+	retRelay:=TRUE;
+20:
+	retErrorDelayTon(IN:=(NOT PLC_Chiller.readStopFlag),PT:=errorDelayTime);
+	IF retErrorDelayTon.Q THEN
+		//done:=FALSE;
+		extdone:=FALSE;
+		retdone:=FALSE;
+		setdone:=FALSE;
+		errorStep:=2;
+		busy:=FALSE;
+		readAndWriteLock:=FALSE;
+		retStep:=40;
+		retErrorDelayTon(IN:=FALSE);
+		RETURN;
+	END_IF
+//	IF enableRetAprSw THEN
+//		retDoneDelayTon(IN:=retAprSw,PT:=doneDelayTimeShortRetract);
+//	ELSE
+//		retDoneDelayTon(IN:=NOT enableRetAprSw,PT:=doneDelayTimeLongRetract);
+//	END_IF
+	
+	IF PLC_Chiller.readStopFlag THEN
+		busy:=FALSE;
+		//done:=TRUE;
+		extdone:=FALSE;
+		retdone:=TRUE;
+		readAndWriteLock:=FALSE;
+		errorStep:=0;
+		IF NOT power  THEN
+			extRelay:=FALSE;
+			retRelay:=FALSE;
+		END_IF
+		retStep:=30;
+		retErrorDelayTon(IN:=FALSE);
+	END_IF
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="SafeMonitor_ACT" Id="{5c185ccd-3d8c-4a2f-a474-3265caf5a763}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//notBusyMonitorDelayTon(IN:=NOT busy,PT:=notBusyMonitorDelayTime);
+//IF real_TimeMonitor THEN
+//	IF notBusyMonitorDelayTon.Q THEN
+//		//伸出实时检测
+//		IF (enableExtAprSw AND NOT extAprSw) AND extRelay THEN
+//			errorStep:=1;
+//		END_IF
+	
+//		//缩回实时检测	
+//		IF (enableRetAprSw AND NOT retAprSw) AND retRelay  THEN
+//			errorStep:=2;
+//		END_IF
+//	END_IF
+//END_IF
+
+]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="Set_ACT" Id="{5cf357d7-69b3-42de-8422-18ddc9bb5460}" FolderPath="Private\">
+      <Implementation>
+        <ST><![CDATA[//Chiller收回--retract 触发
+IF setPoint AND NOT setCondition THEN
+	note_Set:=TRUE;
+	note_Ext:=FALSE;
+	note_Ret:=FALSE;
+	NoteHMI.showFlag:=TRUE;
+	NoteHMI.showText:='';
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,nameTXT);
+	NoteHMI.showText:=CONCAT(NoteHMI.showText,' Set Par Condition Not Satisfied!');
+END_IF
+IF setPoint AND enable AND setCondition THEN// AND NOT busy
+	busy:=TRUE;
+	extend:=FALSE;
+	retract:=FALSE;
+	setPoint:=FALSE;
+	extdone:=FALSE;
+	retdone:=FALSE;
+	setdone:=FALSE;
+	retStep:=0;
+	extStep:=0;
+	setStep:=0;
+	setStep:=10;
+	note_Ext:=FALSE;
+	note_Ret:=FALSE;
+	note_Set:=FALSE;
+	readAndWriteLock:=TRUE;
+END_IF
+setPoint:=FALSE;
+CASE setStep OF
+0:
+	//ready
+	setErrorDelayTon(IN:=FALSE);
+10:
+	firstPower:=FALSE;
+	setErrorDelayTon(IN:=FALSE);
+	setDoneDelayTon(IN:=FALSE);
+	setStep:=20;
+
+	PLC_Chiller.readSetAckFlag:=FALSE;
+	PLC_Chiller.WriteTemperature(setpointVal);
+20:
+	setErrorDelayTon(IN:=(NOT PLC_Chiller.readSetAckFlag),PT:=errorDelayTime);
+	IF setErrorDelayTon.Q THEN
+		//done:=FALSE;
+		extdone:=FALSE;
+		retdone:=FALSE;
+		setdone:=FALSE;
+		errorStep:=3;
+		busy:=FALSE;
+		readAndWriteLock:=FALSE;
+		setStep:=40;
+		setErrorDelayTon(IN:=FALSE);
+		RETURN;
+	END_IF
+	IF PLC_Chiller.readSetAckFlag THEN
+		PLC_Chiller.readSetAckFlag:=FALSE;
+		setStep:=30;
+		busy:=FALSE;
+		//done:=TRUE;
+		extdone:=FALSE;
+		retdone:=FALSE;
+		setdone:=TRUE;
+		readAndWriteLock:=FALSE;
+		errorStep:=0;
+		setErrorDelayTon(IN:=FALSE);
+		IF NOT power  THEN
+			extRelay:=FALSE;
+			retRelay:=FALSE;
+		END_IF
+	END_IF
+	;
+END_CASE]]></ST>
+      </Implementation>
+    </Action>
+    <Action Name="VersionLog" Id="{5eb932cf-d5b9-401a-9116-83fee3e2e9d8}">
+      <Implementation>
+        <ST><![CDATA[(*
+版本: V1.0.0.0
+说明:
+	1. 首个版本
+	2. 含普通气缸\真空吸类型的控制
+	3. 可配置是否有到位信号, 以及到位稳定时间
+(--------------------------------------------------)
+新版本: V1.0.1.0
+更新时间: 2019/11/20 19:00
+更新说明:
+	1. 优化编写方式
+	2. 修改错误编码起始位，现改为从1开始
+(--------------------------------------------------)
+新版本: V1.0.1.1
+更新时间: 2020/03/23 23:00
+更新说明:
+	1. 优化报错方式
+	2. 增加伸出、缩回、复位和停止触发函数
+(--------------------------------------------------)
+新版本: V1.0.1.2
+更新时间: 2020/04/22 09:50
+更新说明:
+	1. 增加中文报警输出
+(--------------------------------------------------)
+新版本: V1.0.1.3
+更新时间: 2020/09/16
+更新说明:
+	1. 开放错误ID、错误文本信息获取接口
+(--------------------------------------------------)
+新版本: V1.0.1.4
+更新时间: 2020/10/06
+更新说明:
+	1. 移除控制模式变量，增加HMI启用条件
+	2. 增加外部获取伸出缩回完成信号接口函数
+(--------------------------------------------------)
+新版本: V1.0.1.5
+更新时间: 2020/10/14
+更新说明:
+	1. 优化代码
+(--------------------------------------------------)
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="ChillerModule_1">
+      <LineId Id="467" Count="1" />
+      <LineId Id="65" Count="0" />
+      <LineId Id="135" Count="0" />
+      <LineId Id="71" Count="0" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="2" Count="0" />
+      <LineId Id="590" Count="0" />
+      <LineId Id="589" Count="0" />
+      <LineId Id="68" Count="0" />
+      <LineId Id="377" Count="0" />
+      <LineId Id="588" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.Act_Extend">
+      <LineId Id="5" Count="1" />
+      <LineId Id="8" Count="1" />
+      <LineId Id="7" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.Act_Reset">
+      <LineId Id="5" Count="1" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.Act_Retract">
+      <LineId Id="6" Count="3" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.Act_Stop">
+      <LineId Id="6" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.Error_ACT">
+      <LineId Id="1" Count="0" />
+      <LineId Id="15" Count="2" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="12" Count="2" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="18" Count="2" />
+      <LineId Id="6" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="27" Count="4" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="3" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.Extend_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="114" Count="1" />
+      <LineId Id="119" Count="0" />
+      <LineId Id="136" Count="0" />
+      <LineId Id="162" Count="2" />
+      <LineId Id="161" Count="0" />
+      <LineId Id="126" Count="0" />
+      <LineId Id="113" Count="0" />
+      <LineId Id="3" Count="2" />
+      <LineId Id="137" Count="0" />
+      <LineId Id="130" Count="0" />
+      <LineId Id="6" Count="1" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="8" Count="1" />
+      <LineId Id="127" Count="0" />
+      <LineId Id="108" Count="1" />
+      <LineId Id="128" Count="0" />
+      <LineId Id="131" Count="0" />
+      <LineId Id="54" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="13" Count="4" />
+      <LineId Id="118" Count="0" />
+      <LineId Id="18" Count="2" />
+      <LineId Id="138" Count="0" />
+      <LineId Id="160" Count="0" />
+      <LineId Id="139" Count="0" />
+      <LineId Id="22" Count="1" />
+      <LineId Id="25" Count="4" />
+      <LineId Id="157" Count="0" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="155" Count="0" />
+      <LineId Id="154" Count="0" />
+      <LineId Id="153" Count="0" />
+      <LineId Id="158" Count="0" />
+      <LineId Id="33" Count="5" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="90" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="150" Count="0" />
+      <LineId Id="140" Count="8" />
+      <LineId Id="93" Count="0" />
+      <LineId Id="149" Count="0" />
+      <LineId Id="159" Count="0" />
+      <LineId Id="53" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.Get_Done_Ext">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.Get_Done_Ret">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.getErrID">
+      <LineId Id="22" Count="0" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.getErrTXT">
+      <LineId Id="22" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="66" Count="1" />
+      <LineId Id="74" Count="1" />
+      <LineId Id="40" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="58" Count="1" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.getErrWTXT">
+      <LineId Id="21" Count="2" />
+      <LineId Id="74" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="81" Count="1" />
+      <LineId Id="55" Count="3" />
+      <LineId Id="14" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.Init_ACT">
+      <LineId Id="2" Count="1" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="25" Count="0" />
+      <LineId Id="27" Count="0" />
+      <LineId Id="26" Count="0" />
+      <LineId Id="5" Count="0" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="6" Count="3" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="4" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="18" Count="2" />
+      <LineId Id="17" Count="0" />
+      <LineId Id="23" Count="1" />
+      <LineId Id="22" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.InitHMI_ACT">
+      <LineId Id="2" Count="3" />
+      <LineId Id="15" Count="0" />
+      <LineId Id="6" Count="8" />
+      <LineId Id="1" Count="0" />
+      <LineId Id="16" Count="4" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.ManualCtrl_ACT">
+      <LineId Id="2" Count="1" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="55" Count="0" />
+      <LineId Id="59" Count="0" />
+      <LineId Id="56" Count="0" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="61" Count="0" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="33" Count="0" />
+      <LineId Id="36" Count="0" />
+      <LineId Id="38" Count="0" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="40" Count="0" />
+      <LineId Id="44" Count="0" />
+      <LineId Id="42" Count="0" />
+      <LineId Id="37" Count="0" />
+      <LineId Id="45" Count="1" />
+      <LineId Id="48" Count="4" />
+      <LineId Id="47" Count="0" />
+      <LineId Id="35" Count="0" />
+      <LineId Id="53" Count="1" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="4" Count="1" />
+      <LineId Id="72" Count="0" />
+      <LineId Id="68" Count="0" />
+      <LineId Id="101" Count="0" />
+      <LineId Id="70" Count="1" />
+      <LineId Id="7" Count="0" />
+      <LineId Id="112" Count="0" />
+      <LineId Id="142" Count="0" />
+      <LineId Id="145" Count="0" />
+      <LineId Id="143" Count="0" />
+      <LineId Id="146" Count="0" />
+      <LineId Id="154" Count="0" />
+      <LineId Id="144" Count="0" />
+      <LineId Id="147" Count="0" />
+      <LineId Id="114" Count="4" />
+      <LineId Id="139" Count="0" />
+      <LineId Id="120" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="100" Count="0" />
+      <LineId Id="9" Count="1" />
+      <LineId Id="73" Count="1" />
+      <LineId Id="91" Count="0" />
+      <LineId Id="75" Count="0" />
+      <LineId Id="69" Count="0" />
+      <LineId Id="12" Count="0" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="149" Count="1" />
+      <LineId Id="155" Count="0" />
+      <LineId Id="151" Count="2" />
+      <LineId Id="148" Count="0" />
+      <LineId Id="123" Count="5" />
+      <LineId Id="140" Count="0" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="102" Count="0" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="94" Count="1" />
+      <LineId Id="107" Count="3" />
+      <LineId Id="106" Count="0" />
+      <LineId Id="96" Count="0" />
+      <LineId Id="82" Count="0" />
+      <LineId Id="130" Count="1" />
+      <LineId Id="156" Count="0" />
+      <LineId Id="132" Count="6" />
+      <LineId Id="86" Count="0" />
+      <LineId Id="13" Count="18" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.Read_ACT">
+      <LineId Id="2" Count="1" />
+      <LineId Id="94" Count="0" />
+      <LineId Id="97" Count="3" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="176" Count="0" />
+      <LineId Id="259" Count="0" />
+      <LineId Id="10" Count="0" />
+      <LineId Id="13" Count="2" />
+      <LineId Id="113" Count="0" />
+      <LineId Id="16" Count="1" />
+      <LineId Id="201" Count="1" />
+      <LineId Id="200" Count="0" />
+      <LineId Id="129" Count="0" />
+      <LineId Id="261" Count="0" />
+      <LineId Id="114" Count="0" />
+      <LineId Id="204" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="181" Count="1" />
+      <LineId Id="184" Count="0" />
+      <LineId Id="186" Count="13" />
+      <LineId Id="185" Count="0" />
+      <LineId Id="183" Count="0" />
+      <LineId Id="132" Count="0" />
+      <LineId Id="206" Count="1" />
+      <LineId Id="205" Count="0" />
+      <LineId Id="210" Count="0" />
+      <LineId Id="262" Count="0" />
+      <LineId Id="211" Count="0" />
+      <LineId Id="208" Count="0" />
+      <LineId Id="139" Count="0" />
+      <LineId Id="213" Count="1" />
+      <LineId Id="212" Count="0" />
+      <LineId Id="217" Count="13" />
+      <LineId Id="216" Count="0" />
+      <LineId Id="215" Count="0" />
+      <LineId Id="133" Count="1" />
+      <LineId Id="232" Count="1" />
+      <LineId Id="231" Count="0" />
+      <LineId Id="236" Count="1" />
+      <LineId Id="263" Count="0" />
+      <LineId Id="234" Count="0" />
+      <LineId Id="157" Count="0" />
+      <LineId Id="239" Count="1" />
+      <LineId Id="238" Count="0" />
+      <LineId Id="243" Count="13" />
+      <LineId Id="242" Count="0" />
+      <LineId Id="241" Count="0" />
+      <LineId Id="172" Count="0" />
+      <LineId Id="177" Count="0" />
+      <LineId Id="175" Count="0" />
+      <LineId Id="179" Count="0" />
+      <LineId Id="257" Count="0" />
+      <LineId Id="173" Count="0" />
+      <LineId Id="178" Count="0" />
+      <LineId Id="174" Count="0" />
+      <LineId Id="180" Count="0" />
+      <LineId Id="258" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.Reset_ACT">
+      <LineId Id="2" Count="8" />
+      <LineId Id="13" Count="1" />
+      <LineId Id="27" Count="1" />
+      <LineId Id="15" Count="6" />
+      <LineId Id="25" Count="1" />
+      <LineId Id="23" Count="1" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.Retract_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="81" Count="2" />
+      <LineId Id="108" Count="0" />
+      <LineId Id="135" Count="2" />
+      <LineId Id="134" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="3" Count="1" />
+      <LineId Id="91" Count="0" />
+      <LineId Id="109" Count="0" />
+      <LineId Id="92" Count="3" />
+      <LineId Id="97" Count="2" />
+      <LineId Id="101" Count="2" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="13" Count="4" />
+      <LineId Id="84" Count="0" />
+      <LineId Id="18" Count="2" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="21" Count="0" />
+      <LineId Id="133" Count="0" />
+      <LineId Id="22" Count="1" />
+      <LineId Id="25" Count="4" />
+      <LineId Id="126" Count="3" />
+      <LineId Id="32" Count="0" />
+      <LineId Id="130" Count="0" />
+      <LineId Id="33" Count="8" />
+      <LineId Id="112" Count="4" />
+      <LineId Id="118" Count="3" />
+      <LineId Id="60" Count="0" />
+      <LineId Id="125" Count="0" />
+      <LineId Id="131" Count="0" />
+      <LineId Id="56" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.SafeMonitor_ACT">
+      <LineId Id="6" Count="0" />
+      <LineId Id="36" Count="11" />
+      <LineId Id="51" Count="0" />
+      <LineId Id="9" Count="0" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.Set_ACT">
+      <LineId Id="2" Count="0" />
+      <LineId Id="81" Count="2" />
+      <LineId Id="108" Count="0" />
+      <LineId Id="158" Count="2" />
+      <LineId Id="157" Count="0" />
+      <LineId Id="80" Count="0" />
+      <LineId Id="3" Count="1" />
+      <LineId Id="91" Count="0" />
+      <LineId Id="109" Count="0" />
+      <LineId Id="92" Count="3" />
+      <LineId Id="97" Count="2" />
+      <LineId Id="110" Count="0" />
+      <LineId Id="101" Count="2" />
+      <LineId Id="57" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="13" Count="4" />
+      <LineId Id="84" Count="0" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="121" Count="0" />
+      <LineId Id="155" Count="1" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="137" Count="9" />
+      <LineId Id="148" Count="0" />
+      <LineId Id="147" Count="0" />
+      <LineId Id="136" Count="0" />
+      <LineId Id="111" Count="0" />
+      <LineId Id="122" Count="0" />
+      <LineId Id="124" Count="0" />
+      <LineId Id="126" Count="3" />
+      <LineId Id="150" Count="0" />
+      <LineId Id="130" Count="1" />
+      <LineId Id="149" Count="0" />
+      <LineId Id="132" Count="3" />
+      <LineId Id="123" Count="0" />
+      <LineId Id="56" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="ChillerModule_1.VersionLog">
+      <LineId Id="49" Count="16" />
+      <LineId Id="67" Count="7" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="76" Count="1" />
+      <LineId Id="79" Count="10" />
+      <LineId Id="66" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

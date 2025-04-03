@@ -1,0 +1,430 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="S_LoadLockVent" Id="{7f9a0594-09a6-430e-8767-3c2eb8318ab2}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM S_LoadLockVent
+VAR_INPUT
+	bInit				:BOOL:=FALSE;// 初始化状态 busy/done/errDone
+	bTrig				:BOOL:=FALSE;// 执行触发 信号
+	bReset				:BOOL:=FALSE;// 报错 复位
+	bPause				:BOOL:=FALSE;// 暂停 运行
+	bStop				:BOOL:=FALSE;// 停止 运行
+	bAbort				:BOOL:=FALSE;// 中止 运行
+	
+END_VAR
+VAR_OUTPUT
+	busy				:BOOL;
+	done				:BOOL;
+	errDone				:BOOL;
+END_VAR
+VAR
+	actStep				:ActStepBase;
+END_VAR
+VAR
+	i: INT;
+	t1:ton;
+	t2:ton;
+	t3:ton;
+	notchoose:BOOL;
+	timeOutTime:TIME:=T#120S;
+	safecheckTime:TIME:=T#1S;
+	pdvOpenflag:BOOL;
+	forelineOpenflag:BOOL;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[busy:=actStep.isBusy();
+done:=actStep.isDone();
+errDone:=actStep.isError();
+actStep.Act_Pause(pause:=bPause);
+
+IF bTrig THEN
+	bTrig:=FALSE;
+	IF NOT busy THEN
+		actStep.Act_ex();
+	END_IF
+END_IF
+
+//状态复位
+IF bInit THEN
+	bInit:=FALSE;
+	Act_init_status();
+END_IF
+
+IF bAbort OR bStop THEN
+	bAbort:=FALSE;
+	bStop:=FALSE;
+	Act_init_status();
+	actStep.toZeroStep();
+	gShowLogTextTitle:='NON';
+END_IF
+ActionRun(tempActStep:=actStep);]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{42879593-ba0b-4474-bcc9-637266a5ee07}" />
+    <Method Name="Act_Ex" Id="{5d2d26cc-21c4-4a35-a072-7b79d92a7718}">
+      <Declaration><![CDATA[(*
+---Trigger action
+*)
+METHOD Act_Ex : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT busy THEN
+	actStep.Act_ex();
+	Act_Ex:=TRUE;
+ELSE
+	Act_Ex:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Init_Status" Id="{d4da7e3e-6653-46b3-a9bf-97bc0ba01808}">
+      <Declaration><![CDATA[(*
+---功能: 状态复位 busy/done/errDone;
+*)
+METHOD Act_Init_Status
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[actStep.Act_Init();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ActionRun" Id="{c0055eed-87c8-428e-ba52-f0199933abd9}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE ActionRun
+VAR_INPUT
+	tempActStep:ITFActStep;
+END_VAR
+VAR
+END_VAR
+VAR_STAT//此处定义静态变量, 保证每次进入该函数时能够在线监控当前值
+	tempStep:DINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[tempStep:=tempActStep.getStep();
+CASE tempStep OF
+0:
+	IF tempActStep.isEx() THEN
+		tempActStep.setBusyFlag();
+		tempActStep.toBeginStep();
+	END_IF
+	t1(IN:= FALSE );
+	t2(IN:= FALSE );
+	t3(IN:= FALSE );
+10:
+	gShowLogTextTitle:='Load Lock Vent';
+	IF gRunningState<>RunningStatus.eErrorState THEN
+		tempActStep.addStep(10,FALSE);
+	ELSE
+		error_Trigger(105);
+		IF gCtrlMode=ControlMode.eManualCtrMode THEN
+			tempActStep.toErrDoneStep();
+		END_IF
+	END_IF
+20:
+	IF NOT gICP.ForeLineGauge.error AND gICP.ForeLineGauge.outputValue<gRoughtPumVaccum*10 THEN
+		tempActStep.addStep(10,FALSE);
+	ELSE
+		error_Trigger(107);
+		IF gCtrlMode=ControlMode.eManualCtrMode THEN
+			tempActStep.toErrDoneStep();
+		END_IF
+	END_IF
+30:
+	IF NOT gICP.LoadLockGauge.error AND gICP.LoadLockGauge.outputValue>gATMPressure THEN
+		tempActStep.toDoneStep();
+	ELSE
+		error_Trigger(107);
+		tempActStep.addStep(10,FALSE);
+	END_IF
+40:
+	IF gICP.ForlinLineValveExtRelay THEN
+		forelineOpenflag:=TRUE;
+	ELSE
+		forelineOpenflag:=FALSE;
+	END_IF
+	IF gICP.PDVOpenSensor THEN
+		pdvOpenflag:=TRUE;
+	ELSE
+		pdvOpenflag:=FALSE;
+	END_IF
+	tempActStep.toStep(100,FALSE);
+100:
+	tempActStep.addStep(10,TRUE);
+110:
+	IF NOT gRoughRemain THEN
+		S_RoughPumping.Act_Init_Status();
+		S_RoughPumping.Act_Ex();
+		tempActStep.addStep(10,FALSE);
+	ELSE
+		tempActStep.toStep(160,FALSE);
+	END_IF
+120:
+	IF S_RoughPumping.done THEN
+		gShowLogTextTitle:='Load Lock Pumping';
+		tempActStep.addStep(10,FALSE);
+	END_IF
+	IF S_RoughPumping.errDone THEN
+		tempActStep.toStep(100,FALSE);
+	END_IF
+130:
+	tempActStep.addStep(10,FALSE);
+140:
+	IF gICP.ForlinLineValve.Act_Retract() AND gICP.PDV.Act_Retract() THEN
+		gRunningLog.append(CONCAT('LL Vent POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('LL Vent POU Run:ForLineValve And PDV Close');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+150:
+	IF gICP.ForlinLineValve.Get_Done_Ret() AND gICP.PDV.Get_Done_Ret() AND gICP.PDVCloseSensor THEN
+		tempActStep.toStep(200,FALSE);
+		gRunningLog.append(CONCAT('LL Vent POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('LL Vent POU Run:ForLineValve And PDV Close Done');
+	END_IF
+160:
+	S_ActuatorRecoveryPOU.Act_Init_Status();
+	S_ActuatorRecoveryPOU.Act_Ex();
+	tempActStep.addStep(10,FALSE);
+170:
+	IF S_ActuatorRecoveryPOU.done THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+180:
+	tempActStep.addStep(10,FALSE);
+190:
+	tempActStep.addStep(10,FALSE);
+200:
+	tempActStep.addStep(10,TRUE);
+210:
+	IF gICP.GateDoorValve.Get_Done_Ret() AND gICP.GateDoorRetSensor AND
+		gICP.VentValve.Get_Done_Ret() AND NOT gICP.VentExtRelay AND
+		gICP.SlowPummingValve.Get_Done_Ret() AND NOT gICP.SlowPummingExtRelay AND
+		gICP.FastPummingValve.Get_Done_Ret() AND NOT gICP.FastPummingExtRelay AND
+		gICP.ForlinLineValve.Get_Done_Ret() AND NOT gICP.ForlinLineValveExtRelay AND
+		gICP.RoughValve.Get_Done_Ret() AND NOT gICP.RoughValveExtRelay  THEN
+		tempActStep.addStep(10,FALSE);		
+	END_IF
+220:
+	IF gICP.VentValve.Act_Extend() THEN
+		gRunningLog.append(CONCAT('LL Vent POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('LL Vent POU Run: Vent Valve Open');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+230:
+	IF gICP.VentValve.Get_Done_Ext() THEN
+		gRunningLog.append(CONCAT('LL Vent POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('LL Vent POU Run: Vent Valve Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+240:
+	t2(IN:= gICP.LoadLockGauge.outputValue>gATMPressure,PT:=T#25S );
+	IF t2.Q OR NOT gICP.I_LLSwitch THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		gRunningLog.append(CONCAT('LL Vent POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append(CONCAT('LL Vent POU Run:LL Vent Pressure Arrive：',REAL_TO_STRING(gICP.LoadLockGauge.outputValue)));
+		tempActStep.addStep(10,FALSE);
+		RETURN;
+	END_IF
+	t1(IN:= TRUE,PT:=timeOutTime );
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		error_Trigger(109);
+		tempActStep.toStep(200,FALSE);
+		RETURN;
+	END_IF
+250:
+	tempActStep.addStep(10,TRUE);
+260:
+	IF gICP.VentValve.Act_Retract() THEN
+		gRunningLog.append(CONCAT('LL Vent POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('LL Vent POU Run: Vent Valve Close');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+270:
+	IF gICP.VentValve.Get_Done_Ret() THEN
+		gRunningLog.append(CONCAT('LL Vent POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('LL Vent POU Run: Vent Valve Close Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+280:
+	t3(IN:=TRUE,PT:=T#1S);
+	IF t3.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(10,FALSE);
+	END_IF
+290:
+	tempActStep.toStep(370,FALSE);
+370:
+	tempActStep.addStep(10,TRUE);
+380:
+	IF forelineOpenflag THEN
+		IF gICP.ForlinLineValve.Act_Extend() THEN
+			gRunningLog.append(CONCAT('LL Vent POU Run:',DINT_TO_STRING(tempStep)));
+			gRunningLog.append('LL Vent POU Run: ForLine Valve Open ');
+			tempActStep.addStep(10,FALSE);
+		END_IF
+	ELSE
+		tempActStep.addStep(20,FALSE);
+	END_IF
+390:
+	IF gICP.ForlinLineValve.Get_Done_Ext() THEN
+		gRunningLog.append(CONCAT('LL Vent POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('LL Vent POU Run: ForLine Valve Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+400:
+	tempActStep.addStep(10,TRUE);
+//465:
+//	IF gICP.PDV.Act_ChangePos() THEN
+//		tempActStep.addStep(2,FALSE);
+//	END_IF
+//467:
+//	IF gICP.PDV.PosMode THEN
+//		tempActStep.addStep(3,FALSE);
+//	END_IF
+410:
+	IF pdvOpenflag THEN
+		IF gICP.PDV.Act_Open() THEN
+			gRunningLog.append(CONCAT('LL Vent POU Run:',DINT_TO_STRING(tempStep)));
+			gRunningLog.append('LL Vent POU Run: PDV Open ');
+			tempActStep.addStep(10,FALSE);
+		END_IF
+	ELSE
+		tempActStep.toStep(1000,FALSE);
+	END_IF
+420:
+	IF gICP.PDV.Get_Done_Ext() OR gICP.PDVOpenSensor THEN
+		gRunningLog.append(CONCAT('LL Vent POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('LL Vent POU Run: PDV Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+430:
+	tempActStep.toStep(1000,FALSE);
+1000:
+	tempActStep.toDoneStep();
+
+60000://Done
+	tempActStep.setDoneFlag();
+	tempActStep.toZeroStep();
+	
+65000://Error
+	tempActStep.setErrDoneFlag();
+	tempActStep.toZeroStep();
+	gICP.VentValve.Act_Retract();
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="S_LoadLockVent">
+      <LineId Id="49" Count="0" />
+      <LineId Id="385" Count="2" />
+      <LineId Id="406" Count="12" />
+      <LineId Id="422" Count="0" />
+      <LineId Id="530" Count="1" />
+      <LineId Id="489" Count="0" />
+      <LineId Id="510" Count="0" />
+      <LineId Id="509" Count="0" />
+      <LineId Id="560" Count="0" />
+      <LineId Id="395" Count="0" />
+      <LineId Id="446" Count="0" />
+    </LineIds>
+    <LineIds Name="S_LoadLockVent.Act_Ex">
+      <LineId Id="14" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="17" Count="0" />
+    </LineIds>
+    <LineIds Name="S_LoadLockVent.Act_Init_Status">
+      <LineId Id="15" Count="0" />
+    </LineIds>
+    <LineIds Name="S_LoadLockVent.ActionRun">
+      <LineId Id="1943" Count="10" />
+      <LineId Id="2378" Count="0" />
+      <LineId Id="1954" Count="2" />
+      <LineId Id="2351" Count="0" />
+      <LineId Id="2389" Count="1" />
+      <LineId Id="1957" Count="2" />
+      <LineId Id="2353" Count="0" />
+      <LineId Id="1961" Count="1" />
+      <LineId Id="2354" Count="0" />
+      <LineId Id="2391" Count="1" />
+      <LineId Id="1963" Count="1" />
+      <LineId Id="2336" Count="1" />
+      <LineId Id="2341" Count="0" />
+      <LineId Id="2338" Count="0" />
+      <LineId Id="2355" Count="0" />
+      <LineId Id="2340" Count="0" />
+      <LineId Id="2339" Count="0" />
+      <LineId Id="1965" Count="0" />
+      <LineId Id="2403" Count="8" />
+      <LineId Id="2402" Count="0" />
+      <LineId Id="1966" Count="0" />
+      <LineId Id="2413" Count="21" />
+      <LineId Id="2468" Count="1" />
+      <LineId Id="2435" Count="4" />
+      <LineId Id="2470" Count="1" />
+      <LineId Id="2440" Count="11" />
+      <LineId Id="1981" Count="3" />
+      <LineId Id="2177" Count="0" />
+      <LineId Id="2201" Count="2" />
+      <LineId Id="2205" Count="2" />
+      <LineId Id="2200" Count="0" />
+      <LineId Id="2208" Count="0" />
+      <LineId Id="2210" Count="0" />
+      <LineId Id="2472" Count="0" />
+      <LineId Id="2356" Count="0" />
+      <LineId Id="2211" Count="3" />
+      <LineId Id="2357" Count="0" />
+      <LineId Id="2473" Count="0" />
+      <LineId Id="2215" Count="7" />
+      <LineId Id="2474" Count="0" />
+      <LineId Id="2359" Count="0" />
+      <LineId Id="2223" Count="6" />
+      <LineId Id="2360" Count="1" />
+      <LineId Id="2231" Count="5" />
+      <LineId Id="2362" Count="0" />
+      <LineId Id="2475" Count="0" />
+      <LineId Id="2363" Count="0" />
+      <LineId Id="2238" Count="3" />
+      <LineId Id="2476" Count="0" />
+      <LineId Id="2364" Count="0" />
+      <LineId Id="2242" Count="11" />
+      <LineId Id="2178" Count="0" />
+      <LineId Id="2297" Count="0" />
+      <LineId Id="2300" Count="0" />
+      <LineId Id="2452" Count="0" />
+      <LineId Id="2455" Count="0" />
+      <LineId Id="2477" Count="0" />
+      <LineId Id="2456" Count="1" />
+      <LineId Id="2453" Count="0" />
+      <LineId Id="2458" Count="1" />
+      <LineId Id="2454" Count="0" />
+      <LineId Id="2305" Count="1" />
+      <LineId Id="2478" Count="0" />
+      <LineId Id="2366" Count="0" />
+      <LineId Id="2307" Count="12" />
+      <LineId Id="2460" Count="0" />
+      <LineId Id="2463" Count="0" />
+      <LineId Id="2479" Count="0" />
+      <LineId Id="2464" Count="1" />
+      <LineId Id="2461" Count="0" />
+      <LineId Id="2466" Count="1" />
+      <LineId Id="2462" Count="0" />
+      <LineId Id="2323" Count="1" />
+      <LineId Id="2480" Count="0" />
+      <LineId Id="2368" Count="0" />
+      <LineId Id="2325" Count="0" />
+      <LineId Id="2301" Count="0" />
+      <LineId Id="2296" Count="0" />
+      <LineId Id="2179" Count="10" />
+      <LineId Id="2326" Count="0" />
+      <LineId Id="1092" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

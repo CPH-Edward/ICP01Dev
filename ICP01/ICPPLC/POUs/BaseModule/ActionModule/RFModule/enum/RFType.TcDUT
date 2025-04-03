@@ -1,0 +1,11 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="RFType" Id="{647c13cf-f53f-4996-9d75-9f371e1d9e19}">
+    <Declaration><![CDATA[TYPE RFType :
+(
+	RFType_Default := 0 //常规分子泵
+)UINT;
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

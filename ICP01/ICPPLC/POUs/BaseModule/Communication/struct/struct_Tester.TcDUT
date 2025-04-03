@@ -1,0 +1,20 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="struct_Tester" Id="{7981b5da-ccf8-4e1c-9901-0870666f35c5}">
+    <Declaration><![CDATA[TYPE struct_Tester :
+STRUCT
+	channel		:DINT:=0;
+	msgType		:DINT:=0;
+	funCode		:DINT:=0;
+	value1		:REAL:=0;
+	value2		:REAL:=0;
+	value3		:REAL:=0;
+	value4		:REAL:=0;
+	value5		:REAL:=0;
+	errID		:LINT:=0;
+	str			:STRING(g_nMaxByte_Client):='';
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

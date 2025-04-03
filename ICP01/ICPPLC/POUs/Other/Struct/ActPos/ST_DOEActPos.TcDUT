@@ -1,0 +1,41 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="ST_DOEActPos" Id="{caa5f6d4-9a07-4409-8b9f-3faf56f85831}">
+    <Declaration><![CDATA[TYPE ST_DOEActPos :
+STRUCT
+	X1LoadPos:LREAL;//Tray盘上料位，靠近确认按钮侧
+	X1SafePos:LREAL;//Tray盘移动安全位
+	X1UnLoadPos:LREAL;//Tray下料位，即吸嘴上料位
+	X1ScanPos:LREAL;//X1扫码位
+	
+	Y1LoadPos:LREAL;//吸嘴Y1模组上料位
+	Y1PhotoPos:LREAL;//上料上相机拍照位(Y1移动)
+	Y1SafePos:LREAL;//上料Y1模组安全位
+	Y1UnLoadPos:LREAL;//上料Y1模组下料至载具安全位
+	Y1NGUnLoadPos:LREAL;//Y1轴NG下料位置
+	Y1ScanPos:LREAL;// Y1扫码位
+	Y1LoadPhotoPos:LREAL;//载具下料——上料拍照位
+	
+	Z1LoadPos:LREAL;//上料吸嘴Z1上料高度
+	Z1LoadSafePos:LREAL;//上料吸嘴Z1轴上料安全高度
+	Z1SafePos:LREAL;//上料吸嘴Z1轴在Y1轴移动时的安全高度
+	Z1UnLoadSafePos:LREAL;//上料吸嘴Z1轴下料安全高度
+	Z1UnLoadPos:LREAL;//上料吸嘴Z1轴下料至载具高度
+	Z1NGUnLoadPos:LREAL;//Z1轴NG下料位置
+	
+	
+	R1InitPos:LREAL;//上料吸嘴R1轴初始角度（手动对位值）
+	R1LoadPos:LREAL;//上料吸嘴取料角度
+	R1TopBottomPos:LREAL;//上料吸嘴R1拍姿态角度
+	R1UnLoadPos:LREAL;//上料吸嘴下料角度
+	
+	CY1SafePos:LREAL;//上料相机CY1安全位（避让Socket移动）
+	CY1PhotoPos:LREAL;//上料相机景深工作位CY1:有可能只要工作位
+	CY1TopPhotoPos:LREAL;//载具GRR拍物料Top圆
+	
+	
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

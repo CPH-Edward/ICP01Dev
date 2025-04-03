@@ -1,0 +1,330 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="DownTimeRecordPOU" Id="{857f2baf-e5d8-474c-9ad8-76061ece386c}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM DownTimeRecordPOU
+VAR
+	fbGetCurTaskIndex:GetCurTaskIndex;
+	nTaskNo:INT;
+	tonPush:TON;
+	tPush:TIME:=T#59.9S;
+	fDownTime:REAL;
+	fOtherDownTime:REAL;
+	fOpDownTime:REAL;
+END_VAR
+VAR
+	stPowerOnTime:ST_DownTimeRecord;// 记录上电运行总时间，从开始自动到结束自动的时间
+	nPowerOnDay:UDINT:=0;// 记录上电天数
+
+	stAutoRunTime:ST_DownTimeRecord;// 记录自动运行总时间，从开始自动到结束自动的时间
+	AutoRunTime_temp:LREAL;// 缓存时间
+	
+	stManualMachineDownTime:ST_DownTimeRecord;// 记录手动状态下设备DownTime，
+	ManualMachineDownTime_temp:LREAL;// 缓存时间
+	
+	stMachineDownTime:ST_DownTimeRecord;// 记录设备DownTime，从报错上升沿到下降沿
+	MachineDownTime_temp:LREAL;// 缓存时间
+	
+	stOtherDownTime:ST_DownTimeRecord;// 记录设备其他DownTime，从暂停上升沿到下降沿
+	OtherDownTime_temp:LREAL;// 缓存时间
+	
+	stOpLoadDownTime:ST_DownTimeRecord;// 记录设备操作员上料DownTime，从动作超时上升沿到下降沿
+	OpLoadDownTime_Fix:LREAL;// 操作员固定时间
+	OpLoadDownTime_temp:LREAL;// 缓存时间
+	
+	stOpUnloadDownTime:ST_DownTimeRecord;// 记录设备操作员下料DownTime，从动作超时上升沿到下降沿
+	OpUnloadDownTime_Fix:LREAL;// 操作员固定时间
+	OpUnloadDownTime_temp:LREAL;// 缓存时间
+	
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+// 记录PLC上电总时间
+	fbGetCurTaskIndex(index=>nTaskNo);
+	IF TwinCAT_SystemInfoVarList._TaskInfo[nTaskNo].FirstCycle THEN// 上电初始时间
+		stPowerOnTime.startTime:=TIME();
+		nPowerOnDay:=0;
+		stManualMachineDownTime.startTime:=TIME();
+		ManualMachineDownTime_temp:=0;
+		
+		initState(stAutoRunTime);
+		initState(stManualMachineDownTime);
+		initState(stMachineDownTime);
+		initState(stOtherDownTime);
+		initState(stOpLoadDownTime);
+		initState(stOpUnloadDownTime);
+	END_IF
+	stPowerOnTime.endTime:=TIME();
+	calcTime(stPowerOnTime);
+	
+	stPowerOnTime.bMonitor:=((stPowerOnTime.start2end_s>=3600));// 监控的状态
+	stPowerOnTime.rTrig(CLK:=stPowerOnTime.bMonitor);
+	IF stPowerOnTime.rTrig.Q THEN// 累加1天
+		stPowerOnTime.startTime:=TIME();
+		nPowerOnDay:=nPowerOnDay+1;
+	END_IF
+
+// 记录自动运行总时间
+	stAutoRunTime.rTrig(CLK:=gAutoRunningFlag);
+	IF stAutoRunTime.rTrig.Q THEN// 注意，在初进入自动时同步 startTime 和 endTime
+		// 此次是否需要初始化？
+		(*initState(stAutoRunTime);
+		initState(stMachineDownTime);
+		initState(stOtherDownTime);
+		initState(stOpLoadDownTime);
+		initState(stOpUnloadDownTime);*)
+		
+		stAutoRunTime.startTime:=TIME();
+		//
+	END_IF
+	stAutoRunTime.fTrig(CLK:=gAutoRunningFlag);
+	IF stAutoRunTime.fTrig.Q THEN// 注意，在初进入自动时同步 startTime 和 endTime
+		stManualMachineDownTime.startTime:=TIME();
+		ManualMachineDownTime_temp:=0;
+		
+		stAutoRunTime.endTime:=TIME();
+		calcTime(stAutoRunTime);
+		AutoRunTime_temp:=0;
+		stAutoRunTime.record_s:=stAutoRunTime.start2end_s;
+		
+		(*calcTime(stMachineDownTime);
+		calcTime(stOtherDownTime);
+		calcTime(stOpLoadDownTime);
+		calcTime(stOpUnloadDownTime);
+		stMachineDownTime.record_s:=stMachineDownTime.start2end_s;
+		stOtherDownTime.record_s:=stOtherDownTime.start2end_s;
+		stOpLoadDownTime.record_s:=stOpLoadDownTime.start2end_s;
+		stOpUnloadDownTime.record_s:=stOpUnloadDownTime.start2end_s;*)
+		// 做时间记录
+		
+		// 此次是否需要初始化？
+		(*initState(stAutoRunTime);
+		initState(stMachineDownTime);
+		initState(stOtherDownTime);
+		initState(stOpLoadDownTime);
+		initState(stOpUnloadDownTime);*)
+	END_IF
+
+
+// 记录自动运行下: MachineDownTime 时间; OtherDownTime 时间; OpLoadDownTime 时间;  OpUnLoadDownTime 时间; 
+	IF gAutoRunningFlag THEN// 自动状态下
+	 (*MachineDownTime*) // 报错 上升沿-下降沿
+		stMachineDownTime.bMonitor:=(gRunningState=RunningStatus.eErrorState);// 监控的状态
+		stMachineDownTime.rTrig(CLK:=stMachineDownTime.bMonitor);
+		IF stMachineDownTime.rTrig.Q THEN// 记录开始时间
+			stMachineDownTime.startTime:=TIME();
+			MachineDownTime_temp:=0;
+		END_IF
+		IF stMachineDownTime.bMonitor THEN
+			stMachineDownTime.endTime:=TIME();
+			calcTime(stMachineDownTime);
+			MachineDownTime_temp:=(stMachineDownTime.start2end_s)-MachineDownTime_temp;// 获取每个扫描周期产生的时间差
+			stMachineDownTime.record_s:=stMachineDownTime.record_s+MachineDownTime_temp;
+			MachineDownTime_temp:=(stMachineDownTime.start2end_s);// 缓存最后一个扫描周期的总时长
+		END_IF
+		stMachineDownTime.fTrig(CLK:=stMachineDownTime.bMonitor);
+		IF stMachineDownTime.fTrig.Q THEN// 记录结束状态
+			stMachineDownTime.endTime:=TIME();
+			calcTime(stMachineDownTime);
+			MachineDownTime_temp:=0;
+			// 做时间记录
+				(*
+				gDownTimeLog.append(CONCAT('DT,stMachineDownTime,',TO_STRING(stMachineDownTime.record_s)));
+				*)
+		END_IF
+	 //
+	 (*OtherDownTime*) // 暂停 上升沿-下降沿
+		stOtherDownTime.bMonitor:=(gRunningState=RunningStatus.ePauseState);// 监控的状态
+		stOtherDownTime.rTrig(CLK:=stOtherDownTime.bMonitor);
+		IF stOtherDownTime.rTrig.Q THEN// 记录开始时间
+			stOtherDownTime.startTime:=TIME();
+			OtherDownTime_temp:=0;
+		END_IF
+		IF stOtherDownTime.bMonitor THEN
+			stOtherDownTime.endTime:=TIME();
+			calcTime(stOtherDownTime);
+			OtherDownTime_temp:=(stOtherDownTime.start2end_s)-OtherDownTime_temp;// 获取每个扫描周期产生的时间差
+			stOtherDownTime.record_s:=stOtherDownTime.record_s+OtherDownTime_temp;
+			OtherDownTime_temp:=(stOtherDownTime.start2end_s);// 缓存最后一个扫描周期的总时长
+		END_IF
+		stOtherDownTime.fTrig(CLK:=stOtherDownTime.bMonitor);
+		IF stOtherDownTime.fTrig.Q THEN// 记录结束状态
+			stOtherDownTime.endTime:=TIME();
+			calcTime(stOtherDownTime);
+			OtherDownTime_temp:=0;
+			// 做时间记录
+				(*
+				gDownTimeLog.append(CONCAT('DT,stOtherDownTime,',TO_STRING(stOtherDownTime.record_s)));
+				*)
+		END_IF
+	 //
+	 (*OpLoadDownTime*) //  上升沿-下降沿
+	 	// 此处不会记录第一次进入自动时，OP不上料的情况
+//		stOpLoadDownTime.rTrig(CLK:=L_Robot_Load.Can_Getting_DUT);//(CLK:=L_Robot_Load.Getting_DUT);
+//		IF stOpLoadDownTime.rTrig.Q OR (gRunningState<>RunningStatus.eAutoState) THEN// 记录开始时间
+//			stOpLoadDownTime.startTime:=TIME();
+//			OpLoadDownTime_temp:=0;
+//			stOpLoadDownTime.bMonitor:=TRUE;
+//		END_IF
+//		IF stOpLoadDownTime.bMonitor THEN
+//			stOpLoadDownTime.endTime:=TIME();
+//			calcTime(stOpLoadDownTime);
+//			OpLoadDownTime_Fix:=3;// 常数, 按实际情况配置------------------------------------------------------------------------------
+//			IF (stOpLoadDownTime.start2end_s>OpLoadDownTime_Fix) THEN
+//				OpLoadDownTime_temp:=(stOpLoadDownTime.start2end_s(*-OpLoadDownTime_Fix*))-OpLoadDownTime_temp;// 获取每个扫描周期产生的时间差
+//				stOpLoadDownTime.record_s:=stOpLoadDownTime.record_s+OpLoadDownTime_temp;
+//				OpLoadDownTime_temp:=(stOpLoadDownTime.start2end_s(*-OpLoadDownTime_Fix*));// 缓存最后一个扫描周期的总时长
+//			END_IF
+//		END_IF
+//		stOpLoadDownTime.fTrig(CLK:=L_Robot_Load.Can_Getting_DUT);
+//		IF stOpLoadDownTime.fTrig.Q THEN// 记录结束状态
+//			stOpLoadDownTime.bMonitor:=FALSE;
+//			stOpLoadDownTime.endTime:=TIME();
+//			calcTime(stOpLoadDownTime);
+//			OpLoadDownTime_temp:=0;// 清除缓存时间
+//			// 做时间记录
+//				(*
+//				gDownTimeLog.append(CONCAT('DT,stOpLoadDownTime,',TO_STRING(stOpLoadDownTime.record_s)));
+//				*)
+//		END_IF
+//	 //
+//	 (*OpUnLoadDownTime*) //  上升沿-下降沿
+//		stOpUnloadDownTime.bMonitor:=gStationUnLoad.I_BeltEndisHaveDutSensor_1 OR gStationUnLoad.I_BeltEndisHaveDutSensor_2;// 监控的状态
+//		stOpUnloadDownTime.rTrig(CLK:=stOpUnloadDownTime.bMonitor);
+//		IF stOpUnloadDownTime.rTrig.Q OR (gRunningState<>RunningStatus.eAutoState) THEN// 记录开始时间
+//			stOpUnloadDownTime.startTime:=TIME();
+//			OpUnloadDownTime_temp:=0;
+//		END_IF
+//		IF stOpUnloadDownTime.bMonitor THEN
+//			stOpUnloadDownTime.endTime:=TIME();
+//			calcTime(stOpUnloadDownTime);
+//			OpUnloadDownTime_Fix:=3;// 常数, 按实际情况配置------------------------------------------------------------------------------
+//			IF (stOpUnloadDownTime.start2end_s>OpUnloadDownTime_Fix) THEN
+//				OpUnloadDownTime_temp:=(stOpUnloadDownTime.start2end_s(*-OpUnloadDownTime_Fix*))-OpUnloadDownTime_temp;// 获取每个扫描周期产生的时间差
+//				stOpUnloadDownTime.record_s:=stOpUnloadDownTime.record_s+OpUnloadDownTime_temp;
+//				OpUnloadDownTime_temp:=(stOpUnloadDownTime.start2end_s(*-OpUnloadDownTime_Fix*));// 缓存最后一个扫描周期的总时长
+//			END_IF
+//		END_IF
+//		stOpUnloadDownTime.fTrig(CLK:=stOpUnloadDownTime.bMonitor);
+//		IF stOpUnloadDownTime.fTrig.Q THEN// 记录结束状态
+//			stOpUnloadDownTime.endTime:=TIME();
+//			calcTime(stOpUnloadDownTime);
+//			OpUnloadDownTime_temp:=0;// 清除缓存时间
+//			// 做时间记录
+//				(*
+//				gDownTimeLog.append(CONCAT('DT,stOpUnloadDownTime,',TO_STRING(stOpUnloadDownTime.record_s)));
+//				*)
+//		END_IF
+//	 //
+	ELSE// 手动状态下
+		stManualMachineDownTime.endTime:=TIME();
+		calcTime(stManualMachineDownTime);
+		ManualMachineDownTime_temp:=(stManualMachineDownTime.start2end_s)-ManualMachineDownTime_temp;// 获取每个扫描周期产生的时间差
+		stManualMachineDownTime.record_s:=stManualMachineDownTime.record_s+ManualMachineDownTime_temp;
+		ManualMachineDownTime_temp:=(stManualMachineDownTime.start2end_s);// 缓存最后一个扫描周期的总时长
+	END_IF
+
+// 定时上报
+tonPush(IN:=NOT tonPush.Q,PT:=tPush);
+IF tonPush.Q THEN
+	IF gAutoRunningFlag THEN
+		stAutoRunTime.endTime:=TIME();
+		calcTime(stAutoRunTime);
+		AutoRunTime_temp:=0;
+		stAutoRunTime.record_s:=stAutoRunTime.start2end_s;
+//		gPowerONTotalTime:=gPowerONTotalTime+1;
+	END_IF
+	fDownTime:=TO_REAL(stManualMachineDownTime.record_s+stMachineDownTime.record_s);
+	fOtherDownTime:=TO_REAL(stOtherDownTime.record_s);
+	fOpDownTime:=TO_REAL(stOpLoadDownTime.record_s+stOpUnloadDownTime.record_s);
+	
+	//(*
+	gDownTimeLog.append(CONCAT('DT,stAutoRunTime,',TO_STRING(stAutoRunTime.record_s)));
+	gDownTimeLog.append(CONCAT('DT,stManualMachineDownTime,',TO_STRING(stManualMachineDownTime.record_s)));
+	gDownTimeLog.append(CONCAT('DT,stMachineDownTime,',TO_STRING(stMachineDownTime.record_s)));
+	gDownTimeLog.append(CONCAT('DT,stOtherDownTime,',TO_STRING(stOtherDownTime.record_s)));
+//	gDownTimeLog.append(CONCAT('DT,stOpLoadDownTime,',TO_STRING(stOpLoadDownTime.record_s)));
+//	gDownTimeLog.append(CONCAT('DT,stOpUnloadDownTime,',TO_STRING(stOpUnloadDownTime.record_s)));
+	//*)
+	// 此次需要做发送给上位机的逻辑
+//	PLC_SW1.appendSend(0,0,80,0.0,TO_REAL(stManualMachineDownTime.record_s),0.0,TO_REAL(stOtherDownTime.record_s),0.0,gErrIDToSW,'');
+	
+	// 记录完毕清除数据，重新记录
+	initState(stAutoRunTime);
+	initState(stManualMachineDownTime);
+	initState(stMachineDownTime);
+	initState(stOtherDownTime);
+	initState(stOpLoadDownTime);
+	initState(stOpUnloadDownTime);
+	AutoRunTime_temp:=0;
+	ManualMachineDownTime_temp:=0;
+	MachineDownTime_temp:=0;
+	OpLoadDownTime_temp:=0;
+	OpUnloadDownTime_temp:=0;
+END_IF
+
+]]></ST>
+    </Implementation>
+    <Method Name="calcTime" Id="{8a45e531-a44e-488b-b869-a244147a9162}">
+      <Declaration><![CDATA[METHOD calcTime : BOOL
+VAR_IN_OUT
+	stDownTimeRecord:ST_DownTimeRecord;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+stDownTimeRecord.start2end_time:=(stDownTimeRecord.endTime-stDownTimeRecord.startTime);
+stDownTimeRecord.start2end_ms:=TO_UDINT(stDownTimeRecord.endTime-stDownTimeRecord.startTime);
+stDownTimeRecord.start2end_s:=TO_LREAL(stDownTimeRecord.start2end_ms)*0.001;
+//stDownTimeRecord.startTime:=stDownTimeRecord.endTime;
+
+calcTime:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="initState" Id="{44b3ac6c-a442-4025-8e9a-a36a633b4941}">
+      <Declaration><![CDATA[METHOD initState : BOOL
+VAR_IN_OUT
+	stDownTimeRecord:ST_DownTimeRecord;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[
+stDownTimeRecord.bMonitor:=FALSE;
+stDownTimeRecord.startTime:=stDownTimeRecord.endTime:=TIME();
+stDownTimeRecord.start2end_ms:=0;
+stDownTimeRecord.start2end_s:=0;
+stDownTimeRecord.start2end_time:=TO_TIME(0);
+stDownTimeRecord.record_s:=0;
+stDownTimeRecord.rTrig(CLK:=FALSE);
+stDownTimeRecord.fTrig(CLK:=FALSE);
+
+initState:=TRUE;
+]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="DownTimeRecordPOU">
+      <LineId Id="3" Count="46" />
+      <LineId Id="291" Count="0" />
+      <LineId Id="50" Count="4" />
+      <LineId Id="56" Count="135" />
+      <LineId Id="339" Count="4" />
+      <LineId Id="380" Count="0" />
+      <LineId Id="344" Count="0" />
+      <LineId Id="192" Count="21" />
+      <LineId Id="255" Count="0" />
+      <LineId Id="214" Count="0" />
+      <LineId Id="254" Count="0" />
+      <LineId Id="215" Count="3" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="DownTimeRecordPOU.calcTime">
+      <LineId Id="3" Count="6" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+    <LineIds Name="DownTimeRecordPOU.initState">
+      <LineId Id="3" Count="10" />
+      <LineId Id="2" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

@@ -1,0 +1,27 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <DUT Name="ST_MachineState" Id="{951ea291-1ca2-471f-b1f1-598795a89fbc}">
+    <Declaration><![CDATA[TYPE ST_MachineState :
+STRUCT
+	HMI_E_Stop				:BOOL:=TRUE;
+	HMI_Start				:BOOL:=FALSE;
+	HMI_Stop				:BOOL:=FALSE;
+	HMI_Reset				:BOOL:=FALSE;
+	HMI_EnableBuzzer		:BOOL:=FALSE;
+	HMI_RunStateTxt			:STRING:='';
+	Actual_E_Stop			:BOOL;//设备 EStop 按钮-
+	Actual_Start			:BOOL;//设备 Start 按钮
+	Actual_Stop				:BOOL;//设备 Stop 按钮
+	Actual_Reset			:BOOL;//设备 Reset 按钮
+	Actual_StartLamp		:BOOL;//设备 Start 按钮灯
+	Actual_StopALamp		:BOOL;//设备 Stop 按钮灯
+	Actual_ResetLamp		:BOOL;//设备 Reset 按钮灯
+	Actual_RedLamp			:BOOL;//设备 三色灯 Red 灯
+	Actual_YellowLamp		:BOOL;//设备 三色灯 Yellow 灯
+	Actual_GreenLamp		:BOOL;//设备 三色灯 Green 灯
+	Actual_Buzzer			:BOOL;//设备 三色灯 Buzzer
+END_STRUCT
+END_TYPE
+]]></Declaration>
+  </DUT>
+</TcPlcObject>

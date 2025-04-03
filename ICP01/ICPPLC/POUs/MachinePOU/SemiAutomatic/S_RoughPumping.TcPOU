@@ -1,0 +1,591 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="S_RoughPumping" Id="{97e6285e-0627-483e-936a-f355607278b8}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM S_RoughPumping
+VAR_INPUT
+	bInit				:BOOL:=FALSE;// 初始化状态 busy/done/errDone
+	bTrig				:BOOL:=FALSE;// 执行触发 信号
+	bReset				:BOOL:=FALSE;// 报错 复位
+	bPause				:BOOL:=FALSE;// 暂停 运行
+	bStop				:BOOL:=FALSE;// 停止 运行
+	bAbort				:BOOL:=FALSE;// 中止 运行
+	
+END_VAR
+VAR_OUTPUT
+	busy				:BOOL;
+	done				:BOOL;
+	errDone				:BOOL;
+END_VAR
+VAR
+	actStep				:ActStepBase;
+END_VAR
+VAR
+	i: INT;
+	t1:ton;
+	t2:ton;
+	t3:ton;
+	notchoose:BOOL;
+	timeOutTime:TIME:=T#360S;
+	safecheckTime:TIME:=T#1S;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[busy:=actStep.isBusy();
+done:=actStep.isDone();
+errDone:=actStep.isError();
+actStep.Act_Pause(pause:=bPause);
+
+IF bTrig THEN
+	bTrig:=FALSE;
+	IF NOT busy THEN
+		actStep.Act_ex();
+	END_IF
+END_IF
+
+//状态复位
+IF bInit THEN
+	bInit:=FALSE;
+	Act_init_status();
+END_IF
+
+IF bAbort OR bStop THEN
+	bAbort:=FALSE;
+	bStop:=FALSE;
+	Act_init_status();
+	actStep.toZeroStep();
+	gShowLogTextTitle:='NON';
+END_IF
+ActionRun(tempActStep:=actStep);]]></ST>
+    </Implementation>
+    <Folder Name="Private" Id="{e965cc5c-273e-4346-bc76-8c392b792782}" />
+    <Method Name="Act_Ex" Id="{36586477-c5ba-4888-9863-66da7b2d6d17}">
+      <Declaration><![CDATA[(*
+---Trigger action
+*)
+METHOD Act_Ex : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF NOT busy THEN
+	actStep.Act_ex();
+	Act_Ex:=TRUE;
+ELSE
+	Act_Ex:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Init_Status" Id="{05b29425-29d0-4843-a5c5-c3b8cb4a9689}">
+      <Declaration><![CDATA[(*
+---功能: 状态复位 busy/done/errDone;
+*)
+METHOD Act_Init_Status
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[actStep.Act_Init();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="ActionRun" Id="{ef06b761-c570-4ed9-862c-f2d4a9e29aa8}" FolderPath="Private\">
+      <Declaration><![CDATA[METHOD PRIVATE ActionRun
+VAR_INPUT
+	tempActStep:ITFActStep;
+END_VAR
+VAR
+END_VAR
+VAR_STAT//此处定义静态变量, 保证每次进入该函数时能够在线监控当前值
+	tempStep:DINT;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[tempStep:=tempActStep.getStep();
+CASE tempStep OF
+0:
+	IF tempActStep.isEx() THEN
+		tempActStep.setBusyFlag();
+		tempActStep.toBeginStep();
+	END_IF
+	t1(IN:= FALSE );
+	t2(IN:= FALSE );
+	t3(IN:= FALSE );
+10:
+	gShowLogTextTitle:='Rough Pumping';
+	IF gRunningState<>RunningStatus.eErrorState THEN
+		tempActStep.addStep(10,FALSE);
+	ELSE
+		error_Trigger(105);
+		IF gCtrlMode=ControlMode.eManualCtrMode THEN
+			tempActStep.toErrDoneStep();
+		END_IF
+	END_IF
+20:
+	IF NOT gICP.ForeLineGauge.error AND
+		NOT gICP.LoadLockGauge.error  THEN
+		tempActStep.addStep(80,FALSE);
+	ELSE
+		error_Trigger(107);
+		IF gCtrlMode=ControlMode.eManualCtrMode THEN
+			tempActStep.toErrDoneStep();
+		END_IF
+	END_IF
+100:
+	tempActStep.addStep(10,TRUE);
+110:
+	S_ActuatorRecoveryPOU.Act_Init_Status();
+	S_ActuatorRecoveryPOU.Act_Ex();
+	tempActStep.addStep(10,FALSE);
+120:
+	IF S_ActuatorRecoveryPOU.done THEN
+		tempActStep.addStep(10,FALSE);
+	END_IF
+	IF S_ActuatorRecoveryPOU.errDone THEN
+		tempActStep.toErrDoneStep();
+	END_IF
+130:
+	tempActStep.addStep(10,FALSE);
+140:
+	gRunningLog.append('Rough Pumping POU Run:---Start---');
+	IF NOT gRoughRemain THEN
+		tempActStep.toStep(280,FALSE);
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:RoughRemain has not been executed');
+	ELSE
+		tempActStep.toStep(510,FALSE);
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:The -RoughRemain- has already been executed');
+	END_IF
+200:
+	tempActStep.addStep(10,TRUE);
+210:
+	IF gICP.ForlinLineValve.Act_Extend() THEN
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:FordLine Valve Open');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+220:
+	IF gICP.ForlinLineValve.Get_Done_Ext() THEN
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:ForeLine Valve Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+230:
+	t2(IN:= gICP.ForeLineGauge.outputValue<gRoughtPumVaccum*10,PT:=safecheckTime*3 );
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:ForeLine Pressure Arrive：',REAL_TO_STRING(gICP.ForeLineGauge.outputValue)));
+		ups_CX51X0.Act_Wrtie();
+		tempActStep.addStep(10,FALSE);
+		RETURN;
+	END_IF
+	t1(IN:= TRUE,PT:=timeOutTime );
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		error_Trigger(113);
+		tempActStep.toStep(200,FALSE);
+		RETURN;
+	END_IF
+240:
+	tempActStep.addStep(10,TRUE);
+250:
+	IF gICP.ForlinLineValve.Act_Retract() THEN
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:ForeLine Valve Close');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+260:
+	IF gICP.ForlinLineValve.Get_Done_Ret() THEN
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:ForeLine Valve Close Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+270:
+	t3(IN:=TRUE,PT:=T#2S);
+	IF t3.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.toStep(360,FALSE);
+	END_IF
+280:
+	tempActStep.addStep(10,TRUE);
+290:
+	IF gICP.RoughValve.Act_Extend() THEN
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:Rough Valve Open');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+300:
+	IF gICP.RoughValve.Get_Done_Ext() THEN
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:Rough Valve Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+310:
+	t2(IN:= gICP.ForeLineGauge.outputValue<gRoughtPumVaccum*10,PT:=safecheckTime*3 );
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:Chamber Pressure Arrive：',REAL_TO_STRING(gICP.ForeLineGauge.outputValue)));
+		tempActStep.addStep(10,FALSE);
+		RETURN;
+	END_IF
+	t1(IN:= TRUE,PT:=timeOutTime );
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		error_Trigger(113);
+		tempActStep.toStep(280,FALSE);
+		RETURN;
+	END_IF
+320:
+	tempActStep.addStep(10,TRUE);
+330:
+	IF gICP.RoughValve.Act_Retract() THEN
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:Rough Valve Close');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+340:
+	IF gICP.RoughValve.Get_Done_Ret() THEN
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:Rough Valve Close Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+350:
+	t3(IN:=TRUE,PT:=T#2S);
+	IF t3.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.toStep(200,FALSE);
+	END_IF
+360:
+	tempActStep.addStep(10,TRUE);
+370:
+	IF gICP.SlowPummingValve.Act_Extend() THEN
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:SlowPump Valve Open');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+380:
+	IF gICP.SlowPummingValve.Get_Done_Ext() THEN
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:SlowPump Valve Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+390:
+	t2(IN:= gICP.LoadLockGauge.outputValue<gLoadLockPumSVaccum,PT:=safecheckTime*3 );
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:LoadLock Rough Pressure Arrive：',REAL_TO_STRING(gICP.LoadLockGauge.outputValue)));
+		tempActStep.addStep(10,FALSE);
+		RETURN;
+	END_IF
+	t1(IN:= TRUE,PT:=timeOutTime );
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		error_Trigger(113);
+		tempActStep.toStep(360,FALSE);
+		RETURN;
+	END_IF
+400:
+	tempActStep.addStep(10,TRUE);
+410:
+	IF gICP.SlowPummingValve.Act_Retract() THEN
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:SlowPump Valve Close');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+420:
+	IF gICP.SlowPummingValve.Get_Done_Ret() THEN
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:SlowPump Valve Close Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+430:
+	t3(IN:=TRUE,PT:=T#1S);
+	IF t3.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(10,FALSE);
+	END_IF
+440:
+	tempActStep.addStep(10,TRUE);
+450:
+	IF gICP.FastPummingValve.Act_Extend() THEN
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:FastwPump Valve Open');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+460:
+	IF gICP.FastPummingValve.Get_Done_Ext() THEN
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:FastwPump Valve Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+470:
+	t2(IN:= gICP.LoadLockGauge.outputValue<gRoughtPumVaccum*2.5,PT:=safecheckTime );
+	IF t2.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:LoadLock Pressure Arrive：',REAL_TO_STRING(gICP.LoadLockGauge.outputValue)));
+		
+		tempActStep.addStep(10,FALSE);
+		RETURN;
+	END_IF
+	t1(IN:= TRUE,PT:=timeOutTime );
+	IF t1.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		error_Trigger(113);
+		tempActStep.toStep(440,FALSE);
+		RETURN;
+	END_IF
+480:
+	tempActStep.addStep(10,TRUE);
+490:
+	IF gICP.FastPummingValve.Act_Retract() THEN
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:FastwPump Valve Close');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+500:
+	IF gICP.FastPummingValve.Get_Done_Ret() THEN
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:FastwPump Valve Close Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+510:
+	t3(IN:=TRUE,PT:=T#2S);
+	IF t3.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(2,FALSE);
+	END_IF
+512:
+	IF S_ActuatorRecoveryPOU.atmflag THEN
+		S_BackOfHeliumClear.Act_Init_Status();
+		S_BackOfHeliumClear.Act_Ex();
+		tempActStep.addStep(2,FALSE);
+	ELSE
+		tempActStep.addStep(8,FALSE);
+	END_IF
+514:
+	IF S_BackOfHeliumClear.busy THEN
+		tempActStep.addStep(2,FALSE);
+	END_IF
+516:
+	IF S_BackOfHeliumClear.done THEN
+		tempActStep.addStep(2,FALSE);
+	END_IF
+518:
+	tempActStep.addStep(2,FALSE);
+520:
+	IF gICP.ForlinLineValve.Act_Extend() AND gICP.PDV.Act_Open() THEN
+		gRunningLog.append(CONCAT('Rough Pumping POU Run:',DINT_TO_STRING(tempStep)));
+		gRunningLog.append('Rough Pumping POU Run:ForeLine Valve And PDV Open');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+530:
+	IF gICP.ForlinLineValveExtRelay AND (gICP.PDV.Get_Done_Ext() OR gICP.PDVOpenSensor) THEN
+		gRunningLog.append('Rough Pumping POU Run:ForLeine Valve And PDV Open Done');
+		tempActStep.addStep(10,FALSE);
+	END_IF
+540:
+	t3(IN:=TRUE,PT:=T#2S);
+	IF t3.Q THEN
+		t1(IN:= FALSE );
+		t2(IN:= FALSE );
+		t3(IN:= FALSE );
+		tempActStep.addStep(10,FALSE);
+	END_IF
+550:
+	tempActStep.toStep(1000,FALSE);
+	IF NOT S_ChamberLLVent.busy AND NOT S_MachineVent.busy THEN
+		gRoughRemain:=TRUE;
+		gRoughRemainTMPCanOpen:=TRUE;
+	END_IF
+1000:
+	tempActStep.toDoneStep();
+
+60000://Done
+	tempActStep.setDoneFlag();
+	tempActStep.toZeroStep();
+	S_ActuatorRecoveryPOU.atmflag:=FALSE;
+	
+65000://Error
+	tempActStep.setErrDoneFlag();
+	tempActStep.toZeroStep();
+	S_ActuatorRecoveryPOU.atmflag:=FALSE;
+END_CASE]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="S_RoughPumping">
+      <LineId Id="49" Count="0" />
+      <LineId Id="385" Count="2" />
+      <LineId Id="406" Count="12" />
+      <LineId Id="422" Count="0" />
+      <LineId Id="530" Count="1" />
+      <LineId Id="489" Count="0" />
+      <LineId Id="510" Count="0" />
+      <LineId Id="509" Count="0" />
+      <LineId Id="560" Count="0" />
+      <LineId Id="395" Count="0" />
+      <LineId Id="446" Count="0" />
+    </LineIds>
+    <LineIds Name="S_RoughPumping.Act_Ex">
+      <LineId Id="14" Count="0" />
+      <LineId Id="16" Count="0" />
+      <LineId Id="20" Count="0" />
+      <LineId Id="18" Count="1" />
+      <LineId Id="17" Count="0" />
+    </LineIds>
+    <LineIds Name="S_RoughPumping.Act_Init_Status">
+      <LineId Id="15" Count="0" />
+    </LineIds>
+    <LineIds Name="S_RoughPumping.ActionRun">
+      <LineId Id="1943" Count="8" />
+      <LineId Id="2254" Count="0" />
+      <LineId Id="1953" Count="0" />
+      <LineId Id="2264" Count="0" />
+      <LineId Id="1954" Count="2" />
+      <LineId Id="2220" Count="0" />
+      <LineId Id="2283" Count="1" />
+      <LineId Id="1957" Count="3" />
+      <LineId Id="2199" Count="0" />
+      <LineId Id="1961" Count="1" />
+      <LineId Id="2221" Count="0" />
+      <LineId Id="2285" Count="1" />
+      <LineId Id="1963" Count="0" />
+      <LineId Id="2204" Count="0" />
+      <LineId Id="1967" Count="2" />
+      <LineId Id="2268" Count="1" />
+      <LineId Id="2266" Count="0" />
+      <LineId Id="1973" Count="8" />
+      <LineId Id="2205" Count="0" />
+      <LineId Id="2222" Count="0" />
+      <LineId Id="2207" Count="1" />
+      <LineId Id="2311" Count="1" />
+      <LineId Id="2209" Count="1" />
+      <LineId Id="2313" Count="1" />
+      <LineId Id="2206" Count="0" />
+      <LineId Id="1982" Count="3" />
+      <LineId Id="2310" Count="0" />
+      <LineId Id="2223" Count="0" />
+      <LineId Id="1986" Count="3" />
+      <LineId Id="2315" Count="0" />
+      <LineId Id="2224" Count="0" />
+      <LineId Id="1990" Count="7" />
+      <LineId Id="2316" Count="0" />
+      <LineId Id="2225" Count="0" />
+      <LineId Id="2201" Count="0" />
+      <LineId Id="1998" Count="7" />
+      <LineId Id="2226" Count="0" />
+      <LineId Id="2006" Count="6" />
+      <LineId Id="2317" Count="0" />
+      <LineId Id="2227" Count="0" />
+      <LineId Id="2013" Count="3" />
+      <LineId Id="2318" Count="0" />
+      <LineId Id="2228" Count="0" />
+      <LineId Id="2017" Count="13" />
+      <LineId Id="2319" Count="0" />
+      <LineId Id="2229" Count="0" />
+      <LineId Id="2031" Count="3" />
+      <LineId Id="2320" Count="0" />
+      <LineId Id="2230" Count="0" />
+      <LineId Id="2035" Count="6" />
+      <LineId Id="2231" Count="0" />
+      <LineId Id="2321" Count="0" />
+      <LineId Id="2232" Count="0" />
+      <LineId Id="2043" Count="7" />
+      <LineId Id="2233" Count="0" />
+      <LineId Id="2051" Count="6" />
+      <LineId Id="2322" Count="0" />
+      <LineId Id="2234" Count="0" />
+      <LineId Id="2058" Count="3" />
+      <LineId Id="2323" Count="0" />
+      <LineId Id="2235" Count="0" />
+      <LineId Id="2062" Count="13" />
+      <LineId Id="2324" Count="0" />
+      <LineId Id="2236" Count="0" />
+      <LineId Id="2076" Count="3" />
+      <LineId Id="2325" Count="0" />
+      <LineId Id="2237" Count="0" />
+      <LineId Id="2080" Count="6" />
+      <LineId Id="2239" Count="0" />
+      <LineId Id="2326" Count="0" />
+      <LineId Id="2240" Count="0" />
+      <LineId Id="2088" Count="8" />
+      <LineId Id="2290" Count="0" />
+      <LineId Id="2097" Count="5" />
+      <LineId Id="2327" Count="0" />
+      <LineId Id="2241" Count="0" />
+      <LineId Id="2103" Count="3" />
+      <LineId Id="2328" Count="0" />
+      <LineId Id="2242" Count="0" />
+      <LineId Id="2107" Count="13" />
+      <LineId Id="2329" Count="0" />
+      <LineId Id="2243" Count="0" />
+      <LineId Id="2121" Count="3" />
+      <LineId Id="2330" Count="0" />
+      <LineId Id="2244" Count="0" />
+      <LineId Id="2125" Count="6" />
+      <LineId Id="2245" Count="0" />
+      <LineId Id="2331" Count="0" />
+      <LineId Id="2246" Count="0" />
+      <LineId Id="2132" Count="8" />
+      <LineId Id="2247" Count="0" />
+      <LineId Id="2141" Count="5" />
+      <LineId Id="2248" Count="0" />
+      <LineId Id="2332" Count="0" />
+      <LineId Id="2250" Count="0" />
+      <LineId Id="2148" Count="3" />
+      <LineId Id="2333" Count="0" />
+      <LineId Id="2249" Count="0" />
+      <LineId Id="2152" Count="9" />
+      <LineId Id="2344" Count="0" />
+      <LineId Id="2358" Count="0" />
+      <LineId Id="2361" Count="1" />
+      <LineId Id="2359" Count="0" />
+      <LineId Id="2363" Count="1" />
+      <LineId Id="2360" Count="0" />
+      <LineId Id="2348" Count="4" />
+      <LineId Id="2354" Count="1" />
+      <LineId Id="2353" Count="0" />
+      <LineId Id="2356" Count="1" />
+      <LineId Id="2162" Count="1" />
+      <LineId Id="2334" Count="0" />
+      <LineId Id="2251" Count="0" />
+      <LineId Id="2164" Count="3" />
+      <LineId Id="2252" Count="0" />
+      <LineId Id="2168" Count="11" />
+      <LineId Id="2367" Count="1" />
+      <LineId Id="2370" Count="0" />
+      <LineId Id="2369" Count="0" />
+      <LineId Id="2180" Count="5" />
+      <LineId Id="2365" Count="0" />
+      <LineId Id="2186" Count="3" />
+      <LineId Id="2366" Count="0" />
+      <LineId Id="1092" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

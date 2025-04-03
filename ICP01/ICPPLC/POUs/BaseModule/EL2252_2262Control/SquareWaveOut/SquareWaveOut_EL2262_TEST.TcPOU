@@ -1,0 +1,97 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="SquareWaveOut_EL2262_TEST" Id="{465a4fcc-ce25-4662-9f8e-ead7d72f5d11}" SpecialFunc="None">
+    <Declaration><![CDATA[PROGRAM SquareWaveOut_EL2262_TEST
+VAR_INPUT
+	bStart_ch1:BOOL;
+	nCycle_ch1:UDINT;//方波周期，需要设置为2的整数倍；单位us
+	bStart_ch2:BOOL;
+	nCycle_ch2:UDINT;//方波周期，需要设置为2的整数倍；单位us
+END_VAR
+VAR
+	fb_FB_SquareWaveOut_EL2262:FB_SquareWaveOut_EL2262;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+IF bStart_ch1 THEN
+	fb_FB_SquareWaveOut_EL2262.Act_Ex_Ch1();
+	bStart_ch1:=FALSE;
+END_IF
+IF bStart_ch2 THEN
+	fb_FB_SquareWaveOut_EL2262.Act_Ex_Ch2();
+	bStart_ch2:=FALSE;
+END_IF
+fb_FB_SquareWaveOut_EL2262(
+	bStart_ch1:= , 
+	nCycle_ch1:= nCycle_ch1, 
+	bStart_ch2:= , 
+	nCycle_ch2:= nCycle_ch2, 
+	Io_EL2262=> );]]></ST>
+    </Implementation>
+    <Method Name="Act_Ex_Ch1" Id="{82236c39-9383-4a73-82a8-e659033099ab}">
+      <Declaration><![CDATA[METHOD Act_Ex_Ch1 : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Ex_Ch1:=fb_FB_SquareWaveOut_EL2262.Act_Ex_Ch1();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Ex_Ch2" Id="{bd6f4db8-4881-4372-b74c-4b18594d8de3}">
+      <Declaration><![CDATA[METHOD Act_Ex_Ch2 : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Act_Ex_Ch2:=fb_FB_SquareWaveOut_EL2262.Act_Ex_Ch2();]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Stop_Ch1" Id="{70fa6abb-ac59-49d4-b7ed-2fc06d51044e}">
+      <Declaration><![CDATA[METHOD Act_Stop_Ch1 : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[bStart_ch1:=FALSE;
+Act_Stop_Ch1:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Stop_Ch2" Id="{c30bb8fc-377f-4fb3-9c55-801caff85e25}">
+      <Declaration><![CDATA[METHOD Act_Stop_Ch2 : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[bStart_ch2:=FALSE;
+Act_Stop_Ch2:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <LineIds Name="SquareWaveOut_EL2262_TEST">
+      <LineId Id="106" Count="0" />
+      <LineId Id="92" Count="0" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="112" Count="0" />
+      <LineId Id="108" Count="0" />
+      <LineId Id="110" Count="1" />
+      <LineId Id="113" Count="0" />
+      <LineId Id="109" Count="0" />
+      <LineId Id="93" Count="4" />
+      <LineId Id="101" Count="0" />
+    </LineIds>
+    <LineIds Name="SquareWaveOut_EL2262_TEST.Act_Ex_Ch1">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="SquareWaveOut_EL2262_TEST.Act_Ex_Ch2">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="SquareWaveOut_EL2262_TEST.Act_Stop_Ch1">
+      <LineId Id="6" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="SquareWaveOut_EL2262_TEST.Act_Stop_Ch2">
+      <LineId Id="6" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>

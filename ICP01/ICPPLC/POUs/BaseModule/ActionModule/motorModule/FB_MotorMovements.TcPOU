@@ -1,0 +1,985 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.4">
+  <POU Name="FB_MotorMovements" Id="{573acc55-c3ab-452c-803f-54378d95c11d}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK FB_MotorMovements
+VAR_IN_OUT
+	axis							:AXIS_REF;//链接到实际的轴
+	WarmHMI							:WARMStruct;
+END_VAR
+VAR_INPUT
+	bPLimitSwitch					:BOOL:=TRUE;//MC轴正限位感应信号
+	bNLimitSwitch					:BOOL:=TRUE;//MC轴负限位感应信号
+	bDOGPointSwitch					:BOOL:=FALSE;//MC轴原点感应信号
+	bTorqueEN						:BOOL:=FALSE;// 启用条件
+	bTorqueAlmValue					:LREAL;// 报警扭力值
+	bP_Pos							:LREAL:=0.777;	 //正向位置(开门）
+	bN_Pos							:LREAL:=0.777;	 //负向位置(关门）
+
+	eMotorType						:MotorType:=MotorType.MotorType_Default;//设置电机的类型
+	bModuloMode						:BOOL:=FALSE;// modulo Mode, 旋转模式
+	nBaseErrID						:UDINT:=0;//电机错误报警分配的起始ID
+	sNameTXT						:STRING(255):='';//电机名字
+
+	bE_Stop							:BOOL:=TRUE;//急停信号
+	//eCtrlMode						:ControlMode:=ControlMode.eManualCtrMode;//eManualCtrMode or eAutoCtrMode
+	hmiEN							:BOOL:=TRUE;//HMI 启用条件
+	
+//POWER
+	//bPowerEnable					:BOOL:=TRUE;//轴使能触发
+	bEnablePositive					:BOOL:=TRUE;//轴允许正转
+	bEnableNegative					:BOOL:=TRUE;//轴允许反转
+//Soft limit
+	bEnableSoftLimit				:BOOL:=FALSE;//轴软限位 启用信号
+	fSoftPLimitPos					:LREAL:=9999999;//轴软限位 正向软限位
+	fSoftNLimitPos					:LREAL:=-9999999;//轴软限位 负向软限位
+	
+	bJogConditionOuter				:BOOL:=TRUE;//轴JOG运动启停条件Outer
+	bAbsConditionOuter				:BOOL:=TRUE;//轴绝对运动启停条件Outer
+	bRelConditionOuter				:BOOL:=TRUE;//轴相对运动启停条件Outer
+	bVelConditionOuter				:BOOL:=TRUE;//轴速度模式启停条件Outer
+	bSetConditionOuter				:BOOL:=TRUE;//轴当前位置设定启停条件Outer
+	bHomeConditionOuter				:BOOL:=TRUE;//轴go home的启停条件Outer
+	bMoveModuloConditionOuter		:BOOL:=TRUE;//轴模运动启停条件Outer
+	
+	bHomeDirection					:BOOL:=TRUE;//轴go home方向 TRUE--正方向，FALSE--负方向
+	eHomeMode						:MotorHomeMode:=MotorHomeMode.MotorHomeMode_Default;//轴go home 模式
+	fHomeLimitSwitch_To_DOGDistance	:LREAL:=5;//电机Home模式为 MotorHomeMode_PLimitSwitch_To_DOG/MotorHomeMode_NLimitSwitch_To_DOG 时, 脱离限位为原点的距离值
+	fHomeOnlyDOGDistance			:LREAL:=5;//电机Home模式为 MotorHomeMode_OnlyDOGPointSwitch 时, 执行往复搜寻动作的幅度
+	fHomeOnlyDOGMaxDistance			:LREAL:=360;//电机Home模式为 MotorHomeMode_OnlyDOGPointSwitch 时, 执行往复搜寻动作幅度的最大值
+	fHomePosition					:LREAL:=0;
+	fHomeCheckRange					:LREAL:=0.01;//轴go home执行完后当前位置判断值
+	fHomeVel						:LREAL:=10;//轴go home 查找限位的速率
+	fHomeVelSlow					:LREAL:=5;//轴go home 查找限位的爬行速率
+	fPosDeviation					:LREAL:=0.01;
+	fSoftLimitVel					:LREAL:=5.0;// 速度限制	
+	noteWTXT						:WSTRING(255):="";//气缸动作NoteTXT 中文
+END_VAR
+VAR_OUTPUT
+	stMotorOutput					:ST_MotorOutput;//轴的状态输出
+END_VAR
+VAR_INPUT
+	fb_motionModule					:MotionModule;
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[
+Obj_Instance();
+//先传递速度限制值
+fb_motionModule.HMIItf.manSoftLimitVel:=fSoftLimitVel;
+//
+stMotorOutput.axisActualPos:=fb_motionModule.axisActualPos;
+stMotorOutput.axisActualVel:=fb_motionModule.axisActualVel;
+stMotorOutput.axisActualtorque:=fb_motionModule.axisActualtorque;
+stMotorOutput.axisPause:=fb_motionModule.axisPause;
+stMotorOutput.axisBusy:=fb_motionModule.axisBusy;
+stMotorOutput.axisDone:=fb_motionModule.axisDone;
+stMotorOutput.axisError:=fb_motionModule.axisError;
+stMotorOutput.axisErrId:=fb_motionModule.axisErrId;
+stMotorOutput.axisErrTxt:=fb_motionModule.axisErrTxt;
+stMotorOutput.axisErrWTxt:=fb_motionModule.axisErrWTxt;
+stMotorOutput.axisHomeState:=fb_motionModule.axisHomeState;
+stMotorOutput.pAxis:=fb_motionModule.pAxis;
+stMotorOutput.jogCondition:=fb_motionModule.jogCondition;
+stMotorOutput.absCondition:=fb_motionModule.absCondition;
+stMotorOutput.relCondition:=fb_motionModule.relCondition;
+stMotorOutput.velCondition:=fb_motionModule.velCondition;
+stMotorOutput.homeCondition:=fb_motionModule.homeCondition;
+stMotorOutput.setCondition:=fb_motionModule.setCondition;
+stMotorOutput.pMotionModule:=ADR(fb_motionModule);]]></ST>
+    </Implementation>
+    <Folder Name="Action" Id="{7f095d24-aa0b-41a7-8bd6-8b37219a69b4}" />
+    <Folder Name="Get" Id="{b9de9127-c344-42d8-bf70-9ff664d74d38}" />
+    <Folder Name="Set" Id="{87493c49-24c0-4f48-89e4-f643d5575967}" />
+    <Method Name="Act_ABS" Id="{a1095482-f026-4560-8eef-9b3bbc70b75b}" FolderPath="Action\">
+      <Declaration><![CDATA[(*
+---If the return value is TRUE, it can be executed, and if return value is FALSE, it is not allowed; 
+---Execute ABS motion; 
+*)
+METHOD Act_ABS : BOOL
+VAR_INPUT
+	pos:LREAL;//target position
+	vel:LREAL;//target velocity
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF fb_motionModule.absCondition THEN
+	fb_motionModule.absVelocity:=vel;
+	fb_motionModule.absPosition:=pos;
+	fb_motionModule.absExecute:=TRUE;
+	Obj_Instance();
+	Act_ABS:=TRUE;
+ELSE
+	Act_ABS:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_ABS_Mixed" Id="{8cb764d6-b66f-45e4-b52e-dacb007b5443}" FolderPath="Action\">
+      <Declaration><![CDATA[(*
+---If the return value is TRUE, it can be executed, and if return value is FALSE, it is not allowed; 
+---Execute ABS variable motion; 
+*)
+METHOD Act_ABS_Mixed : BOOL
+VAR_IN_OUT
+	arrPos:ARRAY [*] OF LREAL;//target position array, array max length is 50
+	arrVel:ARRAY [*] OF LREAL;//target velocity array, array max length is 50
+END_VAR
+VAR_INPUT
+	//arrPos:ARRAY [1..g_Mixed_Index] OF LREAL;//target position array, array max length is 50
+	//arrVel:ARRAY [1..g_Mixed_Index] OF LREAL;//target velocity array, array max length is 50
+	arrLength:UINT;//array length
+END_VAR
+VAR
+	i_Act_ABS_Mixed:UINT;
+	nPosLower_Bound:DINT;//数组下标 首位
+	nPosUpper_Bound:DINT;//数组下标 末位
+	nPosArr_Len:DINT;//数组长度
+	nVelLower_Bound:DINT;//数组下标 首位
+	nVelUpper_Bound:DINT;//数组下标 末位
+	nVelArr_Len:DINT;//数组长度
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[nPosLower_Bound:=LOWER_BOUND(arrPos,1);
+nPosUpper_Bound:=UPPER_BOUND(arrPos,1);
+nPosArr_Len:=nPosUpper_Bound-nPosLower_Bound+1;
+nVelLower_Bound:=LOWER_BOUND(arrVel,1);
+nVelUpper_Bound:=UPPER_BOUND(arrVel,1);
+nVelArr_Len:=nVelUpper_Bound-nVelLower_Bound+1;
+IF nPosArr_Len<>nVelArr_Len 
+	OR nPosArr_Len>=arrLength
+	OR arrLength<=0 THEN
+	Act_ABS_Mixed:=FALSE;
+END_IF
+IF fb_motionModule.absCondition THEN
+	FOR i_Act_ABS_Mixed:=1 TO arrLength BY 1 DO
+		fb_motionModule.absMixedPositionArray[i_Act_ABS_Mixed]:=arrPos[nPosLower_Bound+i_Act_ABS_Mixed-1];
+		fb_motionModule.absMixedVelocityArray[i_Act_ABS_Mixed]:=arrVel[nPosLower_Bound+i_Act_ABS_Mixed-1];
+	END_FOR
+	fb_motionModule.absMixedArrayLength:=arrLength;
+	fb_motionModule.absMixedMovement:=TRUE;
+	fb_motionModule.absExecute:=TRUE;
+	Obj_Instance();
+	Act_ABS_Mixed:=TRUE;
+ELSE
+	Act_ABS_Mixed:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_HOME" Id="{ab6f5ced-67db-4b18-a136-1fe48dda246e}" FolderPath="Action\">
+      <Declaration><![CDATA[(*
+---If the return value is TRUE, it can be executed, and if return value is FALSE, it is not allowed; 
+---Execute HOME motion; 
+*)
+METHOD Act_HOME : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF fb_motionModule.homeCondition THEN
+	fb_motionModule.homeExecute:=TRUE;
+	Obj_Instance();
+	Act_HOME:=TRUE;
+ELSE
+	Act_HOME:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_Modulo" Id="{32f7d015-94bd-4c7e-b12b-a2c3f4084f35}" FolderPath="Action\">
+      <Declaration><![CDATA[(*
+---If the return value is TRUE, it can be executed, and if return value is FALSE, it is not allowed; 
+---Execute Modulo motion; 
+*)
+METHOD Act_Modulo : BOOL
+VAR_INPUT
+	pos:LREAL;//target position
+	vel:LREAL;//target velocity
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF fb_motionModule.moveModuloCondition THEN
+	fb_motionModule.moveModuloVelocity:=vel;
+	fb_motionModule.moveModuloPosition:=pos;
+	fb_motionModule.moveModuloExecute:=TRUE;
+	Obj_Instance();
+	Act_Modulo:=TRUE;
+ELSE
+	Act_Modulo:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_PAUSE" Id="{bd9631b6-22b1-4e41-a180-4e765e9097c1}" FolderPath="Action\">
+      <Declaration><![CDATA[(*
+---If the return value is TRUE, it can be executed, and if return value is FALSE, it is not allowed; 
+---Execute PAUSE; 
+*)
+METHOD Act_PAUSE : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF TRUE THEN
+	fb_motionModule.pauseExecute:=TRUE;
+	Obj_Instance();
+	Act_PAUSE:=TRUE;
+ELSE
+	Act_PAUSE:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_REL" Id="{af2fe85e-4ea8-4462-ac2f-e3e17597ddd0}" FolderPath="Action\">
+      <Declaration><![CDATA[(*
+---If the return value is TRUE, it can be executed, and if return value is FALSE, it is not allowed; 
+---Execute REL motion; 
+*)
+METHOD Act_REL : BOOL
+VAR_INPUT
+	pos:LREAL;//target position
+	vel:LREAL;//target velocity
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF fb_motionModule.relCondition THEN
+	fb_motionModule.relVelocity:=vel;
+	fb_motionModule.relDistance:=pos;
+	fb_motionModule.relExecute:=TRUE;
+	Obj_Instance();
+	Act_REL:=TRUE;
+ELSE
+	Act_REL:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_RESET" Id="{b4725bcc-e177-4c75-ae89-717b7f1eab16}" FolderPath="Action\">
+      <Declaration><![CDATA[(*
+---If the return value is TRUE, it can be executed, and if return value is FALSE, it is not allowed; 
+---Execute RESET; 
+*)
+METHOD Act_RESET : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF TRUE THEN
+	fb_motionModule.resetExecute:=TRUE;
+	Obj_Instance();
+	Act_RESET:=TRUE;
+ELSE
+	Act_RESET:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_SETPOS" Id="{ca285ef5-6bcd-4698-a28c-d1bf79bc0429}" FolderPath="Action\">
+      <Declaration><![CDATA[(*
+---If the return value is TRUE, it can be executed, and if return value is FALSE, it is not allowed; 
+---Execute SetPos motion; 
+*)
+METHOD Act_SETPOS : BOOL
+VAR_INPUT
+	pos:LREAL;//target position
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF fb_motionModule.setCondition THEN
+	fb_motionModule.setPosPosition:=pos;
+	fb_motionModule.setPosExecute:=TRUE;
+	Obj_Instance();
+	Act_SETPOS:=TRUE;
+ELSE
+	Act_SETPOS:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_STOP" Id="{30d401f1-2f15-4658-a707-31ca92fa9414}" FolderPath="Action\">
+      <Declaration><![CDATA[(*
+---If the return value is TRUE, it can be executed, and if return value is FALSE, it is not allowed; 
+---Execute STOP; 
+*)
+METHOD Act_STOP : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF TRUE THEN
+	fb_motionModule.axisStopFlag:=TRUE;
+	Obj_Instance();
+	Act_STOP:=TRUE;
+ELSE
+	Act_STOP:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_VEL" Id="{0eb585b7-011e-4dfd-9b81-ff9c556e4bfd}" FolderPath="Action\">
+      <Declaration><![CDATA[(*
+---If the return value is TRUE, it can be executed, and if return value is FALSE, it is not allowed; 
+---Execute VEL motion; 
+*)
+METHOD Act_VEL : BOOL
+VAR_INPUT
+	vel:LREAL;//target velocity
+	dir:BOOL;//target direction
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF fb_motionModule.velCondition THEN
+	fb_motionModule.velVelocity:=vel;
+	fb_motionModule.velDirection:=dir;
+	fb_motionModule.velExecute:=TRUE;
+	Obj_Instance();
+	Act_VEL:=TRUE;
+ELSE
+	Act_VEL:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_VEL_modifyVel" Id="{0454a73c-c23f-4bcb-b91b-f7944eac87ed}" FolderPath="Action\">
+      <Declaration><![CDATA[(*
+---If the return value is TRUE, it can be executed, and if return value is FALSE, it is not allowed; 
+---Execute Vel variable motion; 
+*)
+METHOD Act_VEL_modifyVel : BOOL
+VAR_INPUT
+	vel:LREAL;//target velocity
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF TRUE THEN
+	fb_motionModule.changeVelVel(vel);
+	Obj_Instance();
+	Act_VEL_modifyVel:=TRUE;
+ELSE
+	Act_VEL_modifyVel:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Act_VEL_Stop" Id="{e246f80e-07ab-4556-b4d3-d0e712094b48}" FolderPath="Action\">
+      <Declaration><![CDATA[(*
+---If the return value is TRUE, it can be executed, and if return value is FALSE, it is not allowed; 
+---Execute Vel stop; 
+*)
+METHOD Act_VEL_Stop : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[IF TRUE THEN
+	fb_motionModule.velExecute:=FALSE;
+	Obj_Instance();
+	Act_VEL_Stop:=TRUE;
+ELSE
+	Act_VEL_Stop:=FALSE;
+END_IF]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_AbsCondition" Id="{24a009b9-7ec6-474a-907a-a03318ef5e1b}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get axis ABS condition
+*)
+METHOD Get_AbsCondition : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_AbsCondition:=fb_motionModule.absCondition;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_ActPos" Id="{03c91278-c788-4d64-a5a0-b0ff5872128a}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get axis actual position
+*)
+METHOD Get_ActPos : LREAL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_ActPos:=fb_motionModule.axisActualPos;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_ActVel" Id="{9af4ddbf-8bbb-41ff-b1f8-fda1fea5c29b}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get axis actual velocity
+*)
+METHOD Get_ActVel : LREAL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_ActVel:=fb_motionModule.axisActualVel;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_Busy" Id="{451d6a51-b8b7-4640-87ba-97e7c6eaaad8}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get axis busy state
+*)
+METHOD Get_Busy : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Busy:=fb_motionModule.axisBusy;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_Done" Id="{4e152cb6-7a31-477c-a901-02d187f80bb1}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get axis run done signal
+*)
+METHOD Get_Done : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done:=fb_motionModule.axisDone;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_Done_Abs" Id="{f9ad3cc9-3f0a-4411-9971-ea5c28de6080}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get axis abs run done signal
+*)
+METHOD Get_Done_Abs : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Done_Abs:=fb_motionModule.axisDone and ABS(fb_motionModule.axisActualPos-fb_motionModule.absPosition)<fPosDeviation;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_ErrID" Id="{67a89548-c322-437b-ba73-c0108192ba2a}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get axis error id
+*)
+METHOD Get_ErrID : UDINT
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_ErrID:=fb_motionModule.axisErrId;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_Error" Id="{8bf66ea1-e809-49bb-99fc-cb2513c39add}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get axis error state
+*)
+METHOD Get_Error : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Error:=fb_motionModule.axisError;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_ErrTxt" Id="{f65b32f6-7942-4e37-8568-f8341e382604}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get axis errir txt
+*)
+METHOD Get_ErrTxt : STRING(255)
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_ErrTxt:=fb_motionModule.axisErrTxt;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_HomeCondition" Id="{7bd5bf94-9b70-4447-ba94-eb7baf526b18}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get axis HOME condition
+*)
+METHOD Get_HomeCondition : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_HomeCondition:=fb_motionModule.homeCondition;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_HomeState" Id="{6e8e7995-d2e1-4cb1-847a-f9f88f3e2e17}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get axis home state
+*)
+METHOD Get_HomeState : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_HomeState:=fb_motionModule.axisHomeState;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_JogCondition" Id="{892f422b-30ea-4ba5-84a2-8fe2d5cc3c01}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get axis JOG condition
+*)
+METHOD Get_JogCondition : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_JogCondition:=fb_motionModule.jogCondition;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_ModuloCondition" Id="{6229f21b-5daa-405c-a540-84d5e9be5d5d}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get axis Modulo move condition
+*)
+METHOD Get_ModuloCondition : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_ModuloCondition:=fb_motionModule.moveModuloCondition;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_Pause" Id="{c01257a1-a11a-4701-99c7-1dc6925b605f}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get axis pause state
+*)
+METHOD Get_Pause : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_Pause:=fb_motionModule.axisPause;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_pAXIS_REF" Id="{15548e3f-ae67-4629-84e7-56b2f610b4ab}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get axis_ref pointer
+*)
+METHOD Get_pAXIS_REF : POINTER TO AXIS_REF
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_pAXIS_REF:=fb_motionModule.pAxis;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_RelCondition" Id="{4d1cdc65-4ccb-4fff-984a-823091766f20}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get axis REL condition
+*)
+METHOD Get_RelCondition : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_RelCondition:=fb_motionModule.relCondition;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_SetPosCondition" Id="{93a61549-1355-437d-a90d-16f8ce239bc4}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get axis SetPos condition
+*)
+METHOD Get_SetPosCondition : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_SetPosCondition:=fb_motionModule.setCondition;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Get_VelCondition" Id="{a7f48aee-8dce-4cfb-8f2c-a53af1d0d8c3}" FolderPath="Get\">
+      <Declaration><![CDATA[(*
+---Get axis VEL condition
+*)
+METHOD Get_VelCondition : BOOL
+VAR_INPUT
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[Get_VelCondition:=fb_motionModule.velCondition;]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="Obj_Instance" Id="{fac08aae-368a-4e0e-b109-9a866c6dbb9a}">
+      <Implementation>
+        <ST><![CDATA[fb_motionModule(
+	axis:=axis,
+	PLimitSwitch:= bPLimitSwitch, 
+	NLimitSwitch:= bNLimitSwitch, 
+	DOGPointSwitch:= bDOGPointSwitch, 
+	bP_Pos:=bP_Pos,
+	bN_Pos:=bN_Pos,
+	torqueAlmValue:=bTorqueAlmValue,
+	torqueEN:=bTorqueEN,
+	motorType:= eMotorType, 
+	moduloMode:= bModuloMode, 
+	errorID:= nBaseErrID, 
+	nameTXT:= sNameTXT, 
+	axisEnable:= TRUE, 
+	bE_Stop:= bE_Stop, 
+	axisOverride:= , 
+	//ctrlMode:= eCtrlMode,
+	hmiEN:= hmiEN, 
+	powerEnable:= , 
+	powerEnable_Positive:= bEnablePositive, 
+	powerEnable_Negative:= bEnableNegative, 
+	enableSoftLimit:= bEnableSoftLimit, 
+	softPLimitPos:= fSoftPLimitPos, 
+	softNLimitPos:= fSoftNLimitPos, 
+	axisStopFlag:= , 
+	resetExecute:= , 
+	pauseExecute:= , 
+	jogExecute:= , 
+	jogConditionOuter:= bJogConditionOuter, 
+	jogDirection:= , 
+	jogVelocity:= , 
+	jogAcceleration:= , 
+	jogDeceleration:= , 
+	jogJerk:= , 
+	stopExecute:= , 
+	stopDeceleration:= , 
+	stopJerk:= , 
+	absExecute:= , 
+	absMixedMovement:= , 
+	absConditionOuter:= bAbsConditionOuter, 
+	absPosition:= , 
+	absVelocity:= , 
+	absMixedPositionArray:= , 
+	absMixedVelocityArray:= , 
+	absMixedArrayLength:= , 
+	absAcceleration:= , 
+	absDeceleration:= , 
+	absJerk:= , 
+	relExecute:= , 
+	relConditionOuter:= bRelConditionOuter, 
+	relDistance:= , 
+	relVelocity:= , 
+	relAcceleration:= , 
+	relDeceleration:= , 
+	relJerk:= , 
+	velExecute:= , 
+	velConditionOuter:= bVelConditionOuter, 
+	velDirection:= , 
+	velVelocity:= , 
+	velAcceleration:= , 
+	velDeceleration:= , 
+	velJerk:= , 
+	homeExecute:= , 
+	homeConditionOuter:= bHomeConditionOuter, 
+	homeDirection:= bHomeDirection, 
+	homeMode:= eHomeMode, 
+	homeLimitSwitch_To_DOGDistance:= fHomeLimitSwitch_To_DOGDistance, 
+	homeOnlyDOGDistance:= fHomeOnlyDOGDistance, 
+	homeOnlyDOGMaxDistance:= fHomeOnlyDOGMaxDistance, 
+	homePosition:= fHomePosition, 
+	homeCheckRange:= fHomeCheckRange, 
+	homeVel:= fHomeVel, 
+	homeVelSlow:= fHomeVelSlow, 
+	setPosExecute:= , 
+	setConditionOuter:= bSetConditionOuter, 
+	setPosPosition:= , 
+	setPosOptions:= , 
+	moveModuloExecute:= , 
+	moveModuloConditionOuter:= bMoveModuloConditionOuter, 
+	moveModuloPosition:= , 
+	moveModuloVelocity:= , 
+	moveModuloAcceleration:= , 
+	moveModuloDeceleration:= , 
+	moveModuloJerk:= , 
+	moveModuloDirection:= , 
+	axisActualPos=> , 
+	axisActualVel=> , 
+	axisPause=> , 
+	axisBusy=> , 
+	axisDone=> , 
+	axisError=> , 
+	axisErrId=> , 
+	axisErrTxt=> , 
+	axisHomeState=> , 
+	pAxis=> , 
+	jogCondition=> , 
+	absCondition=> , 
+	relCondition=> , 
+	velCondition=> , 
+	homeCondition=> , 
+	setCondition=> , 
+	moveModuloCondition=> );]]></ST>
+      </Implementation>
+    </Action>
+    <Method Name="Set_AccDecJerk" Id="{63bbc8ae-d61b-4426-9939-52f5d096a57e}" FolderPath="Set\">
+      <Declaration><![CDATA[(*
+---Set Acceleration\Deceleration\Jerk
+*)
+METHOD Set_AccDecJerk : BOOL
+VAR_INPUT
+	acc:LREAL;//target Acceleration
+	dec:LREAL;//target Deceleration
+	jerk:LREAL;//target Jerk
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[fb_motionModule.jogAcceleration:=acc;
+fb_motionModule.jogDeceleration:=dec;
+fb_motionModule.jogJerk:=jerk;
+
+fb_motionModule.stopDeceleration:=dec;
+fb_motionModule.stopJerk:=jerk;
+
+fb_motionModule.absAcceleration:=acc;
+fb_motionModule.absDeceleration:=dec;
+fb_motionModule.absJerk:=jerk;
+
+fb_motionModule.relAcceleration:=acc;
+fb_motionModule.relDeceleration:=dec;
+fb_motionModule.relJerk:=jerk;
+
+fb_motionModule.velAcceleration:=acc;
+fb_motionModule.velDeceleration:=dec;
+fb_motionModule.velJerk:=jerk;
+
+fb_motionModule.moveModuloAcceleration:=acc;
+fb_motionModule.moveModuloDeceleration:=dec;
+fb_motionModule.moveModuloJerk:=jerk;
+
+Set_AccDecJerk:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Set_Override" Id="{db30a0b2-d6cf-40f2-b6d4-b2a75679f87a}" FolderPath="Set\">
+      <Declaration><![CDATA[(*
+---Set axis override
+*)
+METHOD Set_Override : BOOL
+VAR_INPUT
+	override:LREAL;//target axis override
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[fb_motionModule.axisOverride:=override;
+
+Set_Override:=TRUE;]]></ST>
+      </Implementation>
+    </Method>
+    <Method Name="Set_Power" Id="{f0a040f0-f08f-4cec-94f4-22763a15d2cf}" FolderPath="Set\">
+      <Declaration><![CDATA[(*
+---Set Power Enable
+*)
+METHOD Set_Power : BOOL
+VAR_INPUT
+	enable:BOOL;
+END_VAR
+]]></Declaration>
+      <Implementation>
+        <ST><![CDATA[fb_motionModule.powerEnable:=enable;]]></ST>
+      </Implementation>
+    </Method>
+    <Action Name="VersionLog" Id="{7cb897e8-f602-47e6-8f6d-44676766ad60}">
+      <Implementation>
+        <ST><![CDATA[(*
+Version: V1.0.0.0
+/-----------------------------------------------/
+Version: V1.0.0.1
+修改：修改电机模块使能触发方式(Add method Set_Power)
+/-----------------------------------------------/
+Version: V1.0.0.2
+修改：增加中文报警输出
+/-----------------------------------------------/
+Version: V1.0.0.3
+修改：增加中优化代码
+/-----------------------------------------------/
+Version: V1.0.0.4
+更新时间: 2020/10/06
+修改：配合轴模块更新
+/-----------------------------------------------/
+*)]]></ST>
+      </Implementation>
+    </Action>
+    <LineIds Name="FB_MotorMovements">
+      <LineId Id="613" Count="0" />
+      <LineId Id="458" Count="0" />
+      <LineId Id="667" Count="0" />
+      <LineId Id="666" Count="0" />
+      <LineId Id="515" Count="0" />
+      <LineId Id="298" Count="1" />
+      <LineId Id="726" Count="0" />
+      <LineId Id="300" Count="5" />
+      <LineId Id="564" Count="0" />
+      <LineId Id="306" Count="8" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Act_ABS">
+      <LineId Id="5" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="12" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Act_ABS_Mixed">
+      <LineId Id="70" Count="2" />
+      <LineId Id="74" Count="3" />
+      <LineId Id="79" Count="1" />
+      <LineId Id="78" Count="0" />
+      <LineId Id="69" Count="0" />
+      <LineId Id="58" Count="0" />
+      <LineId Id="28" Count="0" />
+      <LineId Id="31" Count="0" />
+      <LineId Id="29" Count="1" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="12" Count="1" />
+      <LineId Id="104" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Act_HOME">
+      <LineId Id="12" Count="1" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Act_Modulo">
+      <LineId Id="5" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="12" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Act_PAUSE">
+      <LineId Id="12" Count="1" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Act_REL">
+      <LineId Id="5" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="12" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Act_RESET">
+      <LineId Id="12" Count="1" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Act_SETPOS">
+      <LineId Id="5" Count="0" />
+      <LineId Id="12" Count="1" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Act_STOP">
+      <LineId Id="12" Count="1" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Act_VEL">
+      <LineId Id="5" Count="0" />
+      <LineId Id="8" Count="0" />
+      <LineId Id="12" Count="1" />
+      <LineId Id="24" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Act_VEL_modifyVel">
+      <LineId Id="5" Count="0" />
+      <LineId Id="13" Count="0" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Act_VEL_Stop">
+      <LineId Id="12" Count="1" />
+      <LineId Id="22" Count="0" />
+      <LineId Id="14" Count="0" />
+      <LineId Id="10" Count="1" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Get_AbsCondition">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Get_ActPos">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Get_ActVel">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Get_Busy">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Get_Done">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Get_Done_Abs">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Get_ErrID">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Get_Error">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Get_ErrTxt">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Get_HomeCondition">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Get_HomeState">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Get_JogCondition">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Get_ModuloCondition">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Get_Pause">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Get_pAXIS_REF">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Get_RelCondition">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Get_SetPosCondition">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Get_VelCondition">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Obj_Instance">
+      <LineId Id="99" Count="4" />
+      <LineId Id="196" Count="1" />
+      <LineId Id="203" Count="0" />
+      <LineId Id="200" Count="0" />
+      <LineId Id="104" Count="91" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Set_AccDecJerk">
+      <LineId Id="9" Count="0" />
+      <LineId Id="16" Count="1" />
+      <LineId Id="21" Count="1" />
+      <LineId Id="19" Count="0" />
+      <LineId Id="24" Count="10" />
+      <LineId Id="44" Count="3" />
+      <LineId Id="23" Count="0" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Set_Override">
+      <LineId Id="23" Count="0" />
+      <LineId Id="18" Count="0" />
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.Set_Power">
+      <LineId Id="5" Count="0" />
+    </LineIds>
+    <LineIds Name="FB_MotorMovements.VersionLog">
+      <LineId Id="44" Count="14" />
+      <LineId Id="43" Count="0" />
+      <LineId Id="1" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>
